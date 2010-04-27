@@ -12,4 +12,5 @@ import_array();
 %}
 
 void omp_vec_square(float* INPLACE_ARRAY1, int DIM1);
-void kernel_draw_voxels(int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1);
+void kernel_draw_voxels(int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float gamma, float thres);
+void kernel_draw_voxels_edge(int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float thres);

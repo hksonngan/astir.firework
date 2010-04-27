@@ -83,12 +83,13 @@ def viewer_volume_vtk(vol):
         
 # volume rendering by opengl
 def viewer_volume(vol):
-    from kernel import kernel_draw_voxels
+    from kernel import kernel_draw_voxels, kernel_draw_voxels_edge
     global rotx, roty, rotz, scale
     global xmouse, ymouse, lmouse, rmouse
     global w, h
     global vec, lmap
-    global flag_trans
+    global flag_trans, flag_edge
+    global gamma, thres
 
     wz, wy, wx       = vol.shape
     cz, cy, cx       = wz//2, wy//2, wx//2
@@ -99,6 +100,9 @@ def viewer_volume(vol):
     rotx, roty, rotz = 0.0, 0.0, 0.0
     vec, lmap        = [], []
     flag_trans       = 0
+    flag_edge        = 0
+    gamma            = 1.0
+    thres            = 0.0
 
     def init():
         glClearColor(0.0, 0.0, 0.0, 0.0)
@@ -170,7 +174,7 @@ def viewer_volume(vol):
         for char in txt: glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, ord(char))    
 
     def display():
-        global w, h, vec, lmap, flag_trans
+        global w, h, vec, lmap, flag_trans, flag_edge, gamma, thres
         glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
 
         # some options
@@ -196,7 +200,8 @@ def viewer_volume(vol):
         glTranslatef(-cx, -cy, -cz)
 
         draw_workspace()
-        kernel_draw_voxels(vec, lmap)
+        if flag_edge: kernel_draw_voxels_edge(vec, lmap, thres)
+        else:         kernel_draw_voxels(vec, lmap, gamma, thres)
         if flag_trans:
             glDepthMask(GL_TRUE)
         
@@ -225,7 +230,7 @@ def viewer_volume(vol):
         w, h = neww, newh
 
     def keyboard(key, x, y):
-        global rotx, roty, rotz, flag_trans
+        global rotx, roty, rotz, flag_trans, flag_edge, gamma, thres
         if key == chr(27): sys.exit(0)
         elif key == 'a':   rotx += .5
         elif key == 'z':   rotx -= .5
@@ -234,8 +239,25 @@ def viewer_volume(vol):
         elif key == 'w':   rotz += .5
         elif key == 'x':   rotz -= .5
         elif key == 't':
-            if flag_trans == 0: flag_trans = 1
+            if flag_trans == 0:
+                flag_trans = 1
+                thres      = 0.0
+                flag_edge  = 0
             else:               flag_trans = 0
+        elif key == 'e':
+            if flag_edge == 0:
+                flag_edge  = 1
+                flag_trans = 0
+            else:               flag_edge = 0
+        elif key == '+':
+            if flag_trans:  gamma += 0.01
+            else:           thres -= 0.01
+        elif key == '-':
+            if flag_trans:
+                gamma -= 0.01
+                if gamma < 0: gamma = 0.0
+            else:             thres += 0.01
+
         glutPostRedisplay()
 
     def mouse_click(button, state, x, y):

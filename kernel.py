@@ -50,5 +50,6 @@ del types
 
 omp_vec_square = _kernel.omp_vec_square
 kernel_draw_voxels = _kernel.kernel_draw_voxels
+kernel_draw_voxels_edge = _kernel.kernel_draw_voxels_edge
 
 

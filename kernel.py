@@ -51,5 +51,8 @@ del types
 omp_vec_square = _kernel.omp_vec_square
 kernel_draw_voxels = _kernel.kernel_draw_voxels
 kernel_draw_voxels_edge = _kernel.kernel_draw_voxels_edge
+kernel_draw_2D_line_DDA = _kernel.kernel_draw_2D_line_DDA
+kernel_draw_2D_line_BLA = _kernel.kernel_draw_2D_line_BLA
+kernel_draw_2D_line_WLA = _kernel.kernel_draw_2D_line_WLA
 
 

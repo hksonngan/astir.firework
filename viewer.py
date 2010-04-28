@@ -1,9 +1,9 @@
 #!/usr/bin/env python
-from OpenGL.GLUT import *
-from OpenGL.GL   import *
-from OpenGL.GLU  import *
-from numpy       import array, arange, zeros, flipud
-from sys         import exit
+from OpenGL.GLUT       import *
+from OpenGL.GL         import *
+from OpenGL.GLU        import *
+from numpy             import array, arange, zeros, flipud
+from sys               import exit
 import vtk
 
 # volume rendering by vtk
@@ -724,3 +724,17 @@ def viewer_volume_2(vol):
     glutMotionFunc(mouse_move)
     glutMainLoop()
 
+def viewer_image(mat):
+    import matplotlib.pyplot as plt
+    import numpy as np
+    
+    h, w = mat.shape
+    fig  = plt.figure()
+    ax   = fig.add_subplot(111)
+    cax  = ax.imshow(mat, interpolation='nearest', cmap='hot')
+    ax.set_title('Viewer - FIREwork : %i x %i' % (w, h))
+    min  = mat.min()
+    max  = mat.max()
+    cbar = fig.colorbar(cax, ticks=[min, max])
+    cbar.ax.set_yticklabels(['%5.3f' % min, '%5.3f' % max])
+    plt.show()

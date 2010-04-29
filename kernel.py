@@ -54,5 +54,8 @@ kernel_draw_voxels_edge = _kernel.kernel_draw_voxels_edge
 kernel_draw_2D_line_DDA = _kernel.kernel_draw_2D_line_DDA
 kernel_draw_2D_line_BLA = _kernel.kernel_draw_2D_line_BLA
 kernel_draw_2D_line_WLA = _kernel.kernel_draw_2D_line_WLA
+kernel_draw_2D_line_WALA = _kernel.kernel_draw_2D_line_WALA
+kernel_draw_2D_line_DDAA = _kernel.kernel_draw_2D_line_DDAA
+kernel_draw_3D_line_DDA = _kernel.kernel_draw_3D_line_DDA
 
 

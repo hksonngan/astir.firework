@@ -48,3 +48,8 @@ def image_write(slice, name):
     slice = slice.astype('uint8')
     pilImage = Image.frombuffer('L', (nx, ny), slice, 'raw', 'L', 0, 1)
     pilImage.save(name)
+
+# barrier function
+def wait():
+    raw_input('WAITING [Enter]')
+    return

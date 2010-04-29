@@ -328,19 +328,14 @@ def viewer_volume_2(vol):
     global points, indices
     points, indices = 0, 0
     wz, wy, wx = vol.shape
-    #wz, wy, wx = 64, 64, 64
     cz, cy, cx = wz//2, wy//2, wx//2
-    org        = wx * 0.1
-    wtile      = 32
     
     w, h             = 800, 500
     scale            = 3.0
     lmouse, rmouse   = 0, 0
     xmouse, ymouse   = 0.0, 0.0
     rotx, roty, rotz = 0.0, 0.0, 0.0
-    texture_alongx   = range(wx)
-    texture_alongy   = range(wx, wx+wy)
-    texture_alongz   = range(wx+wy, wx+wy+wz)
+    texture          = 0
     
     # init geometrically a cube
     normals = array([[-1.0, 0.0, 0.0], [0.0,  1.0,  0.0],
@@ -349,9 +344,6 @@ def viewer_volume_2(vol):
     faces =   array([[0, 1, 2, 3], [3, 2, 6, 7],
                      [7, 6, 5, 4], [4, 5, 1, 0],
                      [5, 6, 2, 1], [7, 4, 0, 3]])
-    colors =  array([[1.0, 0.0, 0.0, 0.5], [0.5, 0.5, 0.0, 0.5],
-                     [0.0, 1.0, 0.0, 0.5], [0.0, 0.5, 0.5, 0.5],
-                     [0.0, 0.0, 1.0, 0.5], [0.5, 0.0, 0.5, 0.5]])
     vertexs = zeros((8, 3), 'f')                     
     vertexs[0][0] = vertexs[1][0] = vertexs[2][0] = vertexs[3][0] =  0
     vertexs[4][0] = vertexs[5][0] = vertexs[6][0] = vertexs[7][0] =  wx
@@ -359,197 +351,73 @@ def viewer_volume_2(vol):
     vertexs[2][1] = vertexs[3][1] = vertexs[6][1] = vertexs[7][1] =  wx
     vertexs[0][2] = vertexs[3][2] = vertexs[4][2] = vertexs[7][2] =  wx
     vertexs[1][2] = vertexs[2][2] = vertexs[5][2] = vertexs[6][2] =  0
-    texels = zeros((8, 3), 'f')
+    texels  = zeros((8, 3), 'f')
     texels[0][0] = texels[1][0] = texels[2][0] = texels[3][0] =  0
     texels[4][0] = texels[5][0] = texels[6][0] = texels[7][0] =  1
     texels[0][1] = texels[1][1] = texels[4][1] = texels[5][1] =  0
     texels[2][1] = texels[3][1] = texels[6][1] = texels[7][1] =  1
     texels[0][2] = texels[3][2] = texels[4][2] = texels[7][2] =  1
     texels[1][2] = texels[2][2] = texels[5][2] = texels[6][2] =  0
+
     
-    def init():
+    def init(vol):
         glClearColor (0.0, 0.0, 0.0, 0.0)
         #glEnable(GL_LIGHTING)
         #glEnable(GL_LIGHT0)
-        glShadeModel(GL_FLAT) # not gouraud (only cube)
+        #glShadeModel(GL_FLAT) # not gouraud (only cube)
         glBlendFunc(GL_SRC_ALPHA, GL_ONE)
-        glLightfv(GL_LIGHT0, GL_AMBIENT,  [0.5, 0.5, 0.5, 1.0])
-        glLightfv(GL_LIGHT0, GL_DIFFUSE,  [1.0, 1.0, 1.0, 1.0])
-        glLightfv(GL_LIGHT0, GL_POSITION, [1.0, 1.0, 1.0, 0.0])
-        glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
+        #glLightfv(GL_LIGHT0, GL_AMBIENT,  [0.5, 0.5, 0.5, 1.0])
+        #glLightfv(GL_LIGHT0, GL_DIFFUSE,  [1.0, 1.0, 1.0, 1.0])
+        #glLightfv(GL_LIGHT0, GL_POSITION, [1.0, 1.0, 1.0, 0.0])
+        #glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
         glDisable(GL_DEPTH_TEST)
-        glEnable(GL_COLOR_MATERIAL)
+        glEnable(GL_TEXTURE_3D)
+        glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)        
+        #glEnable(GL_COLOR_MATERIAL)
         glEnable(GL_BLEND)
         glDisable(GL_CULL_FACE)
 
         # Create Texture
-        glGenTextures(wx, texture_alongx)
-        glGenTextures(wy, texture_alongy)
-        glGenTextures(wz, texture_alongz)
-        for i in xrange(wy):
-            # slice along y
-            glBindTexture(GL_TEXTURE_2D, texture_alongy[i])
-            glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-            glTexImage2D(GL_TEXTURE_2D, 0, 1, wx, wz, 0, GL_LUMINANCE, GL_FLOAT, vol[i, :, :]*0.01) # swap real z axe with y axe
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP)
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)
-            #glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP)
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-            #glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-            glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
-
-        for i in xrange(wx):
-            # slice along x
-            glBindTexture(GL_TEXTURE_2D, texture_alongx[i])
-            glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-            glTexImage2D(GL_TEXTURE_2D, 0, 1, wz, wy, 0, GL_LUMINANCE, GL_FLOAT, vol[:, :, i]*0.01)
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP)
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)
-            #glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP)
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-            #glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-            glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
-
-        for i in xrange(wz):
-            # slice along z
-            glBindTexture(GL_TEXTURE_2D, texture_alongz[i])
-            glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
-            glTexImage2D(GL_TEXTURE_2D, 0, 1, wx, wy, 0, GL_LUMINANCE, GL_FLOAT, vol[:, i, :]*0.01) # swap real y axe with z axe
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP)
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP)
-            #glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP)
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
-            glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
-            #glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_CLAMP)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
-            glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST)
-            glTexEnvf(GL_TEXTURE_ENV, GL_TEXTURE_ENV_MODE, GL_REPLACE)
- 
+        glGenTextures(1, texture)
+        glBindTexture(GL_TEXTURE_2D, texture)
+        glPixelStorei(GL_UNPACK_ALIGNMENT, 1)
+        glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_R, GL_REPEAT)
+        glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+        glTexParameterf(GL_TEXTURE_3D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_3D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
+        
+        #vol = vol.reshape((wx*wy*wz))
+        glTexImage3D(GL_TEXTURE_3D, 0, GL_ALPHA, wx, wy, wz, 0, GL_ALPHA, GL_FLOAT, vol)
 
     def draw_cube():
-        
+        glEnable(GL_TEXTURE_3D)
+        glBindTexture(GL_TEXTURE_3D, texture)
+        glDepthMask(GL_FALSE)
+        #glutSolidTeapot(16)
         for i in xrange(6):
-            glColor4fv(colors[i])
             glBegin(GL_QUADS)
-            glNormal3fv(normals[i])            
+            glNormal3fv(normals[i])
+            glTexCoord3fv(texels[faces[i][0]])
             glVertex3fv(vertexs[faces[i][0]])
+            glTexCoord3fv(texels[faces[i][1]])
             glVertex3fv(vertexs[faces[i][1]])
+            glTexCoord3fv(texels[faces[i][2]])
             glVertex3fv(vertexs[faces[i][2]])
+            glTexCoord3fv(texels[faces[i][3]])
             glVertex3fv(vertexs[faces[i][3]])
             glEnd()
-            glColor3f(1.0, 1.0, 1.0)
-        
+        glDisable(GL_TEXTURE_3D)
+        glDepthMask(GL_TRUE)
+        #glColor3f(1.0, 1.0, 1.0)
         #glutSolidCube(32)
 
     def draw_volume():
-        shift = zeros((3), 'f')
-        glDepthMask(GL_FALSE)
-        
-        ## slice along y (voxel casting)
-        for y in xrange(wy):
-            shift[0], shift[1], shift[2] = 0, wy-y, 0
-            glEnable(GL_TEXTURE_2D)
-            glBindTexture(GL_TEXTURE_2D, texture_alongy[y])
-            # first quads (face 3)
-            glColor4fv([1.0, 1.0, 1.0, 1.0])
-            glBegin(GL_QUADS)
-            glNormal3fv(normals[1]) # normal like face 1            
-            glTexCoord2f(1, 1)
-            glVertex3fv(vertexs[faces[3][0]] + shift)
-            glTexCoord2f(1, 0)
-            glVertex3fv(vertexs[faces[3][1]] + shift)
-            glTexCoord2f(0, 0)
-            glVertex3fv(vertexs[faces[3][2]] + shift)
-            glTexCoord2f(0, 1)
-            glVertex3fv(vertexs[faces[3][3]] + shift)
-            glEnd()
-            # second quads
-            shift[0], shift[1], shift[2] = 0, wy-y-1, 0
-            glBegin(GL_QUADS)
-            glNormal3fv(normals[1]) # normal like face 1            
-            glTexCoord2f(1, 1)
-            glVertex3fv(vertexs[faces[3][0]] + shift)
-            glTexCoord2f(1, 0)
-            glVertex3fv(vertexs[faces[3][1]] + shift)
-            glTexCoord2f(0, 0)
-            glVertex3fv(vertexs[faces[3][2]] + shift)
-            glTexCoord2f(0, 1)
-            glVertex3fv(vertexs[faces[3][3]] + shift)
-            glEnd()
-            glDisable(GL_TEXTURE_2D)
-
-        ## slice along x
-        for x in xrange(wx):
-            shift[0], shift[1], shift[2] = x, 0, 0
-            glEnable(GL_TEXTURE_2D)
-            glBindTexture(GL_TEXTURE_2D, texture_alongx[x])
-            # first quad (face 0)
-            glColor4fv([1.0, 1.0, 1.0, 1.0])
-            glBegin(GL_QUADS)
-            glNormal3fv(normals[2]) # normal like face 2            
-            glTexCoord2f(1, 1)
-            glVertex3fv(vertexs[faces[0][0]] + shift)
-            glTexCoord2f(0, 1)
-            glVertex3fv(vertexs[faces[0][1]] + shift)
-            glTexCoord2f(0, 0)
-            glVertex3fv(vertexs[faces[0][2]] + shift)
-            glTexCoord2f(1, 0)
-            glVertex3fv(vertexs[faces[0][3]] + shift)
-            glEnd()
-            # second quads
-            shift[0], shift[1], shift[2] = x+1, 0, 0
-            glBegin(GL_QUADS)
-            glNormal3fv(normals[2]) # normal like face 2            
-            glTexCoord2f(1, 1)
-            glVertex3fv(vertexs[faces[0][0]] + shift)
-            glTexCoord2f(0, 1)
-            glVertex3fv(vertexs[faces[0][1]] + shift)
-            glTexCoord2f(0, 0)
-            glVertex3fv(vertexs[faces[0][2]] + shift)
-            glTexCoord2f(1, 0)
-            glVertex3fv(vertexs[faces[0][3]] + shift)
-            glEnd()
-
-            glDisable(GL_TEXTURE_2D)
-
-        ## slice along z
-        for z in xrange(wz):
-            shift[0], shift[1], shift[2] = 0, 0, z
-            glEnable(GL_TEXTURE_2D)
-            glBindTexture(GL_TEXTURE_2D, texture_alongz[z])
-            # first quad (face 4)
-            glColor4fv([1.0, 1.0, 1.0, 1.0])
-            glBegin(GL_QUADS)
-            glNormal3fv(normals[5]) # normal like face 5
-            glTexCoord2f(1, 0)
-            glVertex3fv(vertexs[faces[4][0]] + shift)
-            glTexCoord2f(1, 1)
-            glVertex3fv(vertexs[faces[4][1]] + shift)
-            glTexCoord2f(0, 1)
-            glVertex3fv(vertexs[faces[4][2]] + shift)
-            glTexCoord2f(0, 0)
-            glVertex3fv(vertexs[faces[4][3]] + shift)
-            glEnd()
-            # second quad
-            shift[0], shift[1], shift[2] = 0, 0, z+1
-            glBegin(GL_QUADS)
-            glNormal3fv(normals[5]) # normal like face 5
-            glTexCoord2f(1, 0)
-            glVertex3fv(vertexs[faces[4][0]] + shift)
-            glTexCoord2f(1, 1)
-            glVertex3fv(vertexs[faces[4][1]] + shift)
-            glTexCoord2f(0, 1)
-            glVertex3fv(vertexs[faces[4][2]] + shift)
-            glTexCoord2f(0, 0)
-            glVertex3fv(vertexs[faces[4][3]] + shift)
-            glEnd()
-            glDisable(GL_TEXTURE_2D)
+        #shift = zeros((3), 'f')
+        #glDepthMask(GL_FALSE)
+        #shift[0], shift[1], shift[2] = 0, wy-y, 0
+        glEnable(GL_TEXTURE_3D)
+        glBindTexture(GL_TEXTURE_3D, texture)
 
         glDepthMask(GL_TRUE)
             
@@ -621,8 +489,8 @@ def viewer_volume_2(vol):
         glScalef(scale, scale, scale)
         glTranslatef(-cx, -cy, -cz)
         draw_workspace()
-        draw_volume()
-        #draw_cube()
+        #draw_volume()
+        draw_cube()
         glTranslate(cx, cy, cz)
         glRotatef(-rotx, 1.0, 0.0, 0.0)
         glRotatef(-roty, 0.0, 1.0, 0.0)
@@ -715,7 +583,7 @@ def viewer_volume_2(vol):
     glutInitWindowSize (w, h)
     glutInitWindowPosition (100, 100)
     glutCreateWindow ('Viewer - FIREwork')
-    init()
+    init(vol)
     #build_quads(vol)
     glutDisplayFunc(display)
     glutReshapeFunc(reshape)

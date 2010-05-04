@@ -82,7 +82,7 @@ def viewer_volume_vtk(vol):
     renderInteractor.Start()
         
 # volume rendering by opengl
-def viewer_volume(vol):
+def volume_show(vol):
     from kernel import kernel_draw_voxels, kernel_draw_voxels_edge
     global rotx, roty, rotz, scale
     global xmouse, ymouse, lmouse, rmouse
@@ -592,9 +592,8 @@ def viewer_volume_2(vol):
     glutMotionFunc(mouse_move)
     glutMainLoop()
 
-def viewer_image(mat):
+def image_show(mat):
     import matplotlib.pyplot as plt
-    import numpy as np
     import thread
 
     def fun(mat):
@@ -611,3 +610,17 @@ def viewer_image(mat):
 
     thread.start_new_thread(fun, (mat,))
     
+# plot 1D hitogram based on 1D data
+def hist1D_plot(data, nbins):
+    import matplotlib.pyplot as plt
+    import matplotlib.mlab   as mlab
+
+    n, bins, patches = plt.hist(data, nbins, facecolor='green', alpha=0.75)
+    #print n
+    #print bins
+    #plt.setp(patches, 'facecolor', 'g', 'alpha', 0.75)
+    plt.title('Viewer - FIREwork hist1D')
+    #plt.axis([min(data), max(data), 0, max(n)])
+    plt.grid(True)
+    
+    plt.show()

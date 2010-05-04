@@ -22,7 +22,6 @@ def image_open(name):
 def volume_open(name, nx, ny, nz, nbyte):
     from numpy  import zeros
     from sys    import exit
-    from struct import unpack
     try:
         data = open(name, 'rb').read()
     except IOError:

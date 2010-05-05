@@ -31,4 +31,7 @@ void kernel_draw_2D_line_WLA(float* mat, int wy, int wx, int x1, int y1, int x2,
 void kernel_draw_2D_line_WALA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val);
 void kernel_draw_2D_line_DDAA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val);
 
+void kernel_draw_2D_alllines_BLA(float* mat, int wy, int wx, int* vec, int nvec);
+void kernel_build_2D_SRM_BLA(int* SRM, int sy, int sx, int* LOR_val, int nval, int* lines, int nvec, int wx);
+
 void kernel_draw_3D_line_DDA(float* mat, int wz, int wy, int wx, int x1, int y1, int z1, int x2, int y2, int z2, float val);

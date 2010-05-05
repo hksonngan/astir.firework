@@ -47,14 +47,12 @@ def viewer_volume_vtk(vol):
     color_func    = vtk.vtkColorTransferFunction()
     color_func.AddRGBPoint(vmax, 1.0, 1.0, 1.0)
 
-    '''
-    color_func.SetColorSpaceToHSV();
-    color_func.HSVWrapOn();
-    color_func.AddHSVPoint( 0.0, 4.0/6.0, 1.0, 1.0);
-    color_func.AddHSVPoint( vmax/4.0, 2.0/6.0, 1.0, 1.0);
-    color_func.AddHSVPoint( vmax/2.0, 1.0/6.0, 1.0, 1.0);
-    color_func.AddHSVPoint( vmax, 5.0/6.0, 1.0, 1.0);
-    '''
+    #color_func.SetColorSpaceToHSV();
+    #color_func.HSVWrapOn();
+    #color_func.AddHSVPoint( 0.0, 4.0/6.0, 1.0, 1.0);
+    #color_func.AddHSVPoint( vmax/4.0, 2.0/6.0, 1.0, 1.0);
+    #color_func.AddHSVPoint( vmax/2.0, 1.0/6.0, 1.0, 1.0);
+    #color_func.AddHSVPoint( vmax, 5.0/6.0, 1.0, 1.0);
 
     vol_property  = vtk.vtkVolumeProperty()
     vol_property.SetColor(color_func)
@@ -612,9 +610,10 @@ def viewer_volume_2(vol):
     glutMotionFunc(mouse_move)
     glutMainLoop()
 
-def image_show(mat):
+def image_show(mat, new = 0):
     import matplotlib.pyplot as plt
     import thread
+    import os, sys
 
     def fun(mat):
         h, w = mat.shape
@@ -628,7 +627,14 @@ def image_show(mat):
         cbar.ax.set_yticklabels(['%5.3f' % min, '%5.3f' % max])
         plt.show()
 
-    thread.start_new_thread(fun, (mat,))
+    if new == 1:
+        thread.start_new_thread(fun, (mat,))
+        #pid, fd = os.forkpty()
+        #if not pid:
+        #    print 'running'
+        #    fun(mat)
+        #    sys.exit()
+    else:   fun(mat)
     
 # plot 1D hitogram based on 1D data
 def hist1D_plot(data, nbins):

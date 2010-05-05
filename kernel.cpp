@@ -315,11 +315,9 @@ void kernel_draw_2D_line_BLA(float* mat, int wy, int wx, int x1, int y1, int x2,
 	x = x1;
 	y = y1;
 	if (dx >= dy) {
-		printf("dx %i dy %i\n", dx, dy);
 		dy <<= 1;
 		balance = dy - dx;
 		dx <<= 1;
-		printf("dx %i dy %i balance %i\n", dx, dy, balance);
 		while (x != x2) {
 			mat[y * wx + x] += val;
 			if (balance >= 0) {
@@ -780,6 +778,82 @@ void kernel_draw_2D_line_WLA(float* mat, int wy, int wx, int x1, int y1, int x2,
 					}
 				}
 			}
+		}
+	}
+}
+
+
+// draw several lines according a vector of LOR (x1, y1, x2, y2, ct, ...) with the BBA method
+void kernel_draw_2D_alllines_BLA(float* mat, int wy, int wx, int* vec, int nvec) {
+	int i, x1, y1, x2, y2;
+	float val;
+	for (i=0; i<nvec; i+=5) {
+		x1 = vec[i];
+		y1 = vec[i+1];
+		x2 = vec[i+2];
+		y2 = vec[i+3];
+		val = (float)vec[i+4];
+		kernel_draw_2D_line_BLA(mat, wy, wx, x1, y1, x2, y2, val);
+	}
+}
+
+// fill the system response matrix according the LOR
+void kernel_build_2D_SRM_BLA(int* SRM, int sy, int sx, int* LOR_val, int nval, int* lines, int nvec, int wx) {
+	int l, x1, y1, x2, y2, val, ind, offset;
+	int x, y, dx, dy, xinc, yinc, balance;
+
+	for (l=0; l<nval; ++l) {
+		ind = 4 * l;
+		offset = sx * l;
+		x1 = lines[ind];
+		y1 = lines[ind+1];
+		x2 = lines[ind+2];
+		y2 = lines[ind+3];
+
+		if (x2 >= x1) {
+			dx = x2 - x1;
+			xinc = 1;
+		} else {
+			dx = x1 - x2;
+			xinc = -1;
+		}
+		if (y2 >= y1) {
+			dy = y2 - y1;
+			yinc = 1;
+		} else {
+			dy = y1 - y2;
+			yinc = -1;
+		}
+		x = x1;
+		y = y1;
+		if (dx >= dy) {
+			dy <<= 1;
+			balance = dy - dx;
+			dx <<= 1;
+			while (x != x2) {
+				SRM[offset + y * wx + x] = LOR_val[l];
+				if (balance >= 0) {
+					y = y + yinc;
+					balance = balance - dx;
+				}
+				balance = balance + dy;
+				x = x + xinc;
+			}
+			SRM[offset + y * wx + x] = LOR_val[l];
+		} else {
+			dx <<= 1;
+			balance = dx - dy;
+			dy <<= 1;
+			while (y != y2) {
+				SRM[offset + y * wx + x] = LOR_val[l];
+				if (balance >= 0) {
+					x = x + xinc;
+					balance = balance - dy;
+				}
+				balance = balance + dx;
+				y = y + yinc;
+			}
+			SRM[offset + y * wx + x] = LOR_val[l];
 		}
 	}
 }

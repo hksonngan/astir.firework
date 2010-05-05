@@ -50,11 +50,6 @@ def volume_open(name, nx, ny, nz, nbyte):
 
     return buf
 
-# get a slice from a volume
-def volume_slice(vol, pos=0, axe='z'):
-    if   axe == 'z': return vol[pos]
-    elif axe == 'x': return vol[:, :, pos]
-    elif axe == 'y': return vol[:, pos, :]
 
 def image_write(slice, name):
     from PIL import Image
@@ -64,6 +59,37 @@ def image_write(slice, name):
     pilImage = Image.frombuffer('L', (nx, ny), slice, 'raw', 'L', 0, 1)
     pilImage.save(name)
 
+# get the 1D projection of an image
+def image_1D_projection(im, axe = 'x'):
+    if   axe == 'x': return im.sum(axis = 1)
+    elif axe == 'y': return im.sum(axis = 0)
+    
+# get the 1D slice of an image
+def image_1D_slice(im, x1, y1, x2, y2):
+    from numpy import array
+    
+    # line based on DDA algorithm
+    length = 0
+    length = abs(x2 - x1)
+    if abs(y2 - y1) > length: length = abs(y2 - y1)
+    xinc = float(x2 - x1) / float(length)
+    yinc = float(y2 - y1) / float(length)
+    x    = x1 + 0.5
+    y    = y1 + 0.5
+    vec  = [] 
+    for i in xrange(length):
+        vec.append(im[int(y), int(x)])
+        x += xinc
+        y += yinc
+    
+    return array(vec, 'float32')
+
+# get a slice from a volume
+def volume_slice(vol, pos=0, axe='z'):
+    if   axe == 'z': return vol[pos]
+    elif axe == 'x': return vol[:, :, pos]
+    elif axe == 'y': return vol[:, pos, :]
+    
 # barrier function
 def wait():
     raw_input('WAITING [Enter]')

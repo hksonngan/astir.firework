@@ -623,8 +623,11 @@ def image_show(mat, new = 0):
         ax.set_title('Viewer - FIREwork : %i x %i' % (w, h))
         min  = mat.min()
         max  = mat.max()
-        cbar = fig.colorbar(cax, ticks=[min, max])
-        cbar.ax.set_yticklabels(['%5.3f' % min, '%5.3f' % max])
+        d    = (max - min) / 9.0
+        lti  = [i*d for i in xrange(10)]
+        txt  = ['%5.3f' % lti[i] for i in xrange(10)]
+        cbar = fig.colorbar(cax, ticks=lti)
+        cbar.ax.set_yticklabels(txt)
         plt.show()
 
     if new == 1:

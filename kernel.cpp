@@ -798,7 +798,7 @@ void kernel_draw_2D_alllines_BLA(float* mat, int wy, int wx, int* vec, int nvec)
 }
 
 // fill the system response matrix according the LOR
-void kernel_build_2D_SRM_BLA(int* SRM, int sy, int sx, int* LOR_val, int nval, int* lines, int nvec, int wx) {
+void kernel_build_2D_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int nval, int* lines, int nvec, int wx) {
 	int l, x1, y1, x2, y2, val, ind, offset;
 	int x, y, dx, dy, xinc, yinc, balance;
 
@@ -854,6 +854,187 @@ void kernel_build_2D_SRM_BLA(int* SRM, int sy, int sx, int* LOR_val, int nval, i
 				y = y + yinc;
 			}
 			SRM[offset + y * wx + x] = LOR_val[l];
+		}
+	}
+}
+
+#define pi 3.141592653589
+// simulate a gamma photon in PET four detectors
+//    # # #
+//  # o o o #
+//  # o x o #
+//  # o o o #
+//    # # #
+void kernel_pet2D_square_gen_sim_ID(int* RES, int nres, float posx, float posy, float alpha, int nx) {
+	double g1_x, g2_x, g1_y, g2_y, incx, incy;
+	int id1, id2;
+	g1_x = (double)posx;
+	g2_x = (double)posx;
+	g1_y = (double)posy;
+	g2_y = (double)posy;
+	alpha = (double)alpha;
+	if ((alpha >= (pi / 4.0)) && (alpha <= (3 * pi / 4.0))) {
+		incx = cos(alpha);
+		incy = 1;
+		while (1) {
+			g1_x += incx;
+			g1_y -= incy;
+			if (g1_x <= 0.0) {
+				id1 = 4 * nx - (int)g1_y - 1;
+				break;
+			}
+			if (g1_x >= nx) {
+				id1 = nx + (int)g1_y + 1;
+				break;
+			}
+			if (g1_y <= 0.0) {
+				id1 = (int)g1_x + 1;
+				break;
+			}					
+		}
+		while (1) {
+			g2_x -= incx;
+			g2_y += incy;
+			if (g2_x >= nx) {
+				id2 = nx + (int)g2_y + 1;
+				break;
+			}
+			if (g2_x <= 0.0) {
+				id2 = 4 * nx - (int)g2_y + 1;
+				break;
+			}
+			if (g2_y >= nx) {
+				id2 = 3 * nx - (int)g2_x + 1;
+				break;
+			}
+		} 
+	} else {
+		if (alpha >= (3 * pi / 4.0)) {incx = -1;}
+		else {incx = 1;}
+		incy = sin(alpha);
+		while (1) {
+			g1_x += incx;
+			g1_y -= incy;
+			if (g1_x <= 0) {
+				id1 = 4 * nx - (int)g1_y + 1;
+				break;
+			}
+			if (g1_x >= nx) {
+				id1 = nx + (int)g1_y + 1;
+				break;
+			}
+			if (g1_y <= 0) {
+				id1 = (int)g1_x + 1;
+				break;
+			}
+		}
+		while (1) {
+			g2_x -= incx;
+			g2_y += incy;
+			if (g2_x >= nx) {
+				id2 = nx + (int)g2_y + 1;
+				break;
+			}
+			if (g2_x <= 0.0) {
+				id2 = 4 * nx - (int)g2_y + 1;
+				break;
+			}
+			if (g2_y >= nx) {
+				id2 = 3 * nx - (int)g2_x + 1;
+				break;
+			}
+		}
+	}
+	RES[0] = id1;
+	RES[1] = id2;
+}
+#undef pi
+
+// EM-ML algorithm, only one tieration
+void kernel_pet2D_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim, int* LOR_val, int nlorval) {
+	int i, j, ind;
+	float qi, buf, f;
+	float* Q = (float*)malloc(nlor * sizeof(float));
+	
+	// compute expected value
+	for (i=0; i<nlor; ++i) {
+		qi = 0.0;
+		ind = i * npix;
+		for (j=0; j<npix; ++j) {qi += (SRM[ind+j] * im[j]);}
+		Q[i] = qi;
+	}
+
+	// update pixel
+	for (j=0; j<npix; ++j) {
+		buf = im[j];
+		if (buf != 0) {
+			f = 0.0;
+			for (i=0; i<nlor; ++i) {
+				f += (LOR_val[i] * SRM[i * npix + j] / Q[i]);
+			}
+			//printf("f %f\n", f);
+			im[j] = buf / S[j] * f;
+		}
+	}
+	free(Q);
+}
+
+
+/**************************************************************
+ * 2D PET SCAN      ring scanner
+ **************************************************************/
+
+// use to fill the SRM in order to compute the sensibility matrix
+void kernel_pet2D_ring_build_SM(float* SRM, int sy, int sx, int x1, int x2, int y1, int y2, int nx) {
+	int l, offset;
+	int x, y, dx, dy, xinc, yinc, balance;
+
+	for (l=0; l<sy; ++l) {
+		offset = sx * l;
+		if (x2 >= x1) {
+			dx = x2 - x1;
+			xinc = 1;
+		} else {
+			dx = x1 - x2;
+			xinc = -1;
+		}
+		if (y2 >= y1) {
+			dy = y2 - y1;
+			yinc = 1;
+		} else {
+			dy = y1 - y2;
+			yinc = -1;
+		}
+		x = x1;
+		y = y1;
+		if (dx >= dy) {
+			dy <<= 1;
+			balance = dy - dx;
+			dx <<= 1;
+			while (x != x2) {
+				SRM[offset + y * nx + x] = 1.0;
+				if (balance >= 0) {
+					y = y + yinc;
+					balance = balance - dx;
+				}
+				balance = balance + dy;
+				x = x + xinc;
+			}
+			SRM[offset + y * nx + x] = 1.0;
+		} else {
+			dx <<= 1;
+			balance = dx - dy;
+			dy <<= 1;
+			while (y != y2) {
+				SRM[offset + y * nx + x] = 1.0;
+				if (balance >= 0) {
+					x = x + xinc;
+					balance = balance - dy;
+				}
+				balance = balance + dx;
+				y = y + yinc;
+			}
+			SRM[offset + y * nx + x] = 1.0;
 		}
 	}
 }

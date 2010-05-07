@@ -17,110 +17,106 @@
 #
 # FIREwire Copyright (C) 2008 - 2010 Julien Bert 
 
-# simulation of gamma photon to PET with four detectors
-def pet_2D_square_test_sim_LOR(posx, posy, nx):
-    from math         import pi, cos, sin
-    from numpy.random import poisson
-    from random       import random, expovariate
-
-    # detector
-      # # #
-    # o o o #
-    # o x o #
-    # o o o #
-      # # #
-    
-    # Poisson distribution
-    v = poisson(lam=2.0, size=(1))[0]
-    r1 = random()
-    r2 = random()
-    #v = expovariate(1.0)
-    if   r1 >= 0.66: x0 = posx + v
-    elif r1 >= 0.33: x0 = posx - v
-    else:            x0 = posx
-    if   r2 >= 0.66: y0 = posy + v
-    elif r2 >= 0.33: y0 = posy - v
-    else:            y0 = posy
-    
-    # uniform angle
-    alpha = random() * pi
-
-    # photon back-to-back simulation
-    g1_x, g2_x   = x0, x0
-    g1_y, g2_y   = y0, y0
-    id1, id2     = -1, -1
-    if alpha >= (pi / 4.0) and alpha <= (3 * pi / 4.0):
-        incx = cos(alpha)
-        incy = 1
-        while 1:
-            g1_x += incx
-            g1_y -= incy
-            if g1_x <= 0:
-                id1 = 2 * nx + 2 * nx - int(g1_y) - 1
-                break
-            if g1_x >= nx:
-                id1 = nx + int(g1_y) + 1
-                break
-            if g1_y <= 0:
-                id1 = int(g1_x) + 1
-                break
-        while 1:
-            g2_x -= incx
-            g2_y += incy
-            if g2_x >= nx:
-                id2 = nx + int(g2_y) + 1
-                break
-            if g2_x <= 0:
-                id2 = 2 * nx + 2 * nx - int(g2_y) + 1
-                break
-            if g2_y >= nx:
-                id2 = 2 * nx + nx - int(g2_x) + 1
-                break
-    else:
-        if alpha >= (3 * pi / 4.0): incx = -1
-        else:                       incx =  1
-        incy = sin(alpha)
-        while 1:
-            g1_x += incx
-            g1_y -= incy
-            if g1_x <= 0:
-                id1 = 2 * nx + 2 * nx - int(g1_y) + 1
-                break
-            if g1_x >= nx:
-                id1 = nx + int(g1_y) + 1
-                break
-            if g1_y <= 0:
-                id1 = int(g1_x) + 1
-                break
-        while 1:
-            g2_x -= incx
-            g2_y += incy
-            if g2_x >= nx:
-                id2 = nx + int(g2_y) + 1
-                break
-            if g2_x <= 0:
-                id2 = 2 * nx + 2 * nx - int(g2_y) + 1
-                break
-            if g2_y >= nx:
-                id2 = 2 * nx + nx - int(g2_x) + 1
-                break
-            
-    return id1, id2, x0, y0
-    
-
-# create a list-mode from a simple simulate data
-def pet2D_square_test_LOR(nx, posx, posy, nbp, rnd = 10):
+# create a list-mode from a simple simulate data with only one point in space
+def pet2D_square_test_1point_LOR(nx, posx, posy, nbp, rnd = 10):
+    from kernel       import kernel_pet2D_square_gen_sim_ID
     from numpy        import zeros, array
-    from random       import seed
+    from numpy.random import poisson
+    from random       import seed, random, randrange
+    from math         import pi
     seed(10)
 
     crystals = zeros((nx*nx, nx*nx), 'f')
     image    = zeros((nx, nx), 'f')
-    
+    pp1      = poisson(lam=2.0, size=(nbp)).astype('f')
+    ps1      = [randrange(-1, 2) for i in xrange(nbp)]
+    pp2      = poisson(lam=2.0, size=(nbp)).astype('f')
+    ps2      = [randrange(-1, 2) for i in xrange(nbp)]
+    alpha    = [random()*pi for i in xrange(nbp)]
+    res      = zeros((2), 'i')
     for p in xrange(nbp):
-        id1, id2, x0, y0 = pet_2D_square_test_sim_LOR(posx, posy, nx)
+        x = posx + (ps1[p] * pp1[p])
+        y = posy + (ps2[p] * pp2[p])
+        kernel_pet2D_square_gen_sim_ID(res, x, y, alpha[p], nx)
+        id1, id2 = res
         crystals[id2, id1] += 1.0
-        image[y0, x0]      += 1.0
+        image[y, x]  += 1.0
+
+    # build LOR
+    LOR_val = []
+    LOR_id1 = []
+    LOR_id2 = []
+    for id2 in xrange(nx*nx):
+        for id1 in xrange(nx*nx):
+            val = int(crystals[id2, id1])
+            if val != 0:
+                LOR_val.append(val)
+                LOR_id1.append(id1)
+                LOR_id2.append(id2)
+
+    LOR_val = array(LOR_val, 'i')
+    LOR_id1 = array(LOR_id1, 'i')
+    LOR_id2 = array(LOR_id2, 'i')
+
+    return LOR_val, LOR_id1, LOR_id2, image
+
+# create a list-mode from a simple simulate data with circle phantom
+# image size is fixed to 65x65 with three differents activities
+def pet2D_square_test_circle_LOR(nbp, rnd = 10):
+    from kernel       import kernel_pet2D_square_gen_sim_ID
+    from numpy        import zeros, array
+    from numpy.random import poisson
+    from numpy.random import seed as seed2
+    from random       import seed, random, randrange
+    from math         import pi
+    seed(rnd)
+    seed2(rnd)
+
+    nx        = 65
+    crystals  = zeros((nx*nx, nx*nx), 'f')
+    image     = zeros((nx, nx), 'f')
+    source    = []
+    
+    # three differents circle
+    cx0, cy0, r0 = 32, 32, 16
+    cx1, cy1, r1 = 36, 36, 7
+    cx2, cy2, r2 = 26, 26, 2
+    r02          = r0*r0
+    r12          = r1*r1
+    r22          = r2*r2
+    for y in xrange(nx):
+        for x in xrange(nx):
+            if ((cx0-x)*(cx0-x) + (cy0-y)*(cy0-y)) <= r02:
+                # inside the first circle
+                if ((cx1-x)*(cx1-x) + (cy1-y)*(cy1-y)) <= r12:
+                    # inside the second circle (do nothing)
+                    continue
+                
+                if ((cx2-x)*(cx2-x) + (cy2-y)*(cy2-y)) <= r22:
+                    # inside the third circle
+                    source.extend([x, y, 5])
+                    #image[y, x] = 5
+                else:
+                    # inside the first circle
+                    source.extend([x, y, 1])
+                    #image[y, x] = 1
+                    
+    nbpix  = len(source) // 3
+    pp1    = poisson(lam=1.0, size=(nbp)).astype('f')
+    ps1    = [randrange(-1, 2) for i in xrange(nbp)]
+    pp2    = poisson(lam=1.0, size=(nbp)).astype('f')
+    ps2    = [randrange(-1, 2) for i in xrange(nbp)]
+    alpha  = [random()*pi for i in xrange(nbp)]
+    ind    = [randrange(nbpix) for i in xrange(nbp)]
+    res    = zeros((2), 'i')
+    for p in xrange(nbp):
+        x   = source[3*ind[p]]   + (ps1[p] * pp1[p])
+        y   = source[3*ind[p]+1] + (ps2[p] * pp2[p])
+        val = source[3*ind[p]+2]
+        kernel_pet2D_square_gen_sim_ID(res, x, y, alpha[p], nx)
+        id1, id2 = res
+        crystals[id2, id1] += val
+        image[y, x]  += source[3*ind[p]+2]
 
     # build LOR
     LOR_val = []
@@ -147,7 +143,7 @@ def pet2D_square_build_SM(nx):
     from utils  import image_1D_projection
 
     nlor    = 6 * nx * nx  # pet 4 heads
-    SRM     = zeros((nlor, nx * nx), 'i')
+    SRM     = zeros((nlor, nx * nx), 'float32')
     line    = zeros((4 * nlor), 'i')
     LOR_val = ones((nlor), 'i')
 
@@ -190,7 +186,7 @@ def pet2D_square_build_SRM_LOR(LOR_val, LOR_id1, LOR_id2, nx):
     from kernel import kernel_build_2D_SRM_BLA
     
     nlor = len(LOR_val)
-    SRM  = zeros((nlor, nx*nx), 'int32')
+    SRM  = zeros((nlor, nx*nx), 'float32')
     N    = len(LOR_val)
     line = zeros((4 * N), 'i') # format [x1, y1, x2, y2, ct]
 
@@ -235,4 +231,119 @@ def pet2D_square_build_SRM_LOR(LOR_val, LOR_id1, LOR_id2, nx):
             
     return SRM
 
+###############################################################################
+# PET 2D ring scanner
+###############################################################################
+
+# build the sensibility Matrix to 2D ring PET scan according all possibles LORs
+def pet2D_ring_build_SM(nbcrystals):
+    from numpy  import zeros
+    from math   import cos, sin, pi, sqrt
+    from kernel import kernel_pet2D_ring_build_SM
+    from utils  import image_1D_projection
+
+    dia    = int(nbcrystals / pi + 0.5)
+    dia    = dia + dia % 2 + 1                     # dia PET must be odd
+    radius = float((dia - 1) // 2 + 1)             # radius PET
+    cxo    = cyo = (radius - 1)                    # center PET
+    Nlor   = (nbcrystals-1) * (nbcrystals-1) / 2   # nb all possible LOR
     
+    # build SRM for only the square image inside the ring of the PET
+    SM = zeros((dia * dia), 'float32')
+    for i in xrange(nbcrystals):
+        nlor = nbcrystals-(i+1)
+        SRM = zeros((nlor, dia * dia), 'float32')
+        for j in xrange(i+1, nbcrystals):
+            alpha1 = i / radius
+            alpha2 = j / radius
+            x1     = int(cxo + (radius-1) * cos(alpha1) + 0.5)
+            x2     = int(cxo + (radius-1) * cos(alpha2) + 0.5)
+            y1     = int(cyo + (radius-1) * sin(alpha1) + 0.5)
+            y2     = int(cyo + (radius-1) * sin(alpha2) + 0.5)
+            kernel_pet2D_ring_build_SM(SRM, x1, y1, x2, y2, dia)
+
+        # sum by step in order to decrease the memory for this stage
+        norm = image_1D_projection(SRM, 'x')
+        SRM  = SRM.astype('f')
+        for i in xrange(nlor): SRM[i] /= float(norm[i])
+        res = image_1D_projection(SRM, 'y')
+        SM += res
+ 
+    return SM
+
+# PET 2D ring scan
+# create a list-mode from a simple simulate phantom (three activities)
+def pet2D_ring_simu_circle_phantom(nbcrystals, nbparticules, rnd = 10):
+    from numpy        import zeros, array
+    from numpy.random import poisson
+    from numpy.random import seed as seed2
+    from random       import seed, random, randrange
+    from math         import pi
+    seed(rnd)
+    seed2(rnd)
+
+    dia      = int(nbcrystals / pi + 0.5)
+    dia      = dia + dia % 2 + 1                     # dia PET must be odd
+    radius   = float((dia - 1) // 2 + 1)             # radius PET
+    cxo      = cyo = (radius - 1)                    # center PET
+    crystals = zeros((nbcrystals, nbcrystals), 'float32')
+    image    = zeros((dia, dia), 'float32')
+    source   = []
+    
+    # three differents circle
+    cx0, cy0, r0 = cxo+32, cyo+32, 16
+    cx1, cy1, r1 = cxo+4,  cyo+4,   7
+    cx2, cy2, r2 = cxo-6,  cyo-6,   2
+    r02          = r0*r0
+    r12          = r1*r1
+    r22          = r2*r2
+    for y in xrange(nx):
+        for x in xrange(nx):
+            if ((cx0-x)*(cx0-x) + (cy0-y)*(cy0-y)) <= r02:
+                # inside the first circle
+                if ((cx1-x)*(cx1-x) + (cy1-y)*(cy1-y)) <= r12:
+                    # inside the second circle (do nothing)
+                    continue
+                if ((cx2-x)*(cx2-x) + (cy2-y)*(cy2-y)) <= r22:
+                    # inside the third circle
+                    source.extend([x, y, 5])
+                    #image[y, x] = 5
+                else:
+                    # inside the first circle
+                    source.extend([x, y, 1])
+                    #image[y, x] = 1
+                    
+    nbpix  = len(source) // 3
+    pp1    = poisson(lam=1.0, size=(nbp)).astype('f')
+    ps1    = [randrange(-1, 2) for i in xrange(nbp)]
+    pp2    = poisson(lam=1.0, size=(nbp)).astype('f')
+    ps2    = [randrange(-1, 2) for i in xrange(nbp)]
+    alpha  = [random()*pi for i in xrange(nbp)]
+    ind    = [randrange(nbpix) for i in xrange(nbp)]
+    res    = zeros((2), 'i')
+    for p in xrange(nbp):
+        x   = source[3*ind[p]]   + (ps1[p] * pp1[p])
+        y   = source[3*ind[p]+1] + (ps2[p] * pp2[p])
+        val = source[3*ind[p]+2]
+        kernel_pet2D_square_gen_sim_ID(res, x, y, alpha[p], nx)
+        id1, id2 = res
+        crystals[id2, id1] += val
+        image[y, x]  += source[3*ind[p]+2]
+
+    # build LOR
+    LOR_val = []
+    LOR_id1 = []
+    LOR_id2 = []
+    for id2 in xrange(nx*nx):
+        for id1 in xrange(nx*nx):
+            val = int(crystals[id2, id1])
+            if val != 0:
+                LOR_val.append(val)
+                LOR_id1.append(id1)
+                LOR_id2.append(id2)
+
+    LOR_val = array(LOR_val, 'i')
+    LOR_id1 = array(LOR_id1, 'i')
+    LOR_id2 = array(LOR_id2, 'i')
+
+    return LOR_val, LOR_id1, LOR_id2, image

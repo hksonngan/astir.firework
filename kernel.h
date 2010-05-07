@@ -32,6 +32,11 @@ void kernel_draw_2D_line_WALA(float* mat, int wy, int wx, int x1, int y1, int x2
 void kernel_draw_2D_line_DDAA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val);
 
 void kernel_draw_2D_alllines_BLA(float* mat, int wy, int wx, int* vec, int nvec);
-void kernel_build_2D_SRM_BLA(int* SRM, int sy, int sx, int* LOR_val, int nval, int* lines, int nvec, int wx);
+void kernel_pet2D_square_gen_sim_ID(int* RES, int nres, float posx, float posy, float alpha, int nx);
+void kernel_build_2D_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int nval, int* lines, int nvec, int wx);
+void kernel_pet2D_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim, int* LOR_val, int nlorval);
+
+// PET 2D  ring scan
+void kernel_pet2D_ring_build_SM(float* SRM, int sy, int sx, int x1, int x2, int y1, int y2, int nx);
 
 void kernel_draw_3D_line_DDA(float* mat, int wz, int wy, int wx, int x1, int y1, int z1, int x2, int y2, int z2, float val);

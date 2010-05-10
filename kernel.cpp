@@ -985,12 +985,98 @@ void kernel_pet2D_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, f
  **************************************************************/
 
 // use to fill the SRM in order to compute the sensibility matrix
-void kernel_pet2D_ring_build_SM(float* SRM, int sy, int sx, int x1, int x2, int y1, int y2, int nx) {
-	int l, offset;
+void kernel_pet2D_ring_build_SM(float* SRM, int sy, int sx, int x1, int y1, int x2, int y2, int nx, int numlor) {
+	int offset;
 	int x, y, dx, dy, xinc, yinc, balance;
 
-	for (l=0; l<sy; ++l) {
+	offset = sx * numlor;
+	if (x2 >= x1) {
+		dx = x2 - x1;
+		xinc = 1;
+	} else {
+		dx = x1 - x2;
+		xinc = -1;
+	}
+	if (y2 >= y1) {
+		dy = y2 - y1;
+		yinc = 1;
+	} else {
+		dy = y1 - y2;
+		yinc = -1;
+	}
+	x = x1;
+	y = y1;
+	if (dx >= dy) {
+		dy <<= 1;
+		balance = dy - dx;
+		dx <<= 1;
+		while (x != x2) {
+			SRM[offset + y * nx + x] = 1.0;
+			if (balance >= 0) {
+				y = y + yinc;
+				balance = balance - dx;
+			}
+			balance = balance + dy;
+			x = x + xinc;
+		}
+		SRM[offset + y * nx + x] = 1.0;
+	} else {
+		dx <<= 1;
+		balance = dx - dy;
+		dy <<= 1;
+		while (y != y2) {
+			SRM[offset + y * nx + x] = 1.0;
+			if (balance >= 0) {
+				x = x + xinc;
+				balance = balance - dy;
+			}
+			balance = balance + dx;
+			y = y + yinc;
+		}
+		SRM[offset + y * nx + x] = 1.0;
+	}
+}
+
+#define pi 3.141592653589
+// simulate a gamma photon in 2D PET ring detectors
+void kernel_pet2D_ring_gen_sim_ID(int* RES, int nres, int posx, int posy, float alpha, int radius) {
+	double dx, dy, b, c, d, k0, k1;
+	double x1, y1, x2, y2;
+	dx = cos(alpha);
+	dy = sin(alpha);
+	b  = 2 * (dx*(posx-radius) + dy*(posy-radius));
+	c  = 2*radius*radius + posx*posx + posy*posy - 2*(radius*posx + radius*posy) - radius*radius;
+	d  = b*b - 4*c;
+	k0 = (-b + sqrt(d)) / 2.0;
+	k1 = (-b - sqrt(d)) / 2.0;
+	x1 = posx + k0*dx;
+	y1 = posy + k0*dy;
+	x2 = posx + k1*dx;
+	y2 = posy + k1*dy;
+		
+}
+#undef pi
+
+#define pi 3.141592653589
+// fill the system response matrix according the LOR
+void kernel_pet2D_ring_LOR_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int nval, int* ID1, int nid1, int* ID2, int nid2, int nbcrystals) {
+	int l, x1, y1, x2, y2, val, ind, offset;
+	int x, y, dx, dy, xinc, yinc, balance;
+	double alpha;
+	double radius = (double)int(nbcrystals / 2.0 / pi + 0.5);
+	int wx = 2*radius+1;
+
+	for (l=0; l<nval; ++l) {
+		ind = 4 * l;
 		offset = sx * l;
+		// convert id crystal to x, y
+		alpha = (double)ID1[l] / radius;
+		x1 = int(radius + radius * cos(alpha) + 0.5);
+		y1 = int(radius - radius * sin(alpha) + 0.5);
+		alpha = (double)ID2[l] / radius;
+		x2 = int(radius + radius * cos(alpha) + 0.5);
+		y2 = int(radius - radius * sin(alpha) + 0.5);
+		// drawing line
 		if (x2 >= x1) {
 			dx = x2 - x1;
 			xinc = 1;
@@ -1012,7 +1098,7 @@ void kernel_pet2D_ring_build_SM(float* SRM, int sy, int sx, int x1, int x2, int 
 			balance = dy - dx;
 			dx <<= 1;
 			while (x != x2) {
-				SRM[offset + y * nx + x] = 1.0;
+				SRM[offset + y * wx + x] = LOR_val[l];
 				if (balance >= 0) {
 					y = y + yinc;
 					balance = balance - dx;
@@ -1020,13 +1106,13 @@ void kernel_pet2D_ring_build_SM(float* SRM, int sy, int sx, int x1, int x2, int 
 				balance = balance + dy;
 				x = x + xinc;
 			}
-			SRM[offset + y * nx + x] = 1.0;
+			SRM[offset + y * wx + x] = LOR_val[l];
 		} else {
 			dx <<= 1;
 			balance = dx - dy;
 			dy <<= 1;
 			while (y != y2) {
-				SRM[offset + y * nx + x] = 1.0;
+				SRM[offset + y * wx + x] = LOR_val[l];
 				if (balance >= 0) {
 					x = x + xinc;
 					balance = balance - dy;
@@ -1034,7 +1120,8 @@ void kernel_pet2D_ring_build_SM(float* SRM, int sy, int sx, int x1, int x2, int 
 				balance = balance + dx;
 				y = y + yinc;
 			}
-			SRM[offset + y * nx + x] = 1.0;
+			SRM[offset + y * wx + x] = LOR_val[l];
 		}
 	}
 }
+#undef pi

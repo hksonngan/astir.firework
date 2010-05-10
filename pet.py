@@ -242,26 +242,27 @@ def pet2D_ring_build_SM(nbcrystals):
     from kernel import kernel_pet2D_ring_build_SM
     from utils  import image_1D_projection
 
-    dia    = int(nbcrystals / pi + 0.5)
-    dia    = dia + dia % 2 + 1                     # dia PET must be odd
-    radius = float((dia - 1) // 2 + 1)             # radius PET
-    cxo    = cyo = (radius - 1)                    # center PET
+    radius = int(nbcrystals / 2.0 / pi + 0.5)      # radius PET
+    dia    = 2 * radius + 1                        # dia PET must be odd
+    cxo    = cyo = radius                          # center PET
     Nlor   = (nbcrystals-1) * (nbcrystals-1) / 2   # nb all possible LOR
-    
+    radius = float(radius)
+
     # build SRM for only the square image inside the ring of the PET
     SM = zeros((dia * dia), 'float32')
     for i in xrange(nbcrystals):
-        nlor = nbcrystals-(i+1)
-        SRM = zeros((nlor, dia * dia), 'float32')
+        nlor  = nbcrystals-(i+1)
+        index = 0
+        SRM   = zeros((nlor, dia * dia), 'float32')
         for j in xrange(i+1, nbcrystals):
             alpha1 = i / radius
             alpha2 = j / radius
-            x1     = int(cxo + (radius-1) * cos(alpha1) + 0.5)
-            x2     = int(cxo + (radius-1) * cos(alpha2) + 0.5)
-            y1     = int(cyo + (radius-1) * sin(alpha1) + 0.5)
-            y2     = int(cyo + (radius-1) * sin(alpha2) + 0.5)
-            kernel_pet2D_ring_build_SM(SRM, x1, y1, x2, y2, dia)
-
+            x1     = int(cxo + radius * cos(alpha1) + 0.5)
+            x2     = int(cxo + radius * cos(alpha2) + 0.5)
+            y1     = int(cyo - radius * sin(alpha1) + 0.5)
+            y2     = int(cyo - radius * sin(alpha2) + 0.5)
+            kernel_pet2D_ring_build_SM(SRM, x1, y1, x2, y2, dia, index)
+            index += 1
         # sum by step in order to decrease the memory for this stage
         norm = image_1D_projection(SRM, 'x')
         SRM  = SRM.astype('f')
@@ -271,34 +272,33 @@ def pet2D_ring_build_SM(nbcrystals):
  
     return SM
 
-# PET 2D ring scan
-# create a list-mode from a simple simulate phantom (three activities)
+# PET 2D ring scan create LOR event from a simple simulate phantom (three activities)
 def pet2D_ring_simu_circle_phantom(nbcrystals, nbparticules, rnd = 10):
     from numpy        import zeros, array
     from numpy.random import poisson
     from numpy.random import seed as seed2
     from random       import seed, random, randrange
-    from math         import pi
+    from math         import pi, sqrt, cos, sin
+    from kernel       import kernel_pet2D_ring_gen_sim_ID, kernel_draw_2D_line_BLA
     seed(rnd)
     seed2(rnd)
 
-    dia      = int(nbcrystals / pi + 0.5)
-    dia      = dia + dia % 2 + 1                     # dia PET must be odd
-    radius   = float((dia - 1) // 2 + 1)             # radius PET
-    cxo      = cyo = (radius - 1)                    # center PET
+    radius = int(nbcrystals / 2.0 / pi + 0.5)      # radius PET
+    dia    = 2 * radius + 1                        # dia PET must be odd
+    cxo    = cyo = radius                          # center PET
     crystals = zeros((nbcrystals, nbcrystals), 'float32')
     image    = zeros((dia, dia), 'float32')
     source   = []
-    
+
     # three differents circle
-    cx0, cy0, r0 = cxo+32, cyo+32, 16
-    cx1, cy1, r1 = cxo+4,  cyo+4,   7
-    cx2, cy2, r2 = cxo-6,  cyo-6,   2
+    cx0, cy0, r0 = cxo,    cyo,    16
+    cx1, cy1, r1 = cx0+4,  cy0+4,   7
+    cx2, cy2, r2 = cx0-6,  cy0-6,   2
     r02          = r0*r0
     r12          = r1*r1
     r22          = r2*r2
-    for y in xrange(nx):
-        for x in xrange(nx):
+    for y in xrange(dia):
+        for x in xrange(dia):
             if ((cx0-x)*(cx0-x) + (cy0-y)*(cy0-y)) <= r02:
                 # inside the first circle
                 if ((cx1-x)*(cx1-x) + (cy1-y)*(cy1-y)) <= r12:
@@ -314,36 +314,39 @@ def pet2D_ring_simu_circle_phantom(nbcrystals, nbparticules, rnd = 10):
                     #image[y, x] = 1
                     
     nbpix  = len(source) // 3
-    pp1    = poisson(lam=1.0, size=(nbp)).astype('f')
-    ps1    = [randrange(-1, 2) for i in xrange(nbp)]
-    pp2    = poisson(lam=1.0, size=(nbp)).astype('f')
-    ps2    = [randrange(-1, 2) for i in xrange(nbp)]
-    alpha  = [random()*pi for i in xrange(nbp)]
-    ind    = [randrange(nbpix) for i in xrange(nbp)]
-    res    = zeros((2), 'i')
-    for p in xrange(nbp):
-        x   = source[3*ind[p]]   + (ps1[p] * pp1[p])
-        y   = source[3*ind[p]+1] + (ps2[p] * pp2[p])
+    pp1    = poisson(lam=1.0, size=(nbparticules)).astype('int32')
+    ps1    = [randrange(-1, 2) for i in xrange(nbparticules)]
+    pp2    = poisson(lam=1.0, size=(nbparticules)).astype('int32')
+    ps2    = [randrange(-1, 2) for i in xrange(nbparticules)]
+    alpha  = [random()*pi for i in xrange(nbparticules)]
+    ind    = [randrange(nbpix) for i in xrange(nbparticules)]
+    res    = zeros((2), 'int32')
+    lines  = zeros((4), 'int32')
+    for p in xrange(nbparticules):
+        x   = int(source[3*ind[p]]   + (ps1[p] * pp1[p]))
+        y   = int(source[3*ind[p]+1] + (ps2[p] * pp2[p]))
         val = source[3*ind[p]+2]
-        kernel_pet2D_square_gen_sim_ID(res, x, y, alpha[p], nx)
+        kernel_pet2D_ring_gen_sim_ID(res, x, y, alpha[p], radius, lines)
         id1, id2 = res
         crystals[id2, id1] += val
-        image[y, x]  += source[3*ind[p]+2]
+        print lines
+        kernel_draw_2D_line_BLA(image, int(lines[0]), int(lines[1]), int(lines[2]), int(lines[3]), val)
+        #image[y, x]  += source[3*ind[p]+2]
 
     # build LOR
     LOR_val = []
     LOR_id1 = []
     LOR_id2 = []
-    for id2 in xrange(nx*nx):
-        for id1 in xrange(nx*nx):
+    for id2 in xrange(nbcrystals):
+        for id1 in xrange(nbcrystals):
             val = int(crystals[id2, id1])
             if val != 0:
                 LOR_val.append(val)
                 LOR_id1.append(id1)
                 LOR_id2.append(id2)
 
-    LOR_val = array(LOR_val, 'i')
-    LOR_id1 = array(LOR_id1, 'i')
-    LOR_id2 = array(LOR_id2, 'i')
+    LOR_val = array(LOR_val, 'int32')
+    LOR_id1 = array(LOR_id1, 'int32')
+    LOR_id2 = array(LOR_id2, 'int32')
 
     return LOR_val, LOR_id1, LOR_id2, image

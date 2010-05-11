@@ -25,9 +25,10 @@ try:
 except:
     print 'Please install "ipython".'
     exit()
-
 try:
     from firework      import *
+    from numpy         import *
+    from math          import *
 except:
     print 'Please check your installation'
     exit()
@@ -37,33 +38,27 @@ def myinputprompt(self, cont):
     count  = str(len(ip.user_ns['_ih']))
     colors = Prompts.PromptColors[''].colors
     if cont:
-        return '%s%s%s%%%s ' % ('\033[0;34m', '.' * (len('astir ')+ len(count) + 1), colors.in_number, colors.normal)
+        return '%s%s%s%%%s ' % ('\033[0;34m', '.' * (len('fw ')+ len(count) + 1), colors.in_number, colors.normal)
     else:
-        return '%sastir %s%s %%%s ' % ('\033[0;34m', colors.in_number, count, colors.normal)
+        return '%sfw %s%s %%%s ' % ('\033[0;34m', colors.in_number, count, colors.normal)
 
 def myoutputprompt(self):
     ip     = self.api
     count  = str(len(ip.user_ns['_ih']))
     colors = Prompts.PromptColors[''].colors
-    return '%s%s%%%s ' % (colors.out_number, ' ' * (len('astir ') + len(count) + 1), colors.normal)
+    return '%s%s%%%s ' % (colors.out_number, ' ' * (len('fw ') + len(count) + 1), colors.normal)
 
-print '  ___      _   _'
-print ' / _ \    | | (_)'         
-print '/ /_\ \___| |_ _ _ __' 
-print '|  _  / __| __| | \'__)'
-print '| | | \__ \ |_| | |'
-print '\_| |_/___/\__|_|_|'
-print ''
-print 'This file is part of FIREwire'
-print 'FIREwire  Copyright (C) 2008 - 2010  Julien Bert'
+'''
+print 'This file is part of FIREwork'
+print 'FIREwork  Copyright (C) 2008 - 2010  Julien Bert'
 print 'This program comes with ABSOLUTELY NO WARRANTY; for details type "licence".'
 print 'This is free software, and you are welcome to redistribute it'
 print 'under certain conditions; type "licence" for details.'
 print 'GNU General Public License version 3'
 print ''
-#print '** Astir Shell V1.00 **\n'
+'''
 
-ipshell = IPShellEmbed(banner="** Astir Shell V1.00 **")
+ipshell = IPShellEmbed(banner="** FireShell V1.00 **")
 ipapi.get().set_hook("generate_prompt", myinputprompt)
 ipapi.get().set_hook("generate_output_prompt", myoutputprompt)
 ipshell()

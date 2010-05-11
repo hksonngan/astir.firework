@@ -950,7 +950,11 @@ void kernel_pet2D_square_gen_sim_ID(int* RES, int nres, float posx, float posy, 
 }
 #undef pi
 
-// EM-ML algorithm, only one tieration
+/**************************************************************
+ * 2D PET SCAN      resconstruction
+ **************************************************************/
+
+// EM-ML algorithm, only one iteration
 void kernel_pet2D_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim, int* LOR_val, int nlorval) {
 	int i, j, ind;
 	float qi, buf, f;
@@ -967,18 +971,17 @@ void kernel_pet2D_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, f
 	// update pixel
 	for (j=0; j<npix; ++j) {
 		buf = im[j];
+		
 		if (buf != 0) {
 			f = 0.0;
 			for (i=0; i<nlor; ++i) {
 				f += (LOR_val[i] * SRM[i * npix + j] / Q[i]);
 			}
-			//printf("f %f\n", f);
 			im[j] = buf / S[j] * f;
 		}
 	}
 	free(Q);
 }
-
 
 /**************************************************************
  * 2D PET SCAN      ring scanner
@@ -1042,9 +1045,10 @@ void kernel_pet2D_ring_build_SM(float* SRM, int sy, int sx, int x1, int y1, int 
 void kernel_pet2D_ring_gen_sim_ID(int* RES, int nres, int posx, int posy, float alpha, int radius) {
 	double dx, dy, b, c, d, k0, k1;
 	double x1, y1, x2, y2;
+	int id1, id2;
 	dx = cos(alpha);
 	dy = sin(alpha);
-	b  = 2 * (dx*(posx-radius) + dy*(posy-radius));
+	b  = 2 * (dx*(posx-radius) + dy*(posy-radius));  // radius = cxo = cyo
 	c  = 2*radius*radius + posx*posx + posy*posy - 2*(radius*posx + radius*posy) - radius*radius;
 	d  = b*b - 4*c;
 	k0 = (-b + sqrt(d)) / 2.0;
@@ -1053,7 +1057,41 @@ void kernel_pet2D_ring_gen_sim_ID(int* RES, int nres, int posx, int posy, float 
 	y1 = posy + k0*dy;
 	x2 = posx + k1*dx;
 	y2 = posy + k1*dy;
-		
+	// convert xy to id crystal
+	dx = x1 - radius;
+	dy = y1 - radius;
+	if (abs((int)dx) > abs((int)dy)) {
+		alpha = asin(dy / (double)radius);
+		if (alpha < 0) {  // asin return -pi/2 < . < pi/2
+			if (dx < 0) {alpha = pi - alpha;}
+			else {alpha = 2*pi + alpha;}
+		}
+		else {
+			if (dx < 0) {alpha = pi - alpha;} // mirror according y axe
+		}
+	} else {
+		alpha = acos(dx / (double)radius);
+		if (dy < 0) {alpha = 2*pi - alpha;} // mirror according x axe
+	}
+	id1 = int(radius * alpha + 0.5); // id crystal is the arc
+	dx = x2 - radius;
+	dy = y2 - radius;
+	if (abs((int)dx) > abs((int)dy)) {
+		alpha = asin(dy / (double)radius);
+		if (alpha < 0) {  // asin return -pi/2 < . < pi/2
+			if (dx < 0) {alpha = pi - alpha;}
+			else {alpha = 2*pi + alpha;}
+		}
+		else {
+			if (dx < 0) {alpha = pi - alpha;} // mirror according y axe
+		}
+	} else {
+		alpha = acos(dx / (double)radius);
+		if (dy < 0) {alpha = 2*pi - alpha;} // mirror according x axe
+	}
+	id2 = int(radius * alpha + 0.5); // id crystal is the arc
+	RES[0] = id1;
+	RES[1] = id2;
 }
 #undef pi
 
@@ -1072,10 +1110,10 @@ void kernel_pet2D_ring_LOR_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int
 		// convert id crystal to x, y
 		alpha = (double)ID1[l] / radius;
 		x1 = int(radius + radius * cos(alpha) + 0.5);
-		y1 = int(radius - radius * sin(alpha) + 0.5);
+		y1 = int(radius + radius * sin(alpha) + 0.5);
 		alpha = (double)ID2[l] / radius;
 		x2 = int(radius + radius * cos(alpha) + 0.5);
-		y2 = int(radius - radius * sin(alpha) + 0.5);
+		y2 = int(radius + radius * sin(alpha) + 0.5);
 		// drawing line
 		if (x2 >= x1) {
 			dx = x2 - x1;

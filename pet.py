@@ -241,7 +241,6 @@ def pet2D_ring_build_SM(nbcrystals):
     from math   import cos, sin, pi, sqrt
     from kernel import kernel_pet2D_ring_build_SM
     from utils  import image_1D_projection
-
     radius = int(nbcrystals / 2.0 / pi + 0.5)      # radius PET
     dia    = 2 * radius + 1                        # dia PET must be odd
     cxo    = cyo = radius                          # center PET
@@ -250,7 +249,7 @@ def pet2D_ring_build_SM(nbcrystals):
 
     # build SRM for only the square image inside the ring of the PET
     SM = zeros((dia * dia), 'float32')
-    for i in xrange(nbcrystals):
+    for i in xrange(nbcrystals-1):
         nlor  = nbcrystals-(i+1)
         index = 0
         SRM   = zeros((nlor, dia * dia), 'float32')
@@ -259,14 +258,14 @@ def pet2D_ring_build_SM(nbcrystals):
             alpha2 = j / radius
             x1     = int(cxo + radius * cos(alpha1) + 0.5)
             x2     = int(cxo + radius * cos(alpha2) + 0.5)
-            y1     = int(cyo - radius * sin(alpha1) + 0.5)
-            y2     = int(cyo - radius * sin(alpha2) + 0.5)
+            y1     = int(cyo + radius * sin(alpha1) + 0.5)
+            y2     = int(cyo + radius * sin(alpha2) + 0.5)
             kernel_pet2D_ring_build_SM(SRM, x1, y1, x2, y2, dia, index)
             index += 1
+            
         # sum by step in order to decrease the memory for this stage
         norm = image_1D_projection(SRM, 'x')
-        SRM  = SRM.astype('f')
-        for i in xrange(nlor): SRM[i] /= float(norm[i])
+        for n in xrange(nlor): SRM[n] /= float(norm[n])
         res = image_1D_projection(SRM, 'y')
         SM += res
  
@@ -326,12 +325,12 @@ def pet2D_ring_simu_circle_phantom(nbcrystals, nbparticules, rnd = 10):
         x   = int(source[3*ind[p]]   + (ps1[p] * pp1[p]))
         y   = int(source[3*ind[p]+1] + (ps2[p] * pp2[p]))
         val = source[3*ind[p]+2]
-        kernel_pet2D_ring_gen_sim_ID(res, x, y, alpha[p], radius, lines)
+        kernel_pet2D_ring_gen_sim_ID(res, x, y, alpha[p], radius)
         id1, id2 = res
+        if id1 == nbcrystals: id1 -= 1
+        if id2 == nbcrystals: id2 -= 1
         crystals[id2, id1] += val
-        print lines
-        kernel_draw_2D_line_BLA(image, int(lines[0]), int(lines[1]), int(lines[2]), int(lines[3]), val)
-        #image[y, x]  += source[3*ind[p]+2]
+        image[y, x]  += source[3*ind[p]+2]
 
     # build LOR
     LOR_val = []

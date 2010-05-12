@@ -19,11 +19,14 @@
 import optparse, os, sys
 
 progname = os.path.basename(sys.argv[0])
-usage    = progname + ' LOR.txt SM.txt image.tif --nb_crystals=289 --maxit=8'
+usage    = progname + ' LOR.txt SM.txt image.tif --nb_crystals=289 --maxit=8 --show --MPI --CUDA'
 topic    = ' dfdsf sdfs'
 p        = optparse.OptionParser(usage, description=topic)
-p.add_option('--nb_crystals', type='int',     default=289,  help='Number of crystals')
-p.add_option('--maxit',       type='int',     default=8,    help='Number of iterations')
+p.add_option('--nb_crystals', type='int',          default=289,   help='Number of crystals')
+p.add_option('--maxit',       type='int',          default=8,     help='Number of iterations')
+p.add_option('--show',        action='store_true', default=False, help='Show the result')
+p.add_option('--MPI',         action='store_true', default=False, help='Run with several CPUs')
+p.add_option('--CUDA',        action='store_true', default=False, help='Run on GPU')
 
 (options, args) = p.parse_args()
 if len(args) < 3:
@@ -56,21 +59,77 @@ LOR_val, LOR_id1, LOR_id2 = pickle.load(f)
 f.close()
 nlor = LOR_val.size
 
-# build SRM
-SRM = zeros((nlor, npix), 'float32')
-kernel_pet2D_ring_LOR_SRM_BLA(SRM, LOR_val, LOR_id1, LOR_id2, options.nb_crystals)
+if options.MPI and not options.CUDA:
+    from mpi4py import MPI
 
-### iteration loop
-im = image_1D_projection(SRM, 'y')
-t1 = time()
-for ite in xrange(options.maxit):
-    kernel_pet2D_EMML_iter(SRM, SM, im, LOR_val)
-    print 'ite', ite
-t2 = time()
+    ncpu = MPI.COMM_WORLD.Get_size()
+    myid = MPI.COMM_WORLD.Get_rank()
+    main_node = 0
 
-im = im.reshape((nx, nx))
-image_write(im, im_name)
+    N_start = int(round(float(npix) / ncpu * myid))
+    N_stop  = int(round(float(npix) / ncpu * (myid+1)))
+    #nloclor = N_stop - N_start + 1
 
-print 'Running time', t2-t1, 's'
+    # build SRM
+    SRM  = zeros((nlor, npix),    'float32')
+    kernel_pet2D_ring_LOR_SRM_BLA(SRM, LOR_val, LOR_id1, LOR_id2, options.nb_crystals)
+    
+    ### iteration loop
+    im   = image_1D_projection(SRM, 'y')
+    res  = zeros((npix), 'float32')
+    mask = zeros((npix), 'float32')
+    mask[N_start:N_stop] = 1.0
+    
+    if myid == main_node: t1 = time()
+    for ite in xrange(options.maxit):
+        kernel_pet2D_EMML_iter_MPI(SRM, SM, im, LOR_val, N_start, N_stop)
+        # gather image
+        im     *= mask
+        res[:]  = 0.0
+
+        MPI.COMM_WORLD.Allreduce([im, MPI.FLOAT], [res, MPI.FLOAT], op=MPI.SUM)
+        im      = res.copy()
+        if myid == main_node: print 'ite', ite
+
+        MPI.COMM_WORLD.Barrier()
+        
+    if myid == main_node:
+        t2 = time()
+        im = im.reshape((nx, nx))
+        if options.show: image_show(im)
+        image_write(im, im_name)
+
+        print 'Running time', t2-t1, 's'
+else:
+    if options.CUDA:
+        # build SRM
+        SRM  = zeros((nlor, npix),    'float32')
+        kernel_pet2D_ring_LOR_SRM_BLA(SRM, LOR_val, LOR_id1, LOR_id2, options.nb_crystals)
+
+        ### iteration loop
+        im = image_1D_projection(SRM, 'y')
+
+        # test
+        kernel_pet2D_EMML_cuda(SRM, im, LOR_val)
+        
+    else:
+        # build SRM
+        SRM  = zeros((nlor, npix),    'float32')
+        kernel_pet2D_ring_LOR_SRM_BLA(SRM, LOR_val, LOR_id1, LOR_id2, options.nb_crystals)
+
+        ### iteration loop
+        im = image_1D_projection(SRM, 'y')
+
+        t1 = time()
+        for ite in xrange(options.maxit):
+            kernel_pet2D_EMML_iter(SRM, SM, im, LOR_val)
+            print 'ite', ite
+
+        t2 = time()
+        im = im.reshape((nx, nx))
+        if options.show: image_show(im)
+        image_write(im, im_name)
+
+        print 'Running time', t2-t1, 's'
 
 

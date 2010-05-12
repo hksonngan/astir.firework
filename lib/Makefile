@@ -18,17 +18,24 @@
 
 all : _kernel.so
 
-_kernel.so : kernel.o kernel_wrap.o
-	g++ -o _kernel.so -shared kernel.o kernel_wrap.o -fopenmp -lGL
+_kernel.so : kernel.o kernel_wrap.o kernel_cuda.so
+	g++ -o _kernel.so -shared kernel.o kernel_wrap.o kernel_cuda.so -fopenmp -lGL
 
 kernel.o : kernel.cpp
 	g++ -c -fPIC kernel.cpp -fopenmp -lGL
+# not need -fopenmp and -lGL here ??
 
 kernel_wrap.o : kernel_wrap.c
 	g++ -c -fPIC kernel_wrap.c -I/usr/include/python2.6 -I/usr/lib/python2.6
 
 kernel_wrap.c : kernel.i
 	swig -python kernel.i
+
+kernel_cuda.so : kernel_cuda.o
+	nvcc -o kernel_cuda.so -shared kernel_cuda.o -lcublas
+
+kernel_cuda.o : kernel_cuda.cu
+	nvcc -c kernel_cuda.cu --compiler-options '-fPIC'
 
 clean :
 	rm *.o *.so *_wrap.c *.pyc kernel.py

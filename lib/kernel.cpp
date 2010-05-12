@@ -21,6 +21,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include "kernel_cuda.h"
 
 void omp_vec_square(float* data, int n) {
 	int i;
@@ -959,13 +960,14 @@ void kernel_pet2D_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, f
 	int i, j, ind;
 	float qi, buf, f;
 	float* Q = (float*)malloc(nlor * sizeof(float));
-	
+
 	// compute expected value
 	for (i=0; i<nlor; ++i) {
 		qi = 0.0;
 		ind = i * npix;
 		for (j=0; j<npix; ++j) {qi += (SRM[ind+j] * im[j]);}
 		Q[i] = qi;
+		printf("q %f\n", qi);
 	}
 
 	// update pixel
@@ -982,6 +984,41 @@ void kernel_pet2D_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, f
 	}
 	free(Q);
 }
+
+// EM-ML algorithm, only one iteration MPI version
+void kernel_pet2D_EMML_iter_MPI(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim, int* LOR_val, int nlorval, int N_start, int N_stop) {
+	int i, j, ind;
+	float qi, buf, f;
+	float* Q = (float*)malloc(nlor * sizeof(float));
+	
+	// compute expected value
+	for (i=0; i<nlor; ++i) {
+		qi = 0.0;
+		ind = i * npix;
+		for (j=0; j<npix; ++j) {qi += (SRM[ind+j] * im[j]);}
+		Q[i] = qi;
+	}
+
+	// update pixel
+	for (j=N_start; j<N_stop; ++j) {
+		buf = im[j];
+		
+		if (buf != 0) {
+			f = 0.0;
+			for (i=0; i<nlor; ++i) {
+				f += (LOR_val[i] * SRM[i * npix + j] / Q[i]);
+			}
+			im[j] = buf / S[j] * f;
+		}
+	}
+	free(Q);
+}
+
+// EM-ML algorithm, all iterations GPU version
+void kernel_pet2D_EMML_cuda(float* SRM, int nlor, int npix, float* im, int npixim, int* LOR_val, int nval) {
+	kernel_pet2D_EMML_wrap_cuda(SRM, nlor, npix, im, npixim, LOR_val, nval);
+}
+
 
 /**************************************************************
  * 2D PET SCAN      ring scanner
@@ -1100,7 +1137,7 @@ void kernel_pet2D_ring_gen_sim_ID(int* RES, int nres, int posx, int posy, float 
 void kernel_pet2D_ring_LOR_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int nval, int* ID1, int nid1, int* ID2, int nid2, int nbcrystals) {
 	int l, x1, y1, x2, y2, val, ind, offset;
 	int x, y, dx, dy, xinc, yinc, balance;
-	double alpha;
+	double alpha, coef;
 	double radius = (double)int(nbcrystals / 2.0 / pi + 0.5);
 	int wx = 2*radius+1;
 
@@ -1114,6 +1151,8 @@ void kernel_pet2D_ring_LOR_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int
 		alpha = (double)ID2[l] / radius;
 		x2 = int(radius + radius * cos(alpha) + 0.5);
 		y2 = int(radius + radius * sin(alpha) + 0.5);
+		// integral line must be equal to one
+		coef = 1.0 / sqrt((y2-y1)*(y2-y1) + (x2-x1)*(x2-x1));
 		// drawing line
 		if (x2 >= x1) {
 			dx = x2 - x1;
@@ -1136,7 +1175,7 @@ void kernel_pet2D_ring_LOR_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int
 			balance = dy - dx;
 			dx <<= 1;
 			while (x != x2) {
-				SRM[offset + y * wx + x] = LOR_val[l];
+				SRM[offset + y * wx + x] += (LOR_val[l] * coef);
 				if (balance >= 0) {
 					y = y + yinc;
 					balance = balance - dx;
@@ -1144,13 +1183,13 @@ void kernel_pet2D_ring_LOR_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int
 				balance = balance + dy;
 				x = x + xinc;
 			}
-			SRM[offset + y * wx + x] = LOR_val[l];
+			SRM[offset + y * wx + x] += (LOR_val[l] * coef);
 		} else {
 			dx <<= 1;
 			balance = dx - dy;
 			dy <<= 1;
 			while (y != y2) {
-				SRM[offset + y * wx + x] = LOR_val[l];
+				SRM[offset + y * wx + x] += (LOR_val[l] * coef);
 				if (balance >= 0) {
 					x = x + xinc;
 					balance = balance - dy;
@@ -1158,7 +1197,7 @@ void kernel_pet2D_ring_LOR_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int
 				balance = balance + dx;
 				y = y + yinc;
 			}
-			SRM[offset + y * wx + x] = LOR_val[l];
+			SRM[offset + y * wx + x] += (LOR_val[l] * coef);
 		}
 	}
 }

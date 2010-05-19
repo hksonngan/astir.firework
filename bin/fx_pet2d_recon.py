@@ -59,13 +59,26 @@ LOR_val, LOR_id1, LOR_id2 = pickle.load(f)
 f.close()
 nlor = LOR_val.size
 
+pref = ['', 'k', 'M', 'G', 'T'] 
+print '## PET 2D - EMML ##'
+print 'number of LORs: %i' % nlor
+print 'image size:     %ix%i (%i pixels)' % (nx, nx, npix)
+
 if options.MPI and not options.CUDA:
     from mpi4py import MPI
+    from math   import log
 
     ncpu = MPI.COMM_WORLD.Get_size()
     myid = MPI.COMM_WORLD.Get_rank()
     main_node = 0
-
+    if myid == main_node:
+        print 'MPI version'
+        print 'number of CPUs: %i' % ncpu
+        mem    = nlor*npix*4*ncpu + 3*nlor*4*ncpu + 4*npix*4*ncpu
+        iemem  = int(log(mem) // log(1e3))
+        mem   /= (1e3 ** iemem)
+        print 'mem estimation: %5.2f %sB' % (mem, pref[iemem])
+    
     N_start = int(round(float(npix) / ncpu * myid))
     N_stop  = int(round(float(npix) / ncpu * (myid+1)))
     #nloclor = N_stop - N_start + 1
@@ -102,16 +115,29 @@ if options.MPI and not options.CUDA:
         print 'Running time', t2-t1, 's'
 else:
     if options.CUDA:
+        from math import log
+        mem    = nlor*npix*4 + 2*npix*4 + 3*nlor*4 
+        iemem  = int(log(mem) // log(1e3))
+        mem   /= (1e3 ** iemem)
+        print 'GPU version'
+        print 'mem estimation: %5.2f %sB' % (mem, pref[iemem])
+
         # build SRM
         SRM  = zeros((nlor, npix),    'float32')
         kernel_pet2D_ring_LOR_SRM_BLA(SRM, LOR_val, LOR_id1, LOR_id2, options.nb_crystals)
+        # compute image
+        im  = image_1D_projection(SRM, 'y')
+        # reconstruction
+        t1 = time()
+        kernel_pet2D_EMML_cuda(SRM, im, LOR_val, SM, options.maxit)
+        t2 = time()
 
-        ### iteration loop
-        im = image_1D_projection(SRM, 'y')
+        im = im.reshape((nx, nx))
+        if options.show: image_show(im)
+        image_write(im, im_name)
 
-        # test
-        kernel_pet2D_EMML_cuda(SRM, im, LOR_val)
-        
+        print 'Running time', t2-t1, 's'
+
     else:
         # build SRM
         SRM  = zeros((nlor, npix),    'float32')
@@ -124,8 +150,8 @@ else:
         for ite in xrange(options.maxit):
             kernel_pet2D_EMML_iter(SRM, SM, im, LOR_val)
             print 'ite', ite
-
         t2 = time()
+
         im = im.reshape((nx, nx))
         if options.show: image_show(im)
         image_write(im, im_name)

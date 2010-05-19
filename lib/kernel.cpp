@@ -967,7 +967,6 @@ void kernel_pet2D_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, f
 		ind = i * npix;
 		for (j=0; j<npix; ++j) {qi += (SRM[ind+j] * im[j]);}
 		Q[i] = qi;
-		printf("q %f\n", qi);
 	}
 
 	// update pixel
@@ -1015,8 +1014,8 @@ void kernel_pet2D_EMML_iter_MPI(float* SRM, int nlor, int npix, float* S, int nb
 }
 
 // EM-ML algorithm, all iterations GPU version
-void kernel_pet2D_EMML_cuda(float* SRM, int nlor, int npix, float* im, int npixim, int* LOR_val, int nval) {
-	kernel_pet2D_EMML_wrap_cuda(SRM, nlor, npix, im, npixim, LOR_val, nval);
+void kernel_pet2D_EMML_cuda(float* SRM, int nlor, int npix, float* im, int npixim, int* LOR_val, int nval, float* S, int ns, int maxit) {
+	kernel_pet2D_EMML_wrap_cuda(SRM, nlor, npix, im, npixim, LOR_val, nval, S, ns, maxit);
 }
 
 

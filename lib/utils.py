@@ -95,3 +95,8 @@ def volume_slice(vol, pos=0, axe='z'):
 def wait():
     raw_input('WAITING [Enter]')
     return
+
+# some info to images
+def image_infos(im):
+    sh = im.shape
+    print 'size: %ix%i min %f max %f mean %f std %f' % (sh[0], sh[1], im.min(), im.max(), im.mean(), im.std())

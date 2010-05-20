@@ -19,12 +19,13 @@
 import optparse, os, sys
 
 progname = os.path.basename(sys.argv[0])
-usage    = progname + ' LOR.txt <activities.tif> --nb_crystals=289 --nb_particles=100000 --rand_seed=10'
+usage    = progname + ' LOR.txt <activities.tif> --nb_crystals=289 --nb_particles=100000 --rand_seed=10 --mode=bin'
 topic    = 'Create LORs simulated from a phantom indside a 2D PET ring scan'
 p        = optparse.OptionParser(usage, description=topic)
 p.add_option('--nb_crystals',  type='int',     default=289,    help='Number of crystals')
 p.add_option('--nb_particles', type='int',     default=100000, help='Number of particles')
 p.add_option('--rand_seed',    type='int',     default=10,     help='Value of random seed')
+p.add_option('--mode',         type='string',  default='bin',  help='Date mode, bin or list-mode')
 
 (options, args) = p.parse_args()
 if len(args) < 1 or len(args) > 2:
@@ -42,7 +43,9 @@ else:
 from firework import *
 import pickle
 
-LOR_val, LOR_id1, LOR_id2, image = pet2D_ring_simu_circle_phantom(options.nb_crystals, options.nb_particles, options.rand_seed)
+LOR_val, LOR_id1, LOR_id2, image = pet2D_ring_simu_circle_phantom(options.nb_crystals, options.nb_particles, options.rand_seed, options.mode)
+print 'Number of LOR:', len(LOR_id1)
+
 f = open(lor_name, 'w')
 pickle.dump([LOR_val, LOR_id1, LOR_id2], f)
 f.close()

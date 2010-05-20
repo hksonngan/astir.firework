@@ -955,7 +955,7 @@ void kernel_pet2D_square_gen_sim_ID(int* RES, int nres, float posx, float posy, 
  * 2D PET SCAN      resconstruction
  **************************************************************/
 
-// EM-ML algorithm, only one iteration
+// EM-ML algorithm, only one iteration (bin mode)
 void kernel_pet2D_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim, int* LOR_val, int nlorval) {
 	int i, j, ind;
 	float qi, buf, f;
@@ -983,6 +983,35 @@ void kernel_pet2D_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, f
 	}
 	free(Q);
 }
+
+// EM-ML algorithm, only one iteration (list-mode)
+void kernel_pet2D_LM_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim) {
+	int i, j, ind;
+	float qi, buf, f;
+	float* Q = (float*)malloc(nlor * sizeof(float));
+
+	// compute expected value
+	for (i=0; i<nlor; ++i) {
+		qi = 0.0;
+		ind = i * npix;
+		for (j=0; j<npix; ++j) {qi += (SRM[ind+j] * im[j]);}
+		Q[i] = qi;
+	}
+
+	// update pixel
+	for (j=0; j<npix; ++j) {
+		buf = im[j];
+		if (buf != 0) {
+			f = 0.0;
+			for (i=0; i<nlor; ++i) {
+				f += (SRM[i * npix + j] / Q[i]);
+			}
+			im[j] = buf / S[j] * f;
+		}
+	}
+	free(Q);
+}
+
 
 // EM-ML algorithm, only one iteration MPI version
 void kernel_pet2D_EMML_iter_MPI(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim, int* LOR_val, int nlorval, int N_start, int N_stop) {
@@ -1020,7 +1049,7 @@ void kernel_pet2D_EMML_cuda(float* SRM, int nlor, int npix, float* im, int npixi
 
 
 /**************************************************************
- * 2D PET SCAN      ring scanner
+ * 2D PET SCAN      Simulated ring scanner
  **************************************************************/
 
 // use to fill the SRM in order to compute the sensibility matrix
@@ -1132,7 +1161,7 @@ void kernel_pet2D_ring_gen_sim_ID(int* RES, int nres, int posx, int posy, float 
 #undef pi
 
 #define pi 3.141592653589
-// fill the system response matrix according the LOR
+// fill the system response matrix according the LOR (binary mode)
 void kernel_pet2D_ring_LOR_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int nval, int* ID1, int nid1, int* ID2, int nid2, int nbcrystals) {
 	int l, x1, y1, x2, y2, val, ind, offset;
 	int x, y, dx, dy, xinc, yinc, balance;
@@ -1197,6 +1226,77 @@ void kernel_pet2D_ring_LOR_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int
 				y = y + yinc;
 			}
 			SRM[offset + y * wx + x] += (LOR_val[l] * coef);
+		}
+	}
+}
+#undef pi
+
+#define pi 3.141592653589
+// fill the system response matrix according the LOR - list-mode
+void kernel_pet2D_ring_LM_SRM_BLA(float* SRM, int sy, int sx, int* ID1, int nid1, int* ID2, int nid2, int nbcrystals) {
+	int l, x1, y1, x2, y2, val, ind, offset;
+	int x, y, dx, dy, xinc, yinc, balance;
+	double alpha, coef;
+	double radius = (double)int(nbcrystals / 2.0 / pi + 0.5);
+	int wx = 2*radius+1;
+
+	for (l=0; l<nid1; ++l) {
+		ind = 4 * l;
+		offset = sx * l;
+		// convert id crystal to x, y
+		alpha = (double)ID1[l] / radius;
+		x1 = int(radius + radius * cos(alpha) + 0.5);
+		y1 = int(radius + radius * sin(alpha) + 0.5);
+		alpha = (double)ID2[l] / radius;
+		x2 = int(radius + radius * cos(alpha) + 0.5);
+		y2 = int(radius + radius * sin(alpha) + 0.5);
+		// integral line must be equal to one
+		coef = 1.0 / sqrt((y2-y1)*(y2-y1) + (x2-x1)*(x2-x1));
+		// drawing line
+		if (x2 >= x1) {
+			dx = x2 - x1;
+			xinc = 1;
+		} else {
+			dx = x1 - x2;
+			xinc = -1;
+		}
+		if (y2 >= y1) {
+			dy = y2 - y1;
+			yinc = 1;
+		} else {
+			dy = y1 - y2;
+			yinc = -1;
+		}
+		x = x1;
+		y = y1;
+		if (dx >= dy) {
+			dy <<= 1;
+			balance = dy - dx;
+			dx <<= 1;
+			while (x != x2) {
+				SRM[offset + y * wx + x] += coef;
+				if (balance >= 0) {
+					y = y + yinc;
+					balance = balance - dx;
+				}
+				balance = balance + dy;
+				x = x + xinc;
+			}
+			SRM[offset + y * wx + x] += coef;
+		} else {
+			dx <<= 1;
+			balance = dx - dy;
+			dy <<= 1;
+			while (y != y2) {
+				SRM[offset + y * wx + x] += coef;
+				if (balance >= 0) {
+					x = x + xinc;
+					balance = balance - dy;
+				}
+				balance = balance + dx;
+				y = y + yinc;
+			}
+			SRM[offset + y * wx + x] += coef;
 		}
 	}
 }

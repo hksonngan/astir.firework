@@ -20,7 +20,7 @@ import optparse, os, sys
 
 progname = os.path.basename(sys.argv[0])
 usage    = progname + ' LOR.txt SM.txt image.tif --nb_crystals=289 --maxit=8 --show --MPI --CUDA'
-topic    = ' dfdsf sdfs'
+topic    = ' PET 2D reconstruction (bin mode)'
 p        = optparse.OptionParser(usage, description=topic)
 p.add_option('--nb_crystals', type='int',          default=289,   help='Number of crystals')
 p.add_option('--maxit',       type='int',          default=8,     help='Number of iterations')
@@ -37,11 +37,8 @@ if len(args) < 3:
     print 'please run "' + progname + ' -h" for detailed options'
     sys.exit()
 
-from firework import *
-from math     import sqrt
-from time     import time
+from   math   import sqrt
 import pickle
-
 lor_name = args[0]
 sm_name  = args[1]
 im_name  = args[2]
@@ -65,8 +62,12 @@ print 'number of LORs: %i' % nlor
 print 'image size:     %ix%i (%i pixels)' % (nx, nx, npix)
 
 if options.MPI and not options.CUDA:
-    from mpi4py import MPI
-    from math   import log
+    from firework import kernel_pet2D_ring_LOR_SRM_BLA, image_1D_projection, kernel_pet2D_EMML_iter_MPI
+    from firework import image_show, image_write
+    from mpi4py   import MPI
+    from math     import log
+    from numpy    import zeros
+    from time     import time
 
     ncpu = MPI.COMM_WORLD.Get_size()
     myid = MPI.COMM_WORLD.Get_rank()
@@ -81,10 +82,9 @@ if options.MPI and not options.CUDA:
     
     N_start = int(round(float(npix) / ncpu * myid))
     N_stop  = int(round(float(npix) / ncpu * (myid+1)))
-    #nloclor = N_stop - N_start + 1
 
     # build SRM
-    SRM  = zeros((nlor, npix),    'float32')
+    SRM  = zeros((nlor, npix), 'float32')
     kernel_pet2D_ring_LOR_SRM_BLA(SRM, LOR_val, LOR_id1, LOR_id2, options.nb_crystals)
     
     ### iteration loop
@@ -115,7 +115,10 @@ if options.MPI and not options.CUDA:
         print 'Running time', t2-t1, 's'
 else:
     if options.CUDA:
-        from math import log
+        from firework import kernel_pet2D_ring_LOR_SRM_BLA, image_1D_projection, kernel_pet2D_EMML_cuda
+        from firework import image_show, image_write
+        from math     import log
+        from time     import time
         mem    = nlor*npix*4 + 2*npix*4 + 3*nlor*4 
         iemem  = int(log(mem) // log(1e3))
         mem   /= (1e3 ** iemem)
@@ -139,13 +142,23 @@ else:
         print 'Running time', t2-t1, 's'
 
     else:
+        from firework import kernel_pet2D_ring_LOR_SRM_BLA, image_1D_projection, kernel_pet2D_EMML_iter
+        from firework import image_show, image_write
+        from time     import time
+        from math     import log
+        from numpy    import zeros
+        mem    = nlor*npix*4 + 3*nlor*4 + 4*npix*4
+        iemem  = int(log(mem) // log(1e3))
+        mem   /= (1e3 ** iemem)
+        print 'mem estimation: %5.2f %sB' % (mem, pref[iemem])
+        
         # build SRM
         SRM  = zeros((nlor, npix),    'float32')
         kernel_pet2D_ring_LOR_SRM_BLA(SRM, LOR_val, LOR_id1, LOR_id2, options.nb_crystals)
 
         ### iteration loop
         im = image_1D_projection(SRM, 'y')
-
+        
         t1 = time()
         for ite in xrange(options.maxit):
             kernel_pet2D_EMML_iter(SRM, SM, im, LOR_val)

@@ -272,7 +272,7 @@ def pet2D_ring_build_SM(nbcrystals):
     return SM
 
 # PET 2D ring scan create LOR event from a simple simulate phantom (three activities)
-def pet2D_ring_simu_circle_phantom(nbcrystals, nbparticules, rnd = 10):
+def pet2D_ring_simu_circle_phantom(nbcrystals, nbparticules, rnd = 10, mode='bin'):
     from numpy        import zeros, array
     from numpy.random import poisson
     from numpy.random import seed as seed2
@@ -285,7 +285,7 @@ def pet2D_ring_simu_circle_phantom(nbcrystals, nbparticules, rnd = 10):
     radius = int(nbcrystals / 2.0 / pi + 0.5)      # radius PET
     dia    = 2 * radius + 1                        # dia PET must be odd
     cxo    = cyo = radius                          # center PET
-    crystals = zeros((nbcrystals, nbcrystals), 'float32')
+    if mode == 'bin': crystals = zeros((nbcrystals, nbcrystals), 'float32')
     image    = zeros((dia, dia), 'float32')
     source   = []
 
@@ -321,31 +321,45 @@ def pet2D_ring_simu_circle_phantom(nbcrystals, nbparticules, rnd = 10):
     ind    = [randrange(nbpix) for i in xrange(nbparticules)]
     res    = zeros((2), 'int32')
     lines  = zeros((4), 'int32')
+    LOR_id1 = []
+    LOR_id2 = []
+
     for p in xrange(nbparticules):
         x   = int(source[3*ind[p]]   + (ps1[p] * pp1[p]))
         y   = int(source[3*ind[p]+1] + (ps2[p] * pp2[p]))
         val = source[3*ind[p]+2]
         kernel_pet2D_ring_gen_sim_ID(res, x, y, alpha[p], radius)
         id1, id2 = res
-        if id1 == nbcrystals: id1 -= 1
-        if id2 == nbcrystals: id2 -= 1
-        crystals[id2, id1] += val
-        image[y, x]  += source[3*ind[p]+2]
-
-    # build LOR
-    LOR_val = []
-    LOR_id1 = []
-    LOR_id2 = []
-    for id2 in xrange(nbcrystals):
-        for id1 in xrange(nbcrystals):
-            val = int(crystals[id2, id1])
-            if val != 0:
-                LOR_val.append(val)
+        if id1 == nbcrystals: id1 = 0
+        if id2 == nbcrystals: id2 = 0
+        if mode == 'bin':
+            crystals[id2, id1] += val
+        else:
+            # list-mode
+            for n in xrange(val):
                 LOR_id1.append(id1)
                 LOR_id2.append(id2)
+        image[y, x] += source[3*ind[p]+2]
 
-    LOR_val = array(LOR_val, 'int32')
-    LOR_id1 = array(LOR_id1, 'int32')
-    LOR_id2 = array(LOR_id2, 'int32')
+    if mode == 'bin':
+        # build LOR
+        LOR_val = []
+        for id2 in xrange(nbcrystals):
+            for id1 in xrange(nbcrystals):
+                val = int(crystals[id2, id1])
+                if val != 0:
+                    LOR_val.append(val)
+                    LOR_id1.append(id1)
+                    LOR_id2.append(id2)
 
-    return LOR_val, LOR_id1, LOR_id2, image
+        LOR_val = array(LOR_val, 'int32')
+        LOR_id1 = array(LOR_id1, 'int32')
+        LOR_id2 = array(LOR_id2, 'int32')
+
+        return LOR_val, LOR_id1, LOR_id2, image
+    else:
+        # list-mode
+        LOR_id1 = array(LOR_id1, 'int32')
+        LOR_id2 = array(LOR_id2, 'int32')
+
+        return None, LOR_id1, LOR_id2, image

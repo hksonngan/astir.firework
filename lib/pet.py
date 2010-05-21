@@ -363,3 +363,53 @@ def pet2D_ring_simu_circle_phantom(nbcrystals, nbparticules, rnd = 10, mode='bin
         LOR_id2 = array(LOR_id2, 'int32')
 
         return None, LOR_id1, LOR_id2, image
+
+
+# PET 2D Simulated ring scan build SRM by limiting the mem size
+def pet2D_ring_simu_build_SRM(lm_id1, lm_id2, chunk_size, nb_crystals, npix):
+    from numpy  import zeros, append
+    from kernel import kernel_pet2D_ring_LM_SRM_BLA, kernel_matrix_mat2coo
+    from time import time
+    
+    totevents = len(lm_id1)
+    ntime     = (totevents + chunk_size - 1) / chunk_size
+    for itime in xrange(ntime):
+        i_start   = int(round(float(totevents) / ntime * itime))
+        i_stop    = int(round(float(totevents) / ntime * (itime+1)))
+        nevents   = i_stop - i_start
+        local_SRM = zeros((nevents, npix), 'float32')
+        t1 = time()
+        n_nonzeros = kernel_pet2D_ring_LM_SRM_BLA(local_SRM, lm_id1[i_start:i_stop], lm_id2[i_start:i_stop], nb_crystals)
+        print '  raytracer', time() - t1, 's'
+        # convert to COO sparse matrix
+        t1 = time()
+        local_vals = zeros((n_nonzeros), 'float32')
+        local_rows = zeros((n_nonzeros), 'int32')
+        local_cols = zeros((n_nonzeros), 'int32')
+        print '  alloc mem', time() - t1, 's'
+        t1 = time()
+        kernel_matrix_mat2coo(local_SRM, local_vals, local_rows, local_cols, i_start, 0)
+        print '  convert', time() - t1, 's'
+        t1 = time()
+        del local_SRM
+        if itime != 0:
+            vals = append(vals, local_vals)
+            del local_vals
+            rows = append(rows, local_rows)
+            del local_rows
+            cols = append(cols, local_cols)
+            del local_cols
+        else:
+            vals = local_vals.copy()
+            del local_vals
+            rows = local_rows.copy()
+            del local_rows
+            cols = local_cols.copy()
+            del local_cols
+        print '  upmem', time() - t1, 's'
+
+    return vals, rows, cols
+        
+        
+
+

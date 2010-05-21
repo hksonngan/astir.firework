@@ -34,12 +34,12 @@ if len(args) < 1:
     sys.exit()
 
 from firework import *
-import pickle
 
 sm_name  = args[0]
 
 # build SM
 SM = pet2D_ring_build_SM(options.nb_crystals)
 f = open(sm_name, 'w')
-pickle.dump(SM, f)
+for n in xrange(len(SM)):
+    f.write('%f\n' % SM[n])
 f.close()

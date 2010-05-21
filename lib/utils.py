@@ -17,6 +17,9 @@
 #
 # FIREwork Copyright (C) 2008 - 2010 Julien Bert 
 
+# ==== Image ================================
+# ===========================================
+
 # open image
 def image_open(name):
     from PIL import Image
@@ -33,23 +36,6 @@ def image_open(name):
         exit()
 
     return data
-
-# open a raw volume
-def volume_open(name, nx, ny, nz, nbyte):
-    from numpy  import zeros
-    from sys    import exit
-    try:
-        data = open(name, 'rb').read()
-    except IOError:
-        print 'open_volume error: can not open the file'
-        exit()
-    if nbyte == 1:   buf = fromstring(data, 'uint8').astype(float)
-    elif nbyte == 2: buf = fromstring(data, 'uint16').astype(float)
-    buf *= 1.0 / max(buf)
-    buf  = buf.reshape(nz, ny, nx)
-
-    return buf
-
 
 def image_write(slice, name):
     from PIL import Image
@@ -85,18 +71,72 @@ def image_1D_slice(im, x1, y1, x2, y2):
     
     return array(vec, 'float32')
 
+# some info to images
+def image_infos(im):
+    sh = im.shape
+    print 'size: %ix%i min %f max %f mean %f std %f' % (sh[0], sh[1], im.min(), im.max(), im.mean(), im.std())
+
+# ==== Volume ===============================
+# ===========================================
+
+# open a raw volume
+def volume_open(name, nx, ny, nz, nbyte):
+    from numpy  import zeros
+    from sys    import exit
+    try:
+        data = open(name, 'rb').read()
+    except IOError:
+        print 'open_volume error: can not open the file'
+        exit()
+    if nbyte == 1:   buf = fromstring(data, 'uint8').astype(float)
+    elif nbyte == 2: buf = fromstring(data, 'uint16').astype(float)
+    buf *= 1.0 / max(buf)
+    buf  = buf.reshape(nz, ny, nx)
+
+    return buf
+
 # get a slice from a volume
 def volume_slice(vol, pos=0, axe='z'):
     if   axe == 'z': return vol[pos]
     elif axe == 'x': return vol[:, :, pos]
     elif axe == 'y': return vol[:, pos, :]
-    
+
+# ==== Misc =================================
+# ===========================================
+
 # barrier function
 def wait():
     raw_input('WAITING [Enter]')
     return
 
-# some info to images
-def image_infos(im):
-    sh = im.shape
-    print 'size: %ix%i min %f max %f mean %f std %f' % (sh[0], sh[1], im.min(), im.max(), im.mean(), im.std())
+# ==== List-Mode ============================
+# ===========================================
+    
+# Open list-mode subset
+def listmode_open_subset(filename, N_start, N_stop):
+    from numpy import zeros
+    f      = open(filename, 'r')
+    nlines = N_stop - N_start
+    lm_id1 = zeros((nlines), 'int32')
+    lm_id2 = zeros((nlines), 'int32')
+    for n in xrange(N_start):
+        buf = f.readline()
+        print n, buf
+    for n in xrange(nlines):
+        id1, id2 = f.readline().split()
+        lm_id1[n] = int(id1)
+        lm_id2[n] = int(id2)
+    f.close()
+
+    return lm_id1, lm_id2
+
+# Nb events ti list-mode file
+def listmode_nb_events(filename):
+    f = open(filename, 'r')
+    n = 0
+    while 1:
+        buf = f.readline()
+        if buf == '': break
+        n += 1
+        
+    return n

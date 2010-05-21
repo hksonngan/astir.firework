@@ -1047,7 +1047,6 @@ void kernel_pet2D_EMML_cuda(float* SRM, int nlor, int npix, float* im, int npixi
 	kernel_pet2D_EMML_wrap_cuda(SRM, nlor, npix, im, npixim, LOR_val, nval, S, ns, maxit);
 }
 
-
 /**************************************************************
  * 2D PET SCAN      Simulated ring scanner
  **************************************************************/
@@ -1232,13 +1231,14 @@ void kernel_pet2D_ring_LOR_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int
 #undef pi
 
 #define pi 3.141592653589
-// fill the system response matrix according the LOR - list-mode
-void kernel_pet2D_ring_LM_SRM_BLA(float* SRM, int sy, int sx, int* ID1, int nid1, int* ID2, int nid2, int nbcrystals) {
+// fill the system response matrix according the events (list-mode)
+int kernel_pet2D_ring_LM_SRM_BLA(float* SRM, int sy, int sx, int* ID1, int nid1, int* ID2, int nid2, int nbcrystals) {
 	int l, x1, y1, x2, y2, val, ind, offset;
 	int x, y, dx, dy, xinc, yinc, balance;
 	double alpha, coef;
 	double radius = (double)int(nbcrystals / 2.0 / pi + 0.5);
 	int wx = 2*radius+1;
+	int ct = 0;
 
 	for (l=0; l<nid1; ++l) {
 		ind = 4 * l;
@@ -1275,6 +1275,7 @@ void kernel_pet2D_ring_LM_SRM_BLA(float* SRM, int sy, int sx, int* ID1, int nid1
 			dx <<= 1;
 			while (x != x2) {
 				SRM[offset + y * wx + x] += coef;
+				++ct;
 				if (balance >= 0) {
 					y = y + yinc;
 					balance = balance - dx;
@@ -1283,12 +1284,14 @@ void kernel_pet2D_ring_LM_SRM_BLA(float* SRM, int sy, int sx, int* ID1, int nid1
 				x = x + xinc;
 			}
 			SRM[offset + y * wx + x] += coef;
+			++ct;
 		} else {
 			dx <<= 1;
 			balance = dx - dy;
 			dy <<= 1;
 			while (y != y2) {
 				SRM[offset + y * wx + x] += coef;
+				++ct;
 				if (balance >= 0) {
 					x = x + xinc;
 					balance = balance - dy;
@@ -1297,7 +1300,41 @@ void kernel_pet2D_ring_LM_SRM_BLA(float* SRM, int sy, int sx, int* ID1, int nid1
 				y = y + yinc;
 			}
 			SRM[offset + y * wx + x] += coef;
+			++ct;
+		}
+	}
+	return ct;
+}
+#undef pi
+
+/**************************************************************
+ * Utils
+ **************************************************************/
+
+// Convert sparse matrix to dense one with COO format
+void kernel_matrix_mat2coo(float* mat, int ni, int nj, float* vals, int nvals, int* rows, int nrows, int* cols, int ncols, int roffset, int coffset) {
+	// roffset and coffset are rows and colums shiftment, if mat is a tile of a big matrix indexes must adjust
+	int i, j, ind;
+	int ct = 0;
+	float buf;
+	for (i=0; i<ni; ++i) {
+		ind = i*nj;
+		for (j=0; j<nj; ++j) {
+			buf = mat[ind + j];
+			if (buf != 0.0f) {
+				rows[ct] = i + roffset;
+				cols[ct] = j + coffset;
+				vals[ct] = buf;
+				++ct;
+			}
 		}
 	}
 }
-#undef pi
+
+// Compute col sum of COO matrix
+void kernel_matrix_coo_sumcol(float* vals, int nvals, int* cols, int ncols, float* im, int npix) {
+	int n;
+	for (n=0; n<nvals; ++n) {
+		im[cols[n]] += vals[n];
+	}
+}

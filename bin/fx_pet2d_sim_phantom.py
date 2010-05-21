@@ -41,14 +41,21 @@ else:
     else:              name_act = None
     
 from firework import *
-import pickle
 
 LOR_val, LOR_id1, LOR_id2, image = pet2D_ring_simu_circle_phantom(options.nb_crystals, options.nb_particles, options.rand_seed, options.mode)
-print 'Number of LOR:', len(LOR_id1)
+nlor = len(LOR_id1)
+print 'Number of LOR:', nlor
 
-f = open(lor_name, 'w')
-pickle.dump([LOR_val, LOR_id1, LOR_id2], f)
-f.close()
-
+if options.mode == 'bin':
+    import pickle
+    f = open(lor_name, 'w')
+    pickle.dump([LOR_val, LOR_id1, LOR_id2], f)
+    f.close()
+else:
+    f = open(lor_name, 'w')
+    for n in xrange(nlor):
+        f.write('%i %i\n' % (LOR_id1[n], LOR_id2[n]))
+    f.close()
+    
 if name_act is not None:
     image_write(image, name_act)

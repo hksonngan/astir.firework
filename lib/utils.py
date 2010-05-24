@@ -76,6 +76,30 @@ def image_infos(im):
     sh = im.shape
     print 'size: %ix%i min %f max %f mean %f std %f' % (sh[0], sh[1], im.min(), im.max(), im.mean(), im.std())
 
+# normalize image ave=0, std=1
+def image_normalize(im):
+    ave = im.mean()
+    std = im.std()
+    im  = (im - ave) / std
+
+    return im
+
+# compute fft of image
+def image_fft(im):
+    from numpy import fft
+    imf = fft.fft2(im)
+    imf = fft.fftshift(imf)
+
+    return imf
+
+# compute power spectrum of image
+def image_pows(im):
+    imf = image_fft(im)
+    imf = imf * imf.conj()
+    imf = imf.real
+
+    return imf
+    
 # ==== Volume ===============================
 # ===========================================
 

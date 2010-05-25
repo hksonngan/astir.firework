@@ -45,7 +45,6 @@ lor_name = args[0]
 sm_name  = args[1]
 im_name  = args[2]
 
-pref = ['', 'k', 'M', 'G', 'T'] 
 print '## PET 2D - EMML ##'
 
 if options.MPI and not options.CUDA:
@@ -99,90 +98,116 @@ if options.MPI and not options.CUDA:
         print 'Running time', t2-t1, 's'
 else:
     if options.CUDA:
-        from math import log
-        mem    = nlor*npix*4 + 2*npix*4 + 3*nlor*4 
-        iemem  = int(log(mem) // log(1e3))
-        mem   /= (1e3 ** iemem)
-        print 'GPU version'
-        print 'mem estimation: %5.2f %sB' % (mem, pref[iemem])
-
-        # build SRM
-        SRM  = zeros((nlor, npix),    'float32')
-        #!# kernel_pet2D_ring_LOR_SRM_BLA(SRM, LOR_val, LOR_id1, LOR_id2, options.nb_crystals)
-        # compute image
-        im  = image_1D_projection(SRM, 'y')
-        # reconstruction
-        t1 = time()
-        #!# kernel_pet2D_EMML_cuda(SRM, im, LOR_val, SM, options.maxit)
-        t2 = time()
-
-        im = im.reshape((nx, nx))
-        if options.show: image_show(im)
-        image_write(im, im_name)
-
-        print 'Running time', t2-t1, 's'
-
-    else:
-        from firework import kernel_pet2D_ring_LM_SRM_BLA, image_1D_projection, kernel_pet2D_LM_EMML_iter
+        from firework import kernel_pet2D_ring_LM_SRM_BLA, image_1D_projection, kernel_pet2D_LM_EMML_COO_iter
         from firework import image_show, image_write, listmode_nb_events, listmode_open_subset
-        from firework import pet2D_ring_simu_build_SRM
+        from firework import pet2D_ring_simu_build_SRM_COO, prefix_SI, listmode_open_SM
         from kernel   import kernel_matrix_coo_sumcol
-        from math     import log
+        from math     import sqrt
         from numpy    import zeros, array
         from time     import time
 
-        # open SM
-        f    = open(sm_name, 'r')
-        s    = 0
-        S    = []
-        npix = 0
-        while 1:
-            s = f.readline()
-            if s == '': break
-            S.append(float(s))
-            npix += 1
-        f.close()
-        S      = array(S, 'float32')
-        nx     = sqrt(npix)
+        SM     = listmode_open_SM(sm_name)
+        npix   = len(SM)
+        nx     = int(sqrt(npix))
         nlor   = listmode_nb_events(lor_name)
         mem    = nlor*npix*4 + 2*nlor*4 + 4*npix*4
-        iemem  = int(log(mem) // log(1e3))
-        mem   /= (1e3 ** iemem)
         print 'number of LORs: %i' % nlor
         print 'image size:     %ix%i (%i pixels)' % (nx, nx, npix)
-        print 'mem estimation: %5.2f %sB' % (mem, pref[iemem])
+        print 'mem estimation: %s' % prefix_SI(mem)
 
         ### iteration loop
-        nsub = options.subset
-        im   = zeros((npix), 'float32')
-        tg1  = time()
+        nsub  = options.subset
+        gblim = zeros((npix), 'float32')
+        tg1   = time()
         for isub in xrange(nsub):
+            tsub = time()
             t1   = time()
             N_start  = int(round(float(nlor) / nsub * isub))
             N_stop   = int(round(float(nlor) / nsub * (isub+1)))
+            print ' N_start %i N_stop %i' % (N_start, N_stop)
             id1, id2 = listmode_open_subset(lor_name, N_start, N_stop)
-            print 'Open subset', time() - t1, 's with only', len(id1), 'events'
+            nevents  = len(id1)
+            print '## sub %i ##' % isub
+            mem      = nevents*npix*4 + 2*nevents*4 + 4*npix*4 
+            print ' Open subset', time() - t1, 's with only', nevents, 'events (%s)' % prefix_SI(mem)
             t1 = time()
-            SRMval, SRMrow, SRMcol = pet2D_ring_simu_build_SRM(id1, id2, 150000, options.nb_crystals, npix)
-            print 'Build SRM', time() - t1, 's'
+            SRMval, SRMrow, SRMcol = pet2D_ring_simu_build_SRM_COO(id1, id2, 150000, options.nb_crystals, npix)
+            print ' Build SRM', time() - t1, 's'
+            #print '   info SRM org  %ix%i=%i' % (nevents, npix, nevents*npix)
+            #print '   info SRM COO  %i'       % (3 * len(SRMval))
+            #print '   info comp fac %f'       % (nevents*npix / float(3 * len(SRMval)))
+            mem    = 3 * len(SRMval) * 4 + 4 * npix * 4
+            #print '   info new mem: %s' % prefix_SI(mem)
             t1 = time()
+            im = zeros((npix), 'float32')
             kernel_matrix_coo_sumcol(SRMval, SRMcol, im)
-            print 'Build im in', time() - t1, 's'
-
-            im = im.reshape((nx, nx))
-            image_show(im)
-
-            sys.exit()
-
+            print ' Build im in', time() - t1, 's'
+                    
             for ite in xrange(options.maxit):
-                kernel_pet2D_LM_EMML_iter(SRM[N_start:N_stop], SM, im)
-                print '  ite', ite
-        t2 = time()
+                t1 = time()
+                kernel_pet2D_LM_EMML_COO_iter(SRMval, SRMrow, SRMcol, SM, im, nevents)
+                #print '  ite', ite
+                print ' Iterations', ite, time() - t1, 's'
 
-        im = im.reshape((nx, nx))
-        if options.show: image_show(im)
-        image_write(im, im_name)
+            gblim += im
+                
+            print ' Sub time', time() - tsub, 's'
 
-        print 'Running time', t2-t1, 's'
+        print 'Running time', time()-tg1, 's'
+            
+        gblim = gblim.reshape((nx, nx))
+        if options.show: image_show(gblim)
+        image_write(gblim, im_name)
+
+        
+    else:
+        from firework import kernel_pet2D_ring_LM_SRM_BLA, image_1D_projection, kernel_pet2D_LM_EMML_COO_iter
+        from firework import image_show, image_write, listmode_nb_events, listmode_open_subset
+        from firework import pet2D_ring_simu_build_SRM_COO, prefix_SI, listmode_open_SM
+        from kernel   import kernel_matrix_coo_sumcol
+        from math     import sqrt
+        from numpy    import zeros, array
+        from time     import time
+
+        SM     = listmode_open_SM(sm_name)
+        npix   = len(SM)
+        nx     = int(sqrt(npix))
+        nlor   = listmode_nb_events(lor_name)
+        mem    = nlor*npix*4 + 2*nlor*4 + 4*npix*4
+        print 'number of LORs: %i' % nlor
+        print 'image size:     %ix%i (%i pixels)' % (nx, nx, npix)
+        print 'mem estimation: %s' % prefix_SI(mem)
+
+        ### iteration loop
+        nsub  = options.subset
+        gblim = zeros((npix), 'float32')
+        tg1   = time()
+        for isub in xrange(nsub):
+            N_start  = int(round(float(nlor) / nsub * isub))
+            N_stop   = int(round(float(nlor) / nsub * (isub+1)))
+            id1, id2 = listmode_open_subset(lor_name, N_start, N_stop)
+            nevents  = len(id1)
+            print '## sub %i ##' % isub
+            mem      = nevents*npix*4 + 2*nevents*4 + 4*npix*4 
+            SRMval, SRMrow, SRMcol = pet2D_ring_simu_build_SRM_COO(id1, id2, 150000, options.nb_crystals, npix)
+            mem      = 3 * len(SRMval) * 4 + 4 * npix * 4
+            print '   info mem used: %s' % prefix_SI(mem)
+            im = zeros((npix), 'float32')
+            kernel_matrix_coo_sumcol(SRMval, SRMcol, im)
+                    
+            for ite in xrange(options.maxit):
+                t1 = time()
+                kernel_pet2D_LM_EMML_COO_iter(SRMval, SRMrow, SRMcol, SM, im, nevents)
+                print '   Iterations', ite
+
+            gblim += im
+
+        print 'Running time', time()-tg1, 's'
+            
+        gblim = gblim.reshape((nx, nx))
+        if options.show: image_show(gblim)
+        image_write(gblim, im_name)
+
+
 
 

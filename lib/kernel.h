@@ -41,6 +41,7 @@ void kernel_build_2D_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int nval,
 // PET 2D reconstruction
 void kernel_pet2D_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim, int* LOR_val, int nlorval);
 void kernel_pet2D_LM_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim);
+void kernel_pet2D_LM_EMML_COO_iter(float* SRMvals, int nvals, int* SRMrows, int nrows, int* SRMcols, int ncols, float* S, int nbs, float* im, int npix, int nevents);
 void kernel_pet2D_EMML_iter_MPI(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim, int* LOR_val, int nlorval, int N_start, int N_stop);
 void kernel_pet2D_EMML_cuda(float* SRM, int nlor, int npix, float* im, int npixim, int* LOR_val, int nval, float* S, int ns, int maxit);
 
@@ -56,3 +57,5 @@ void kernel_draw_3D_line_DDA(float* mat, int wz, int wy, int wx, int x1, int y1,
 // Utils
 void kernel_matrix_mat2coo(float* mat, int ni, int nj, float* vals, int nvals, int* rows, int nrows, int* cols, int ncols, int roffset, int coffset);
 void kernel_matrix_coo_sumcol(float* vals, int nvals, int* cols, int ncols, float* im, int npix);
+void kernel_matrix_coo_saxy(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* y, int ny, float* res, int nres);
+void kernel_matrix_saxy(float* mat, int ni, int nj, float* y, int ny, float* res, int nres);

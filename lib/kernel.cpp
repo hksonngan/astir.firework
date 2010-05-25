@@ -1012,6 +1012,35 @@ void kernel_pet2D_LM_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs
 	free(Q);
 }
 
+// EM-ML algorithm with sparse matrix (COO), only one iteration (list-mode)
+void kernel_pet2D_LM_EMML_COO_iter(float* SRMvals, int nvals, int* SRMrows, int nrows, int* SRMcols, int ncols, float* S, int nbs, float* im, int npix, int nevents) {
+	int i, j, ind;
+	float buf;
+	float* Q = (float*)malloc(nevents * sizeof(float));
+	float* F = (float*)malloc(npix * sizeof(float));
+
+	// init Q and F
+	for (i=0; i<nevents; ++i) {Q[i] = 0.0f;}
+	for (i=0; i<npix; ++i) {F[i] = 0.0f;}
+	
+	// Sparse matrix multiplication Q = SRM * im
+	for (i=0; i<nvals; ++i) {
+		Q[SRMrows[i]] += (SRMvals[i] * im[SRMcols[i]]);
+	}
+	// Sparse matrix operation F = SRM^T * Q
+	for (i=0; i<nvals; ++i) {
+		F[SRMcols[i]] += (SRMvals[i] / Q[SRMrows[i]]);
+	}
+	// update pixel
+	for (j=0; j<npix; ++j) {
+		buf = im[j];
+		if (buf != 0) {
+			im[j] = buf / S[j] * F[j];
+		}
+	}
+	free(Q);
+	free(F);
+}
 
 // EM-ML algorithm, only one iteration MPI version
 void kernel_pet2D_EMML_iter_MPI(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim, int* LOR_val, int nlorval, int N_start, int N_stop) {
@@ -1328,6 +1357,7 @@ void kernel_matrix_mat2coo(float* mat, int ni, int nj, float* vals, int nvals, i
 				++ct;
 			}
 		}
+		
 	}
 }
 
@@ -1336,5 +1366,27 @@ void kernel_matrix_coo_sumcol(float* vals, int nvals, int* cols, int ncols, floa
 	int n;
 	for (n=0; n<nvals; ++n) {
 		im[cols[n]] += vals[n];
+	}
+}
+
+// Compute saxy matrix/vector multiplication with sparse COO matrix
+void kernel_matrix_coo_saxy(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* y, int ny, float* res, int nres) {
+	int n;
+	for (n=0; n<nvals; ++n) {
+		res[rows[n]] += (vals[n] * y[cols[n]]);
+	}
+}
+
+// Compute saxy matrix/vector multiplication
+void kernel_matrix_saxy(float* mat, int ni, int nj, float* y, int ny, float* res, int nres) {
+	int i, j, ind;
+	float sum;
+	for (i=0; i<ni; ++i) {
+		sum = 0.0;
+		ind = i*nj;
+		for (j=0; j<nj; ++j) {
+			sum += (mat[ind+j] * y[j]);
+		}
+		res[i] = sum;
 	}
 }

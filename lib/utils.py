@@ -133,6 +133,15 @@ def wait():
     raw_input('WAITING [Enter]')
     return
 
+# convert engineer prefix
+def prefix_SI(mem):
+    from math import log
+    pref   = ['', 'k', 'M', 'G', 'T']
+    iemem  = int(log(mem) // log(1e3))
+    mem   /= (1e3 ** iemem)
+
+    return '%5.2f %sB' % (mem, pref[iemem])
+
 # ==== List-Mode ============================
 # ===========================================
     
@@ -145,7 +154,6 @@ def listmode_open_subset(filename, N_start, N_stop):
     lm_id2 = zeros((nlines), 'int32')
     for n in xrange(N_start):
         buf = f.readline()
-        print n, buf
     for n in xrange(nlines):
         id1, id2 = f.readline().split()
         lm_id1[n] = int(id1)
@@ -164,3 +172,19 @@ def listmode_nb_events(filename):
         n += 1
         
     return n
+
+# Open Sensibility Matrix
+def listmode_open_SM(filename):
+    from numpy import array
+    f    = open(filename, 'r')
+    s    = 0
+    S    = []
+    while 1:
+        s = f.readline()
+        if s == '': break
+        S.append(float(s))
+    f.close()
+    SM = array(S, 'float32')
+    del S
+
+    return SM

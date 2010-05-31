@@ -1260,9 +1260,9 @@ void kernel_pet2D_ring_LOR_SRM_BLA(float* SRM, int sy, int sx, int* LOR_val, int
 #undef pi
 
 #define pi 3.141592653589
-// fill the system response matrix according the events (list-mode)
+// Raytracing with BLA method: fill the system response matrix according the events (list-mode)
 int kernel_pet2D_ring_LM_SRM_BLA(float* SRM, int sy, int sx, int* ID1, int nid1, int* ID2, int nid2, int nbcrystals) {
-	int l, x1, y1, x2, y2, val, ind, offset;
+	int l, x1, y1, x2, y2, ind, offset;
 	int x, y, dx, dy, xinc, yinc, balance;
 	double alpha, coef;
 	double radius = (double)int(nbcrystals / 2.0 / pi + 0.5);
@@ -1336,6 +1336,147 @@ int kernel_pet2D_ring_LM_SRM_BLA(float* SRM, int sy, int sx, int* ID1, int nid1,
 }
 #undef pi
 
+#define pi 3.141592653589
+// Raytracing with DDA method: fill the system response matrix according the events (list-mode)
+int kernel_pet2D_ring_LM_SRM_DDA(float* SRM, int sy, int sx, int* ID1, int nid1, int* ID2, int nid2, int nbcrystals) {
+	int l, x1, y1, x2, y2, ind, offset;
+	double x, y, xinc, yinc;
+	double alpha, coef;
+	double radius = (double)int(nbcrystals / 2.0 / pi + 0.5);
+	int wx = 2*radius+1;
+	int ct = 0;
+	int length, i;
+
+	for (l=0; l<nid1; ++l) {
+		ind = 4 * l;
+		offset = sx * l;
+		// convert id crystal to x, y
+		alpha = (double)ID1[l] / radius;
+		x1 = int(radius + radius * cos(alpha) + 0.5);
+		y1 = int(radius + radius * sin(alpha) + 0.5);
+		alpha = (double)ID2[l] / radius;
+		x2 = int(radius + radius * cos(alpha) + 0.5);
+		y2 = int(radius + radius * sin(alpha) + 0.5);
+		// integral line must be equal to one
+		coef = 1.0 / sqrt((y2-y1)*(y2-y1) + (x2-x1)*(x2-x1));
+		// draw the line
+		length = abs(x2- x1);
+		ct += length;
+		if (abs(y2 - y1) > length) {length = abs(y2 - y1);}
+		xinc = (double)(x2 - x1) / (double) length;
+		yinc = (double)(y2 - y1) / (double) length;
+		x    = x1 + 0.5;
+		y    = y1 + 0.5;
+		for (i=0; i<=length; ++i) {
+			SRM[offset + (int)y * wx + (int)x] += coef;
+			x = x + xinc;
+			y = y + yinc;
+		}
+	}
+	return ct;
+}
+#undef pi
+
+// Raytracing with WALA method: fill the system response matrix according the events (list-mode)
+#define ipart_(X) ((int) X)
+#define round_(X) ((int)(((double)(X)) + 0.5))
+#define fpart_(X) ((double)(X) - (double)ipart_(X))
+#define rfpart_(X) (1.0 - fpart_(X))
+#define swap_(a, b) do{ __typeof__(a) tmp; tmp = a; a = b; b = tmp; }while(0)
+#define pi 3.141592653589
+void kernel_pet2D_ring_LM_SRM_WALA(float* SRM, int sy, int sx, int* ID1, int nid1, int* ID2, int nid2, int nbcrystals) {
+	int l, x1, y1, x2, y2, ind, offset;
+	double alpha, coef;
+	double radius = (double)int(nbcrystals / 2.0 / pi + 0.5);
+	int wx = 2*radius+1;
+
+	for (l=0; l<nid1; ++l) {
+		ind = 4 * l;
+		offset = sx * l;
+		// convert id crystal to x, y
+		alpha = (double)ID1[l] / radius;
+		x1 = int(radius + radius * cos(alpha) + 0.5);
+		y1 = int(radius + radius * sin(alpha) + 0.5);
+		alpha = (double)ID2[l] / radius;
+		x2 = int(radius + radius * cos(alpha) + 0.5);
+		y2 = int(radius + radius * sin(alpha) + 0.5);
+		// integral line must be equal to one
+		coef = 1.0 / sqrt((y2-y1)*(y2-y1) + (x2-x1)*(x2-x1));
+		// draw the line
+		double dx = (double)x2 - (double)x1;
+		double dy = (double)y2 - (double)y1;
+		if (fabs(dx) > fabs(dy)) {
+			if (x2 < x1) {
+				swap_(x1, x2);
+				swap_(y1, y2);
+			}
+		
+			double gradient = dy / dx;
+			double xend = round_(x1);
+			double yend = y1 + gradient * (xend - x1);
+			double xgap = rfpart_(x1 + 0.5);
+			int xpxl1 = xend;
+			int ypxl1 = ipart_(yend);
+			SRM[offset + ypxl1 * wx + xpxl1] += (rfpart_(yend) * xgap * coef);
+			SRM[offset + (ypxl1 + 1) * wx + xpxl1] += (fpart_(yend) * xgap * coef);
+			double intery = yend + gradient;
+		
+			xend = round_(x2);
+			yend = y2 + gradient*(xend - x2);
+			xgap = fpart_(x2+0.5);
+			int xpxl2 = xend;
+			int ypxl2 = ipart_(yend);
+			SRM[offset + ypxl2 * wx + xpxl2] += (rfpart_(yend) * xgap * coef);
+			SRM[offset + (ypxl2 + 1) * wx + xpxl2] += (fpart_(yend) * xgap * coef);
+			int x;
+			for (x=xpxl1+1; x <= (xpxl2-1); x++) {
+				SRM[offset + ipart_(intery) * wx + x] += (rfpart_(intery) * coef);
+				SRM[offset + (ipart_(intery) + 1) * wx + x] += (fpart_(intery) * coef);
+				intery += gradient;
+			}
+		} else {
+			if (y2 < y1) {
+				swap_(x1, x2);
+				swap_(y1, y2);
+			}
+			double gradient = dx / dy;
+			double yend = round_(y1);
+			double xend = x1 + gradient*(yend - y1);
+			double ygap = rfpart_(y1 + 0.5);
+			int ypxl1 = yend;
+			int xpxl1 = ipart_(xend);
+			SRM[offset + ypxl1 * wx + xpxl1] += (rfpart_(xend) * ygap * coef);
+			SRM[offset + (ypxl1 + 1) * wx + xpxl1] += (fpart_(xend) * ygap * coef);
+			double interx = xend + gradient;
+
+			yend = round_(y2);
+			xend = x2 + gradient*(yend - y2);
+			ygap = fpart_(y2+0.5);
+			int ypxl2 = yend;
+			int xpxl2 = ipart_(xend);
+			SRM[offset + ypxl2 * wx + xpxl2] += (rfpart_(xend) * ygap * coef);
+			SRM[offset + (ypxl2 + 1) * wx + xpxl2] += (fpart_(xend) * ygap * coef);
+
+			int y;
+			for(y=ypxl1+1; y <= (ypxl2-1); y++) {
+				SRM[offset + y * wx + ipart_(interx)] += (rfpart_(interx) * coef);
+				SRM[offset + y * wx + ipart_(interx) + 1] += (fpart_(interx) * coef);
+				interx += gradient;
+			}
+		}
+
+		
+	}
+
+}
+#undef pi
+#undef swap_
+#undef ipart_
+#undef fpart_
+#undef round_
+#undef rfpart_
+
+
 /**************************************************************
  * Utils
  **************************************************************/
@@ -1377,6 +1518,56 @@ void kernel_matrix_coo_saxy(float* vals, int nvals, int* cols, int ncols, int* r
 	}
 }
 
+// Compute satxy (t for transpose) matrix/vector multiplication with sparse COO matrix 
+void kernel_matrix_coo_satxy(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* y, int ny, float* res, int nres) {
+	int n;
+	for (n=0; n<nvals; ++n) {
+		res[cols[n]] += (vals[n] * y[rows[n]]);
+	}
+}
+
+// Convert sparse matrix to dense one with CSR format
+void kernel_matrix_mat2csr(float* mat, int ni, int nj, float* vals, int nvals, int* ptr, int nptr, int* cols, int ncols) {
+	int i, j, ind;
+	int ct = 0;
+	float buf;
+	for (i=0; i<ni; ++i) {
+		ptr[i] = -1;
+		ind = i*nj;
+		for (j=0; j<nj; ++j) {
+			buf = mat[ind + j];
+			if (buf != 0) {
+				if (ptr[i] == -1) {ptr[i] = ct;}
+				cols[ct] = j;
+				vals[ct] = buf;
+				++ct;
+			}
+		}
+		if (ptr[i] == -1) {ptr[i] = ct;}
+	}
+	ptr[ni] = nvals;
+}
+
+// Compute saxy matrix/vector multiplication with sparse CSR matrix
+void kernel_matrix_csr_saxy(float* vals, int nvals, int* cols, int ncols, int* ptrs, int nptrs, float* y, int ny, float* res, int nres) {
+	int iptr, k;
+	for (iptr=0; iptr<(nptrs-1); ++iptr) {
+		for (k=ptrs[iptr]; k<ptrs[iptr+1]; ++k) {
+			res[iptr] += (vals[k] * y[cols[k]]);
+		}
+	}
+}
+
+// Compute satxy (t for transpose) matrix/vector multiplication with sparse CSR matrix 
+void kernel_matrix_csr_satxy(float* vals, int nvals, int* cols, int ncols, int* ptrs, int nptrs, float* y, int ny, float* res, int nres) {
+	int iptr, k;
+	for (iptr=0; iptr<(nptrs-1); ++iptr) {
+		for (k=ptrs[iptr]; k<ptrs[iptr+1]; ++k) {
+			res[cols[k]] += (vals[k] * y[iptr]);
+		}
+	}
+}
+
 // Compute saxy matrix/vector multiplication
 void kernel_matrix_saxy(float* mat, int ni, int nj, float* y, int ny, float* res, int nres) {
 	int i, j, ind;
@@ -1388,5 +1579,29 @@ void kernel_matrix_saxy(float* mat, int ni, int nj, float* y, int ny, float* res
 			sum += (mat[ind+j] * y[j]);
 		}
 		res[i] = sum;
+	}
+}
+
+// Count non-zeros elements inside the matrix
+int kernel_matrix_nonzeros(float* mat, int ni, int nj) {
+	int i, j, ind;
+	int c=0;
+	for (i=0; i<ni; ++i) {
+		ind = i*nj;
+		for (j=0; j<nj; ++j) {
+			if (mat[ind + j] != 0) {++c;}
+		}
+	}
+	return c;
+}
+
+// Compute matrix col sum
+void kernel_matrix_sumcol(float* mat, int ni, int nj, float* im, int npix) {
+	int i, j, ind;
+	for (i=0; i<ni; ++i) {
+		ind = i*nj;
+		for (j=0; j<nj; ++j) {
+			im[j] += mat[ind + j];
+		}
 	}
 }

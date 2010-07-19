@@ -38,8 +38,18 @@ void kernel_draw_2D_line_WALA(float* mat, int wy, int wx, int x1, int y1, int x2
 void kernel_draw_2D_line_DDAA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val);
 void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1, float* Y1, int ny1, float* X2, int nx2, float* Y2, int ny2, int res, int b, int matsize);
 
-// PET 2D SRM raytracing
-void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* qx, int nqx, float* qy, int nqy, int b, int res, int srmsize);
+// 3D drawing line
+void kernel_draw_3D_line_DDA(float* mat, int wz, int wy, int wx, int x1, int y1, int z1, int x2, int y2, int z2, float val);
+
+// PET Scan Allegro
+void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* qx, int nqx, float* qy, int nqy, int b, int res, int srmsize, int* enable, int nenable);
+void kernel_pet2D_SRM_DDA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image);
+
+void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int nidd1,
+							float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+							int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
+							float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+							float respix, int sizespacexy, int sizespacez);
 
 // PET 2D Simulated four heads
 //void kernel_pet2D_square_gen_sim_ID(int* RES, int nres, float posx, float posy, float alpha, int nx);
@@ -59,9 +69,6 @@ void kernel_pet2D_EMML_cuda(float* SRM, int nlor, int npix, float* im, int npixi
 //int kernel_pet2D_ring_LM_SRM_BLA(float* SRM, int sy, int sx, int* ID1, int nid1, int* ID2, int nid2, int nbcrystals);
 //int kernel_pet2D_ring_LM_SRM_DDA(float* SRM, int sy, int sx, int* ID1, int nid1, int* ID2, int nid2, int nbcrystals);
 //void kernel_pet2D_ring_LM_SRM_WALA(float* SRM, int sy, int sx, int* ID1, int nid1, int* ID2, int nid2, int nbcrystals);
-
-// 3D raytracer
-void kernel_draw_3D_line_DDA(float* mat, int wz, int wy, int wx, int x1, int y1, int z1, int x2, int y2, int z2, float val);
 
 // Utils
 void kernel_matrix_mat2coo(float* mat, int ni, int nj, float* vals, int nvals, int* rows, int nrows, int* cols, int ncols, int roffset, int coffset);

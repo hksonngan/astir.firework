@@ -21,11 +21,98 @@
 #include "kernel_cuda.h"
 
 /********************************************************************************
- * PET 2D scan Allegro      SRM Raytracing (transversal algorithm)
+ * PET Scan Allegro      
  ********************************************************************************/
 
-// Compute entry and exit point on SRM of the ray
-void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* qx, int nqx, float* qy, int nqy, int b, int res, int srmsize) {
+#define pi  3.141592653589
+#define twopi 6.283185307179
+// Convert ID event from GATE to global position in 3D space
+void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int nidd1,
+							float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+							int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
+							float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+							float respix, int sizespacexy, int sizespacez) {
+	// NOTE: ref system will be change instead of ref GATE system.
+	// We use the image ref system
+	// GATE             IMAGE
+	//    X             Z
+	//    |__ Z         /_ X
+	//   /             |
+	//  Y              Y
+	
+	// cst system
+	int nic = 22;      // number of crystals along i
+	int njc = 29;      // number of crystals along j
+	int nd  = 28;      // number of detectors
+	float dcz = 6.3;   // delta position of crystal along z (mm)
+	float dcx = 4.3;   // delta position of crystal along x (mm)
+	float rcz = 88.2;  // org translation of coordinate along z (mm)
+	float rcx = 45.15; // org translation of coordinate along x (mm)
+	float tsc = 432;   // translation scanner detector along y (mm)
+	//float ROI = 565;   // ROI scanner is 565 mm (GANTRY of 56.5 cm)
+	//float cxyimage = ROI / respix / 2.0; // center of ROI image along x and y (square image)
+	//float czimage  = rcz / respix;       // center of ROI image along z (volume)
+	float cxyimage = (float)sizespacexy / 2.0f;
+	float czimage = (float)sizespacez / 2.0f;
+	float xi, yi, zi, a, newx, newy, newz;
+	float cosa, sina;
+	int n, ID;
+	for (n=0;n<nidc1; ++n) {
+		// ID1
+		////////////////////////////////
+		// global position in GATE space
+		ID = id_crystal1[n];
+		zi = float(ID / nic) * dcz - rcz;
+		xi = float(ID % nic) * dcx - rcx;
+		yi = tsc;
+		//printf("%f %f\n", zi, xi);
+		// rotation accoring ID detector
+		a = (float)id_detector1[n] * (-twopi / (float)nd);
+		cosa = cos(a);
+		sina = sin(a);
+		newx = xi*cosa - yi*sina;
+		newy = xi*sina + yi*cosa;
+		// change to image org
+		newx += cxyimage;           // change origin (left upper corner)
+		newy  = (-newy) + cxyimage; // inverse y axis
+		newz  = zi + czimage;
+		newx /= respix;             // scale factor to match with ROI (image)
+		newy /= respix;
+		newz /= respix;
+		x1[n] = newx;
+		y1[n] = newy;
+		z1[n] = newz;
+		// ID2
+		////////////////////////////////
+		// global position in GATE space
+		ID = id_crystal1[n];
+		zi = float(ID / nic) * dcz - rcz;
+		xi = float(ID % nic) * dcx - rcx;
+		yi = tsc;
+		//printf("%f %f\n", zi, xi);
+		// rotation accoring ID detector
+		a = (float)id_detector2[n] * (-twopi / (float)nd);
+		cosa = cos(a);
+		sina = sin(a);
+		newx = xi*cosa - yi*sina;
+		newy = xi*sina + yi*cosa;
+		// change to image org
+		newx += cxyimage;           // change origin (left upper corner)
+		newy  = (-newy) + cxyimage; // inverse y axis
+		newz  = zi + czimage;
+		newx /= respix;             // scale factor to match with ROI (image)
+		newy /= respix;
+		newz /= respix;
+		x2[n] = newx;
+		y2[n] = newy;
+		z2[n] = newz;
+	}
+}
+#undef pi
+#undef twopi
+
+// SRM Raytracing (transversal algorithm), Compute entry and exit point on SRM of the ray
+void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* qx, int nqx, float* qy, int nqy, int b, int res, int srmsize, int* enable, int nenable) {
 	float divx, divy;
 	float axn, ax0, ayn, ay0;
 	float amin, amax, buf1, buf2;
@@ -69,21 +156,64 @@ void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* q
 		y1 = (qyi + amax * (pyi - qyi) - b) / res;
 		x2 = (qxi + amin * (pxi - qxi) - b) / res;
 		y2 = (qyi + amin * (pyi - qyi) - b) / res;
-		x1 = (int)x1;
-		if (x1 >= srmsize) {x1 = srmsize-1;}
-		y1 = (int)y1;
-		if (y1 >= srmsize) {y1 = srmsize-1;}
-		x2 = (int)x2;
-		if (x1 >= srmsize) {x1 = srmsize-1;}
-		y2 = (int)y2;
-		if (y1 >= srmsize) {y2 = srmsize-1;}
 
+		// format
+		x1 = (int)x1;
+		if (x1 == srmsize) {x1 = srmsize-1;}
+		y1 = (int)y1;
+		if (y1 == srmsize) {y1 = srmsize-1;}
+		x2 = (int)x2;
+		if (x1 == srmsize) {x1 = srmsize-1;}
+		y2 = (int)y2;
+		if (y1 == srmsize) {y2 = srmsize-1;}
+		// check if ray through the image
+		enable[i] = 1;
+		if (x1 < 0 || x1 > srmsize || y1 < 0 || y1 > srmsize) {enable[i] = 0;}
+		if (x2 < 0 || x2 > srmsize || y2 < 0 || y2 > srmsize) {enable[i] = 0;}
+		// check if the ray is > 0
+		if (x1 == x2 && y1 == y2) {enable[i] = 0;}
 		px[i] = x1;
 		py[i] = y1;
 		qx[i] = x2;
 		qy[i] = y2;
 	}
 }
+
+void kernel_pet2D_SRM_DDA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
+	int length, i, n;
+	float flength, val;
+	float x, y, lx, ly;
+	float xinc, yinc;
+	int x1, y1, x2, y2, diffx, diffy;
+	int LOR_ind;
+	
+	for (i=0; i< nx1; ++i) {
+		LOR_ind = i * wx;
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		length = ly;
+		if (lx > length) {length = lx;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		val  = 1 / flength;
+		x = x1 + 0.5;
+		y = y1 + 0.5;
+		for (n=0; n<=length; ++n) {
+			SRM[LOR_ind + (int)y * width_image + (int)x] = val;
+			x = x + xinc;
+			y = y + yinc;
+		}
+	}
+}
+
+
 
 /********************************************************************************
  * GENERAL      line drawing

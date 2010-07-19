@@ -275,3 +275,75 @@ def listmode_open_SM(filename):
     del S
 
     return SM
+
+# PET 2D ring scan create LOR event from a simple simulate phantom (three activities)
+def listmode_simu_circle_phantom(nbparticules, ROIsize, rnd = 10):
+    from numpy        import zeros, array
+    from numpy.random import poisson
+    from numpy.random import seed as seed2
+    from random       import seed, random, randrange
+    from math         import pi, sqrt, cos, sin
+    seed(rnd)
+    seed2(rnd)
+
+    cx0 = cy0 = ROIsize // 2
+    image     = zeros((ROIsize, ROIsize), 'float32')
+    source    = []
+
+    # Generate an activity map with three differents circles
+    cx0, cy0, r0 = cxo,    cyo,    16
+    cx1, cy1, r1 = cx0+4,  cy0+4,   7
+    cx2, cy2, r2 = cx0-6,  cy0-6,   2
+    r02          = r0*r0
+    r12          = r1*r1
+    r22          = r2*r2
+    for y in xrange(ROIsize):
+        for x in xrange(ROIsize):
+            if ((cx0-x)*(cx0-x) + (cy0-y)*(cy0-y)) <= r02:
+                # inside the first circle
+                if ((cx1-x)*(cx1-x) + (cy1-y)*(cy1-y)) <= r12:
+                    # inside the second circle (do nothing)
+                    continue
+                if ((cx2-x)*(cx2-x) + (cy2-y)*(cy2-y)) <= r22:
+                    # inside the third circle
+                    source.extend([x, y, 5])
+                    #image[y, x] = 5
+                else:
+                    # inside the first circle
+                    source.extend([x, y, 1])
+                    #image[y, x] = 1
+                    
+    nbpix  = len(source) // 3
+    pp1    = poisson(lam=1.0, size=(nbparticules)).astype('int32')
+    ps1    = [randrange(-1, 2) for i in xrange(nbparticules)]
+    pp2    = poisson(lam=1.0, size=(nbparticules)).astype('int32')
+    ps2    = [randrange(-1, 2) for i in xrange(nbparticules)]
+    alpha  = [random()*pi for i in xrange(nbparticules)]
+    ind    = [randrange(nbpix) for i in xrange(nbparticules)]
+    res    = zeros((2), 'int32')
+    lines  = zeros((4), 'int32')
+    LOR_id1 = []
+    LOR_id2 = []
+
+    for p in xrange(nbparticules):
+        x   = int(source[3*ind[p]]   + (ps1[p] * pp1[p]))
+        y   = int(source[3*ind[p]+1] + (ps2[p] * pp2[p]))
+        val = source[3*ind[p]+2]
+        kernel_pet2D_ring_gen_sim_ID(res, x, y, alpha[p], radius)
+        id1, id2 = res
+        if id1 == nbcrystals: id1 = 0
+        if id2 == nbcrystals: id2 = 0
+        if mode == 'bin':
+            crystals[id2, id1] += val
+        else:
+            # list-mode
+            for n in xrange(val):
+                LOR_id1.append(id1)
+                LOR_id2.append(id2)
+        image[y, x] += source[3*ind[p]+2]
+
+    # list-mode
+    LOR_id1 = array(LOR_id1, 'int32')
+    LOR_id2 = array(LOR_id2, 'int32')
+    
+    return None, LOR_id1, LOR_id2, image

@@ -36,8 +36,9 @@ def image_open(name):
 
     return data
 
-def image_write(slice, name):
+def image_write(im, name):
     from PIL import Image
+    slice = im.copy()
     slice /= slice.max()
     ny, nx = slice.shape
     slice = slice * 255
@@ -276,17 +277,22 @@ def listmode_open_SM(filename):
 
     return SM
 
-# PET 2D ring scan create LOR event from a simple simulate phantom (three activities)
-def listmode_simu_circle_phantom(nbparticules, ROIsize, rnd = 10):
+# PET 2D ring scan create LOR event from a simple simulate phantom (three activities) ONLY FOR ALLEGRO SCANNER
+def listmode_simu_circle_phantom(nbparticules, ROIsize = 141, radius_detector = 432, respix = 4.0, rnd = 10):
     from numpy        import zeros, array
     from numpy.random import poisson
     from numpy.random import seed as seed2
     from random       import seed, random, randrange
-    from math         import pi, sqrt, cos, sin
+    from math         import pi, sqrt, cos, sin, asin, acos
     seed(rnd)
     seed2(rnd)
 
-    cx0 = cy0 = ROIsize // 2
+    # Cst Allegro
+    Ldetec    = 97.0 / float(respix)  # detector width (mm)
+    Lcryst    = 4.3  / float(respix) # crystal width (mm)
+    radius    = radius_detector / float(respix)
+    border    = int((2*radius - ROIsize) / 2.0)
+    cxo = cyo = ROIsize // 2
     image     = zeros((ROIsize, ROIsize), 'float32')
     source    = []
 
@@ -318,32 +324,79 @@ def listmode_simu_circle_phantom(nbparticules, ROIsize, rnd = 10):
     ps1    = [randrange(-1, 2) for i in xrange(nbparticules)]
     pp2    = poisson(lam=1.0, size=(nbparticules)).astype('int32')
     ps2    = [randrange(-1, 2) for i in xrange(nbparticules)]
-    alpha  = [random()*pi for i in xrange(nbparticules)]
+    alpha  = [random()*2*pi for i in xrange(nbparticules)]
     ind    = [randrange(nbpix) for i in xrange(nbparticules)]
-    res    = zeros((2), 'int32')
-    lines  = zeros((4), 'int32')
-    LOR_id1 = []
-    LOR_id2 = []
-
-    for p in xrange(nbparticules):
-        x   = int(source[3*ind[p]]   + (ps1[p] * pp1[p]))
-        y   = int(source[3*ind[p]+1] + (ps2[p] * pp2[p]))
-        val = source[3*ind[p]+2]
-        kernel_pet2D_ring_gen_sim_ID(res, x, y, alpha[p], radius)
-        id1, id2 = res
-        if id1 == nbcrystals: id1 = 0
-        if id2 == nbcrystals: id2 = 0
-        if mode == 'bin':
-            crystals[id2, id1] += val
-        else:
-            # list-mode
-            for n in xrange(val):
-                LOR_id1.append(id1)
-                LOR_id2.append(id2)
-        image[y, x] += source[3*ind[p]+2]
-
-    # list-mode
-    LOR_id1 = array(LOR_id1, 'int32')
-    LOR_id2 = array(LOR_id2, 'int32')
     
-    return None, LOR_id1, LOR_id2, image
+    IDD1 = zeros((nbparticules), 'int32')
+    IDC1 = zeros((nbparticules), 'int32')
+    IDD2 = zeros((nbparticules), 'int32')
+    IDC2 = zeros((nbparticules), 'int32')
+    p    = 0
+    while p < nbparticules:
+        x     = int(source[3*ind[p]]   + (ps1[p] * pp1[p]))
+        y     = int(source[3*ind[p]+1] + (ps2[p] * pp2[p]))
+        val   = source[3*ind[p]+2]
+        image[y, x] += (source[3*ind[p]+2] * 10.0)
+        x    += border
+        y    += border
+        a     = alpha[p]
+        # compute line intersection with a circle (detectors)
+	dx    = cos(a)
+	dy    = sin(a)
+	b     = 2 * (dx*(x-radius) + dy*(y-radius))
+	c     = 2*radius*radius + x*x + y*y - 2*(radius*x + radius*y) - radius*radius
+	d     = b*b - 4*c
+	k0    = (-b + sqrt(d)) / 2.0
+	k1    = (-b - sqrt(d)) / 2.0
+	x1    = x + k0*dx
+	y1    = y + k0*dy
+	x2    = x + k1*dx
+	y2    = y + k1*dy
+	# compute angle from center of each point
+	dx = x1 - radius #- border
+	dy = y1 - radius #- border
+	if abs(dx) > abs(dy):
+            phi1 = asin(dy / float(radius))
+            if phi1 < 0: # asin return -pi/2 < . < pi/2
+                if dx < 0: phi1 = pi - phi1
+                else:      phi1 = 2*pi + phi1
+            else:
+                if dx < 0: phi1 = pi - phi1 # mirror according y axe
+	else:
+            phi1 = acos(dx / float(radius))
+            if dy < 0:     phi1 = 2*pi - phi1 # mirror according x axe
+ 	dx = x2 - radius #- border
+	dy = y2 - radius #- border
+	if abs(dx) > abs(dy):
+            phi2 = asin(dy / float(radius))
+            if phi2 < 0: # asin return -pi/2 < . < pi/2
+                if dx < 0: phi2 = pi - phi2
+                else:      phi2 = 2*pi + phi2
+            else:
+                if dx < 0: phi2 = pi - phi2 # mirror according y axe
+	else:
+            phi2 = acos(dx / float(radius))
+            if dy < 0:     phi2 = 2*pi - phi2 # mirror according x axe
+
+        # convert arc distance to ID detector and crystal
+        phi1  = (2 * pi - phi1 + pi / 2.0) % (2 * pi)
+        phi2  = (2 * pi - phi2 + pi / 2.0) % (2 * pi)
+        pos1  = phi1 * radius
+        pos2  = phi2 * radius
+        idd1  = int(pos1 / Ldetec)
+        pos1 -= (idd1 * Ldetec)
+        idc1  = int(pos1 / Lcryst)
+        idd2  = int(pos2 / Ldetec)
+        pos2 -= (idd2 * Ldetec)
+        idc2  = int(pos2 / Lcryst)
+
+        for n in xrange(val):
+            if p >= nbparticules: break
+            IDD1[p] = idd1
+            IDC1[p] = idc1
+            IDD2[p] = idd2
+            IDC2[p] = idc2
+            p += 1
+        if p >= nbparticules: break
+        
+    return image, IDC1, IDD1, IDC2, IDD2

@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <omp.h>
 #include "kernel_cuda.h"
 
 /********************************************************************************
@@ -504,6 +505,57 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 	}
 }
 
+// Raytrace SRM matrix with DDA algorithm with GPU
+void kernel_pet2D_SRM_DDA_cuda(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
+	kernel_pet2D_SRM_DDA_wrap_cuda(SRM, wy, wx, X1, nx1, Y1, ny1, X2, nx2, Y2, ny2, width_image);
+}
+
+// OMP version DOES NOT WORK
+void kernel_pet2D_SRM_DDA_omp(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
+	int length, i, n;
+	float flength, val;
+	float x, y, lx, ly;
+	float xinc, yinc;
+	int x1, y1, x2, y2, diffx, diffy;
+	int LOR_ind;
+	int myid, ncpu;
+	int Nstart, Nstop;
+#pragma omp parallel num_threads(4)
+{
+	ncpu = 4; //omp_get_num_threads();
+	myid = omp_get_thread_num();
+	Nstart = int(float(nx1) / float(ncpu) * float(myid) + 0.5);
+	Nstop = int(float(nx1) / float(ncpu) * float(myid + 1) + 0.5);
+	printf("myid %i / %i - %i %i\n", myid, ncpu, Nstart, Nstop);
+    //#pragma omp parallel for shared(SRM, X1, Y1, X2, Y2) private(i)
+	//#pragma omp parallel for private(i)
+	for (i=Nstart; i < Nstop; ++i) {
+		LOR_ind = i * wx;
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		length = ly;
+		if (lx > length) {length = lx;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		val  = 1 / flength;
+		x = x1 + 0.5;
+		y = y1 + 0.5;
+        
+		for (n=0; n<=length; ++n) {
+			SRM[LOR_ind + (int)y * width_image + (int)x] = val;
+			x = x + xinc;
+			y = y + yinc;
+		}
+	}
+}
+}
 
 /********************************************************************************
  * GENERAL      line drawing
@@ -1522,11 +1574,12 @@ void kernel_pet2D_EMML_cuda(float* SRM, int nlor, int npix, float* im, int npixi
 	kernel_pet2D_EMML_wrap_cuda(SRM, nlor, npix, im, npixim, LOR_val, nval, S, ns, maxit);
 }
 
+
 /**************************************************************
  * Utils
  **************************************************************/
 
-// Convert sparse matrix to dense one with COO format
+// Convert dense matrix to sparse one with COO format
 void kernel_matrix_mat2coo(float* mat, int ni, int nj, float* vals, int nvals, int* rows, int nrows, int* cols, int ncols, int roffset, int coffset) {
 	// roffset and coffset are rows and colums shiftment, if mat is a tile of a big matrix indexes must adjust
 	int i, j, ind;
@@ -1571,7 +1624,7 @@ void kernel_matrix_coo_satxy(float* vals, int nvals, int* cols, int ncols, int* 
 	}
 }
 
-// Convert sparse matrix to dense one with CSR format
+// Convert dense matrix to sparse one with CSR format
 void kernel_matrix_mat2csr(float* mat, int ni, int nj, float* vals, int nvals, int* ptr, int nptr, int* cols, int ncols) {
 	int i, j, ind;
 	int ct = 0;
@@ -1593,6 +1646,15 @@ void kernel_matrix_mat2csr(float* mat, int ni, int nj, float* vals, int nvals, i
 	ptr[ni] = nvals;
 }
 
+// Compute col sum of CSR matrix
+void kernel_matrix_csr_sumcol(float* vals, int nvals, int* cols, int ncols, float* im, int npix) {
+	int n;
+	for (n=0; n<nvals; ++n) {
+		im[cols[n]] += vals[n];
+	}
+}
+
+
 // Compute saxy matrix/vector multiplication with sparse CSR matrix
 void kernel_matrix_csr_saxy(float* vals, int nvals, int* cols, int ncols, int* ptrs, int nptrs, float* y, int ny, float* res, int nres) {
 	int iptr, k;
@@ -1613,15 +1675,96 @@ void kernel_matrix_csr_satxy(float* vals, int nvals, int* cols, int ncols, int* 
 	}
 }
 
+// Convert dense matrix to sparse one with ELL format
+void kernel_matrix_mat2ell(float* mat, int ni, int nj, float* vals, int nivals, int njvals, int* cols, int nicols, int njcols) {
+	int i, j, ind1, ind2, icol;
+	float buf;
+	for (i=0; i<ni; ++i) {
+		ind1 = i*nj;
+		ind2 = i*njvals;
+		icol = 0;
+		for (j=0; j<nj; ++j) {
+			buf = mat[ind1+j];
+			if (buf != 0.0f) {
+				vals[ind2+icol] = buf;
+				cols[ind2+icol] = j;
+				++icol;
+			}
+		}
+		cols[ind2+icol] = -1; // eof
+	}
+}
+
+// Compute col sum of ELL matrix
+void kernel_matrix_ell_sumcol(float* vals, int niv, int njv, int* cols, int nic, int njc, float* im, int npix) {
+	int i, j, ind, vcol;
+	for (i=0; i<niv; ++i) {
+		ind = i * njv;
+		vcol = cols[ind];
+		j = 0;
+		while (vcol != -1) {
+			im[vcol] += vals[ind+j];
+			++j;
+			vcol = cols[ind+j];
+		}
+	}
+}
+
+// Compute saxy matrix/vector multiplication with sparse ELL matrix
+void kernel_matrix_ell_saxy(float* vals, int niv, int njv, int* cols, int nic, int njc, float* y, int ny, float* res, int nres) {
+	int i, j, ind, vcol;
+	float sum;
+	for (i=0; i<niv; ++i) {
+		ind = i * njv;
+		vcol = cols[ind];
+		j = 0;
+		sum = 0.0f;
+		while (vcol != -1) {
+			sum += (vals[ind+j] * y[vcol]);
+			++j;
+			vcol = cols[ind+j];
+		}
+		res[i] = sum;
+	}
+}
+
+// Compute satxy matrix/vector multiplication with sparse ELL matrix
+void kernel_matrix_ell_satxy(float* vals, int niv, int njv, int* cols, int nic, int njc, float* y, int ny, float* res, int nres) {
+	int i, j, ind, vcol;
+	for (i=0; i<niv; ++i) {
+		ind = i * njv;
+		vcol = cols[ind];
+		j = 0;
+		while (vcol != -1) {
+			res[vcol] += (vals[ind+j] * y[i]);
+			++j;
+			vcol = cols[ind+j];
+		}
+	}
+}
+
 // Compute saxy matrix/vector multiplication
 void kernel_matrix_saxy(float* mat, int ni, int nj, float* y, int ny, float* res, int nres) {
 	int i, j, ind;
 	float sum;
 	for (i=0; i<ni; ++i) {
-		sum = 0.0;
+		sum = 0.0f;
 		ind = i*nj;
 		for (j=0; j<nj; ++j) {
 			sum += (mat[ind+j] * y[j]);
+		}
+		res[i] = sum;
+	}
+}
+
+// Compute satxy matrix/vector multiplication
+void kernel_matrix_satxy(float* mat, int ni, int nj, float* y, int ny, float* res, int nres) {
+	int i, j, ind;
+	float sum;
+	for (j=0; j<nj; ++j) {
+		sum = 0.0f;
+		for (i=0; i<ni; ++i) {
+			sum += (mat[i*nj + j] * y[i]);
 		}
 		res[i] = sum;
 	}
@@ -1638,6 +1781,20 @@ int kernel_matrix_nonzeros(float* mat, int ni, int nj) {
 		}
 	}
 	return c;
+}
+
+// Count non-zeros elements per rows inside a matrix
+void kernel_matrix_nonzeros_rows(float* mat, int ni, int nj, int* rows, int nrows) {
+	int i, j, ind;
+	int c = 0;
+	for(i=0; i<ni; ++i) {
+		ind = i*nj;
+		c = 0;
+		for (j=0; j<nj; ++j) {
+			if (mat[ind + j] != 0) {++c;}
+		}
+		rows[i] = c;
+	}
 }
 
 // Compute matrix col sum

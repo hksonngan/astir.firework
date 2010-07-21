@@ -1,6 +1,7 @@
 #include "kernel_cuda.h"
 #include <stdio.h>
 #include <cublas.h>
+#include <sys/time.h>
 
 // kernel to update image in pet2D EMML algorithm
 __global__ void pet2D_im_update(float* im, float* S, float* F, int npix) {
@@ -16,6 +17,37 @@ __global__ void pet2D_Q_update(int* d_lorval, float* d_Q, int nval) {
 		d_Q[idx] = (float)d_lorval[idx] / d_Q[idx];
 	}
 }
+// kernel to raytrace line in SRM with DDA algorithm
+__global__ void pet2D_SRM_DDA(float* d_SRM, int* d_X1, int* d_Y1, int* d_X2, int* d_Y2, int wx, int nx1, int width_image) {
+	int length, n, x1, y1, x2, y2, diffx, diffy, LOR_ind;
+	float flength, val, x, y, lx, ly, xinc, yinc;
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < nx1) {
+		LOR_ind = idx * wx;
+		x1 = d_X1[idx];
+		y1 = d_Y1[idx];
+		x2 = d_X2[idx];
+		y2 = d_Y2[idx];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		length = ly;
+		if (lx > length) {length = lx;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		val = 1.0f / flength;
+		x = x1 + 0.5f;
+		y = y1 + 0.5f;
+		for (n=0; n<=length; ++n) {
+			d_SRM[LOR_ind + (int)y * width_image + (int)x] = val;
+			x = x + xinc;
+			y = y + yinc;
+		}
+	}
+}
+
 
 void kernel_pet2D_EMML_wrap_cuda(float* SRM, int nlor, int npix, float* im, int npixim, int* LOR_val, int nval, float* S, int ns, int maxit) {
 	// select a GPU
@@ -44,7 +76,7 @@ void kernel_pet2D_EMML_wrap_cuda(float* SRM, int nlor, int npix, float* im, int 
 	status = cublasSetVector(nval, sizeof(int), LOR_val, 1, d_lorval, 1);
 	if (status != 0) {exit(0);}
 	int ite, block_size1, grid_size1, block_size2, grid_size2;
-	block_size1 = 512;
+	block_size1 = 256;
 	grid_size1 = (nlor + block_size1 - 1) / block_size1;
 	block_size2 = 64;
 	grid_size2 = (npix + block_size2 - 1) / block_size2;
@@ -72,4 +104,55 @@ void kernel_pet2D_EMML_wrap_cuda(float* SRM, int nlor, int npix, float* im, int 
 	status = cublasFree(d_S);
 	// prepare to quit
 	status = cublasShutdown();
+}
+
+void kernel_pet2D_SRM_DDA_wrap_cuda(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
+	// select a GPU
+	cudaSetDevice(0);
+	// some vars
+	int size_SRM = wy * wx;
+	unsigned int mem_size_SRM = sizeof(float) * size_SRM;
+	unsigned int mem_size_point = sizeof(int) * nx1;
+	// alloacte device memory for SRM, x1, y1, x2, and y2
+	float* d_SRM;
+	int* d_X1;
+	int* d_Y1;
+	int* d_X2;
+	int* d_Y2;
+	cudaMalloc((void**) &d_SRM, mem_size_SRM);
+	cudaMemset(d_SRM, 0.0f, mem_size_SRM);
+	cudaMalloc((void**) &d_X1, mem_size_point);
+	cudaMalloc((void**) &d_Y1, mem_size_point);
+	cudaMalloc((void**) &d_X2, mem_size_point);
+	cudaMalloc((void**) &d_Y2, mem_size_point);
+	// copy host memory to device
+	cudaMemcpy(d_X1, X1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_Y1, Y1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_X2, X2, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_Y2, Y2, mem_size_point, cudaMemcpyHostToDevice);
+	// setup execution parameters
+	int block_size, grid_size;
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size;
+	dim3 threads(block_size);
+	dim3 grid(grid_size);
+	//timeval start, end;
+	//double t1, t2, diff;
+	//gettimeofday(&start, NULL);
+	//t1 = start.tv_sec + start.tv_usec / 1000000.0;
+	// DDA kernel
+	pet2D_SRM_DDA<<< grid, threads >>>(d_SRM, d_X1, d_Y1, d_X2, d_Y2, wx, nx1, width_image);
+	cudaThreadSynchronize();
+	// get back results to the host
+	cudaMemcpy(SRM, d_SRM, mem_size_SRM, cudaMemcpyDeviceToHost);
+	//gettimeofday(&end, NULL);
+	//t2 = end.tv_sec + end.tv_usec / 1000000.0;
+	//diff = t2 - t1;
+	//printf("time %f s\n", diff);
+	// clean up memory
+	cudaFree(d_SRM);
+	cudaFree(d_X1);
+	cudaFree(d_Y1);
+	cudaFree(d_X2);
+	cudaFree(d_Y2);
 }

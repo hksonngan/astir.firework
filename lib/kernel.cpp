@@ -114,16 +114,17 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 
 // SRM Raytracing (transversal algorithm), Compute entry and exit point on SRM of the ray
 void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* qx, int nqx, float* qy, int nqy, int b, int res, int srmsize, int* enable, int nenable) {
-	float divx, divy;
+	float divx, divy, fsrmsize;
 	float axn, ax0, ayn, ay0;
 	float amin, amax, buf1, buf2;
 	float x1, y1, x2, y2;
 	float pxi, pyi, qxi, qyi;
+	int xi1, yi1, xi2, yi2;
 	int i;
 		
 	b = (float)b;
 	res = (float)res;
-	srmsize = (float)srmsize;
+	fsrmsize = (float)srmsize;
 
 	for (i=0; i<npx; ++i) {
 		pxi = px[i];
@@ -135,9 +136,9 @@ void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* q
 		else {divx = pxi - qxi;}
 		if (pyi == qyi) {divy = 1.0;}
 		else {divy = pyi - qyi;}
-		axn = (srmsize * res + b - qxi) / divx;
+		axn = (fsrmsize * res + b - qxi) / divx;
 		ax0 = (b - qxi) / divx;
-		ayn = (srmsize * res + b - qyi) / divy;
+		ayn = (fsrmsize * res + b - qyi) / divy;
 		ay0 = (b - qyi) / divy;
 
 		buf1 = ax0;
@@ -159,27 +160,44 @@ void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* q
 		y2 = (qyi + amin * (pyi - qyi) - b) / res;
 
 		// format
-		x1 = (int)x1;
-		if (x1 == srmsize) {x1 = srmsize-1;}
-		y1 = (int)y1;
-		if (y1 == srmsize) {y1 = srmsize-1;}
-		x2 = (int)x2;
-		if (x1 == srmsize) {x1 = srmsize-1;}
-		y2 = (int)y2;
-		if (y1 == srmsize) {y2 = srmsize-1;}
+		xi1 = (int)x1;
+		if (xi1 == srmsize) {xi1 = srmsize-1;}
+		yi1 = (int)y1;
+		if (yi1 == srmsize) {yi1 = srmsize-1;}
+		xi2 = (int)x2;
+		if (xi2 == srmsize) {xi2 = srmsize-1;}
+		yi2 = (int)y2;
+		if (yi2 == srmsize) {yi2 = srmsize-1;}
 		// check if ray through the image
 		enable[i] = 1;
-		if (x1 < 0 || x1 > srmsize || y1 < 0 || y1 > srmsize) {enable[i] = 0;}
-		if (x2 < 0 || x2 > srmsize || y2 < 0 || y2 > srmsize) {enable[i] = 0;}
+		if (xi1 < 0 || xi1 > srmsize || yi1 < 0 || yi1 > srmsize) {enable[i] = 0;}
+		if (xi2 < 0 || xi2 > srmsize || yi2 < 0 || yi2 > srmsize) {enable[i] = 0;}
 		// check if the ray is > 0
-		if (x1 == x2 && y1 == y2) {enable[i] = 0;}
-		px[i] = x1;
-		py[i] = y1;
-		qx[i] = x2;
-		qy[i] = y2;
+		if (xi1 == xi2 && yi1 == yi2) {enable[i] = 0;}
+		px[i] = xi1;
+		py[i] = yi1;
+		qx[i] = xi2;
+		qy[i] = yi2;
 	}
 }
 
+// Clean LOR (entry-exit point) outside ROI
+void kernel_pet2D_SRM_clean_entryexit(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* x2, int nx2, float* y2, int ny2,
+									  int* xi1, int nxi1, int* yi1, int nyi1, int* xi2, int nxi2, int* yi2, int nyi2) {
+	int i, c;
+	c = 0;
+	for (i=0; i<nx1; ++i) {
+		if (enable[i]) {
+			xi1[c] = (int)x1[i];
+			yi1[c] = (int)y1[i];
+			xi2[c] = (int)x2[i];
+			yi2[c] = (int)y2[i];
+			++c;
+		}
+	}
+}
+	
+// Raytrace SRM matrix with DDA algorithm
 void kernel_pet2D_SRM_DDA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
 	int length, i, n;
 	float flength, val;
@@ -212,6 +230,96 @@ void kernel_pet2D_SRM_DDA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1,
 			y = y + yinc;
 		}
 	}
+}
+
+// Raytrace SRM matrix with DDA algorithm in ELL sparse matrix format
+void kernel_pet2D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic, int njc, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
+	int length, i, n;
+	float flength, val;
+	float x, y, lx, ly;
+	float xinc, yinc;
+	int x1, y1, x2, y2, diffx, diffy;
+	int LOR_ind;
+	
+	for (i=0; i< nx1; ++i) {
+		LOR_ind = i * njv;
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		length = ly;
+		if (lx > length) {length = lx;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		val  = 1 / flength;
+		x = x1 + 0.5;
+		y = y1 + 0.5;
+		for (n=0; n<=length; ++n) {
+			//SRM[LOR_ind + (int)y * width_image + (int)x] = val;
+			vals[LOR_ind + n] = val;
+			cols[LOR_ind + n] = (int)y * width_image + (int)x;
+			x = x + xinc;
+			y = y + yinc;
+		}
+		cols[LOR_ind + n] = -1; // eof
+	}
+}
+
+// Raytrace SRM matrix with DDA algorithm with GPU
+void kernel_pet2D_SRM_DDA_cuda(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
+	kernel_pet2D_SRM_DDA_wrap_cuda(SRM, wy, wx, X1, nx1, Y1, ny1, X2, nx2, Y2, ny2, width_image);
+}
+
+// OMP version DOES NOT WORK
+void kernel_pet2D_SRM_DDA_omp(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
+	int length, i, n;
+	float flength, val;
+	float x, y, lx, ly;
+	float xinc, yinc;
+	int x1, y1, x2, y2, diffx, diffy;
+	int LOR_ind;
+	int myid, ncpu;
+	int Nstart, Nstop;
+#pragma omp parallel num_threads(4)
+{
+	ncpu = 4; //omp_get_num_threads();
+	myid = omp_get_thread_num();
+	Nstart = int(float(nx1) / float(ncpu) * float(myid) + 0.5);
+	Nstop = int(float(nx1) / float(ncpu) * float(myid + 1) + 0.5);
+	printf("myid %i / %i - %i %i\n", myid, ncpu, Nstart, Nstop);
+    //#pragma omp parallel for shared(SRM, X1, Y1, X2, Y2) private(i)
+	//#pragma omp parallel for private(i)
+	for (i=Nstart; i < Nstop; ++i) {
+		LOR_ind = i * wx;
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		length = ly;
+		if (lx > length) {length = lx;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		val  = 1 / flength;
+		x = x1 + 0.5;
+		y = y1 + 0.5;
+        
+		for (n=0; n<=length; ++n) {
+			SRM[LOR_ind + (int)y * width_image + (int)x] = val;
+			x = x + xinc;
+			y = y + yinc;
+		}
+	}
+}
 }
 
 // Draw lines in SRM with DDA anti-aliased version 1 pix
@@ -394,7 +502,6 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 		ty = (py-qy) * 0.5 + qy;
 		ei = int((tx-b) / (float)res);
 		ej = int((ty-b) / (float)res);
-
 		if (qx-tx>0) {
 			u=ei+1;
 			stepi=1;
@@ -423,7 +530,6 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 		else {divx = float(qx-px);}
 		if (qy==py) {divy=1.0;}
 		else {divy = float(qy-py);}
-
 		axstart = ((u*res)+b-px) / divx;
 		aystart = ((v*res)+b-py) / divy;
 		astart = aystart;
@@ -453,8 +559,8 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
 			if (val > 10.0) {val = 1.0;}
-			SRM[LOR_ind + j * matsize + i] = val;
 			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
+			SRM[LOR_ind + j * matsize + i] = val;
 			oldv = newv;
 			if (runx == newv) {
 				i += stepi;
@@ -490,8 +596,8 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
 			if (val > 10.0) {val = 1.0;}
-			SRM[LOR_ind + j * matsize + i] = val;
 			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
+			SRM[LOR_ind + j * matsize + i] = val;
 			oldv = newv;
 			if (runx == newv) {
 				i += stepi;
@@ -505,57 +611,6 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 	}
 }
 
-// Raytrace SRM matrix with DDA algorithm with GPU
-void kernel_pet2D_SRM_DDA_cuda(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
-	kernel_pet2D_SRM_DDA_wrap_cuda(SRM, wy, wx, X1, nx1, Y1, ny1, X2, nx2, Y2, ny2, width_image);
-}
-
-// OMP version DOES NOT WORK
-void kernel_pet2D_SRM_DDA_omp(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
-	int length, i, n;
-	float flength, val;
-	float x, y, lx, ly;
-	float xinc, yinc;
-	int x1, y1, x2, y2, diffx, diffy;
-	int LOR_ind;
-	int myid, ncpu;
-	int Nstart, Nstop;
-#pragma omp parallel num_threads(4)
-{
-	ncpu = 4; //omp_get_num_threads();
-	myid = omp_get_thread_num();
-	Nstart = int(float(nx1) / float(ncpu) * float(myid) + 0.5);
-	Nstop = int(float(nx1) / float(ncpu) * float(myid + 1) + 0.5);
-	printf("myid %i / %i - %i %i\n", myid, ncpu, Nstart, Nstop);
-    //#pragma omp parallel for shared(SRM, X1, Y1, X2, Y2) private(i)
-	//#pragma omp parallel for private(i)
-	for (i=Nstart; i < Nstop; ++i) {
-		LOR_ind = i * wx;
-		x1 = X1[i];
-		x2 = X2[i];
-		y1 = Y1[i];
-		y2 = Y2[i];
-		diffx = x2-x1;
-		diffy = y2-y1;
-		lx = abs(diffx);
-		ly = abs(diffy);
-		length = ly;
-		if (lx > length) {length = lx;}
-		flength = (float)length;
-		xinc = diffx / flength;
-		yinc = diffy / flength;
-		val  = 1 / flength;
-		x = x1 + 0.5;
-		y = y1 + 0.5;
-        
-		for (n=0; n<=length; ++n) {
-			SRM[LOR_ind + (int)y * width_image + (int)x] = val;
-			x = x + xinc;
-			y = y + yinc;
-		}
-	}
-}
-}
 
 /********************************************************************************
  * GENERAL      line drawing
@@ -1608,16 +1663,16 @@ void kernel_matrix_coo_sumcol(float* vals, int nvals, int* cols, int ncols, floa
 	}
 }
 
-// Compute saxy matrix/vector multiplication with sparse COO matrix
-void kernel_matrix_coo_saxy(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* y, int ny, float* res, int nres) {
+// Compute spmv matrix/vector multiplication with sparse COO matrix
+void kernel_matrix_coo_spmv(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* y, int ny, float* res, int nres) {
 	int n;
 	for (n=0; n<nvals; ++n) {
 		res[rows[n]] += (vals[n] * y[cols[n]]);
 	}
 }
 
-// Compute satxy (t for transpose) matrix/vector multiplication with sparse COO matrix 
-void kernel_matrix_coo_satxy(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* y, int ny, float* res, int nres) {
+// Compute spmtv (t for transpose) matrix/vector multiplication with sparse COO matrix 
+void kernel_matrix_coo_spmtv(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* y, int ny, float* res, int nres) {
 	int n;
 	for (n=0; n<nvals; ++n) {
 		res[cols[n]] += (vals[n] * y[rows[n]]);
@@ -1655,8 +1710,8 @@ void kernel_matrix_csr_sumcol(float* vals, int nvals, int* cols, int ncols, floa
 }
 
 
-// Compute saxy matrix/vector multiplication with sparse CSR matrix
-void kernel_matrix_csr_saxy(float* vals, int nvals, int* cols, int ncols, int* ptrs, int nptrs, float* y, int ny, float* res, int nres) {
+// Compute spmv matrix/vector multiplication with sparse CSR matrix
+void kernel_matrix_csr_spmv(float* vals, int nvals, int* cols, int ncols, int* ptrs, int nptrs, float* y, int ny, float* res, int nres) {
 	int iptr, k;
 	for (iptr=0; iptr<(nptrs-1); ++iptr) {
 		for (k=ptrs[iptr]; k<ptrs[iptr+1]; ++k) {
@@ -1665,8 +1720,8 @@ void kernel_matrix_csr_saxy(float* vals, int nvals, int* cols, int ncols, int* p
 	}
 }
 
-// Compute satxy (t for transpose) matrix/vector multiplication with sparse CSR matrix 
-void kernel_matrix_csr_satxy(float* vals, int nvals, int* cols, int ncols, int* ptrs, int nptrs, float* y, int ny, float* res, int nres) {
+// Compute spmtv (t for transpose) matrix/vector multiplication with sparse CSR matrix 
+void kernel_matrix_csr_spmtv(float* vals, int nvals, int* cols, int ncols, int* ptrs, int nptrs, float* y, int ny, float* res, int nres) {
 	int iptr, k;
 	for (iptr=0; iptr<(nptrs-1); ++iptr) {
 		for (k=ptrs[iptr]; k<ptrs[iptr+1]; ++k) {
@@ -1710,8 +1765,8 @@ void kernel_matrix_ell_sumcol(float* vals, int niv, int njv, int* cols, int nic,
 	}
 }
 
-// Compute saxy matrix/vector multiplication with sparse ELL matrix
-void kernel_matrix_ell_saxy(float* vals, int niv, int njv, int* cols, int nic, int njc, float* y, int ny, float* res, int nres) {
+// Compute spmv matrix/vector multiplication with sparse ELL matrix
+void kernel_matrix_ell_spmv(float* vals, int niv, int njv, int* cols, int nic, int njc, float* y, int ny, float* res, int nres) {
 	int i, j, ind, vcol;
 	float sum;
 	for (i=0; i<niv; ++i) {
@@ -1728,8 +1783,13 @@ void kernel_matrix_ell_saxy(float* vals, int niv, int njv, int* cols, int nic, i
 	}
 }
 
-// Compute satxy matrix/vector multiplication with sparse ELL matrix
-void kernel_matrix_ell_satxy(float* vals, int niv, int njv, int* cols, int nic, int njc, float* y, int ny, float* res, int nres) {
+// Compute spmv matrix/vector multiplication with sparse ELL matrix using GPU
+void kernel_matrix_ell_spmv_cuda(float* vals, int niv, int njv, int* cols, int nic, int njc, float* y, int ny, float* res, int nres) {
+	kernel_matrix_ell_spmv_wrap_cuda(vals, niv, njv, cols, nic, njc, y, ny, res, nres);
+}
+
+// Compute spmtv matrix/vector multiplication with sparse ELL matrix
+void kernel_matrix_ell_spmtv(float* vals, int niv, int njv, int* cols, int nic, int njc, float* y, int ny, float* res, int nres) {
 	int i, j, ind, vcol;
 	for (i=0; i<niv; ++i) {
 		ind = i * njv;
@@ -1743,8 +1803,8 @@ void kernel_matrix_ell_satxy(float* vals, int niv, int njv, int* cols, int nic, 
 	}
 }
 
-// Compute saxy matrix/vector multiplication
-void kernel_matrix_saxy(float* mat, int ni, int nj, float* y, int ny, float* res, int nres) {
+// Compute spmv matrix/vector multiplication
+void kernel_matrix_spmv(float* mat, int ni, int nj, float* y, int ny, float* res, int nres) {
 	int i, j, ind;
 	float sum;
 	for (i=0; i<ni; ++i) {
@@ -1757,8 +1817,8 @@ void kernel_matrix_saxy(float* mat, int ni, int nj, float* y, int ny, float* res
 	}
 }
 
-// Compute satxy matrix/vector multiplication
-void kernel_matrix_satxy(float* mat, int ni, int nj, float* y, int ny, float* res, int nres) {
+// Compute spmtv matrix/vector multiplication
+void kernel_matrix_spmtv(float* mat, int ni, int nj, float* y, int ny, float* res, int nres) {
 	int i, j, ind;
 	float sum;
 	for (j=0; j<nj; ++j) {

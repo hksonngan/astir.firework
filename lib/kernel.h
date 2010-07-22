@@ -43,7 +43,12 @@ void kernel_draw_3D_line_DDA(float* mat, int wz, int wy, int wx, int x1, int y1,
 
 // PET Scan Allegro
 void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* qx, int nqx, float* qy, int nqy, int b, int res, int srmsize, int* enable, int nenable);
+void kernel_pet2D_SRM_clean_entryexit(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* x2, int nx2, float* y2, int ny2,
+									  int* xi1, int nxi1, int* yi1, int nyi1, int* xi2, int nxi2, int* yi2, int nyi2);
 void kernel_pet2D_SRM_DDA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image);
+void kernel_pet2D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic, int njc, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image);
+void kernel_pet2D_SRM_DDA_cuda(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image); // CUDA wrapper
+void kernel_pet2D_SRM_DDA_omp(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image); // OMP version
 void kernel_pet2D_SRM_DDAA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image);
 void kernel_pet2D_SRM_DDAA2(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image);
 void kernel_pet2D_SRM_BLA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image);
@@ -53,10 +58,6 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 							int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
 							float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
 							float respix, int sizespacexy, int sizespacez);
-// CUDA wrapper
-void kernel_pet2D_SRM_DDA_cuda(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image);
-// OMP version
-void kernel_pet2D_SRM_DDA_omp(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image);
 
 // PET 2D Simulated four heads
 //void kernel_pet2D_square_gen_sim_ID(int* RES, int nres, float posx, float posy, float alpha, int nx);
@@ -81,21 +82,22 @@ void kernel_pet2D_EMML_cuda(float* SRM, int nlor, int npix, float* im, int npixi
 // Utils
 void kernel_matrix_mat2coo(float* mat, int ni, int nj, float* vals, int nvals, int* rows, int nrows, int* cols, int ncols, int roffset, int coffset);
 void kernel_matrix_coo_sumcol(float* vals, int nvals, int* cols, int ncols, float* im, int npix);
-void kernel_matrix_coo_saxy(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* y, int ny, float* res, int nres);
-void kernel_matrix_coo_satxy(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* y, int ny, float* res, int nres);
+void kernel_matrix_coo_spmv(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* y, int ny, float* res, int nres);
+void kernel_matrix_coo_spmtv(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* y, int ny, float* res, int nres);
 
 void kernel_matrix_mat2csr(float* mat, int ni, int nj, float* vals, int nvals, int* ptr, int nptr, int* cols, int ncols);
 void kernel_matrix_csr_sumcol(float* vals, int nvals, int* cols, int ncols, float* im, int npix);
-void kernel_matrix_csr_saxy(float* vals, int nvals, int* cols, int ncols, int* ptrs, int nptrs, float* y, int ny, float* res, int nres);
-void kernel_matrix_csr_satxy(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* y, int ny, float* res, int nres);
+void kernel_matrix_csr_spmv(float* vals, int nvals, int* cols, int ncols, int* ptrs, int nptrs, float* y, int ny, float* res, int nres);
+void kernel_matrix_csr_spmtv(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* y, int ny, float* res, int nres);
 
 void kernel_matrix_mat2ell(float* mat, int ni, int nj, float* vals, int nivals, int njvals, int* cols, int nicols, int njcols);
 void kernel_matrix_ell_sumcol(float* vals, int niv, int njv, int* cols, int nic, int njc, float* im, int npix);
-void kernel_matrix_ell_saxy(float* vals, int niv, int njv, int* cols, int nic, int njc, float* y, int ny, float* res, int nres);
-void kernel_matrix_ell_satxy(float* vals, int niv, int njv, int* cols, int nic, int njc, float* y, int ny, float* res, int nres);
+void kernel_matrix_ell_spmv(float* vals, int niv, int njv, int* cols, int nic, int njc, float* y, int ny, float* res, int nres);
+void kernel_matrix_ell_spmv_cuda(float* vals, int niv, int njv, int* cols, int nic, int njc, float* y, int ny, float* res, int nres);
+void kernel_matrix_ell_spmtv(float* vals, int niv, int njv, int* cols, int nic, int njc, float* y, int ny, float* res, int nres);
 
-void kernel_matrix_saxy(float* mat, int ni, int nj, float* y, int ny, float* res, int nres);
-void kernel_matrix_satxy(float* mat, int ni, int nj, float* y, int ny, float* res, int nres);
+void kernel_matrix_spmv(float* mat, int ni, int nj, float* y, int ny, float* res, int nres);
+void kernel_matrix_spmtv(float* mat, int ni, int nj, float* y, int ny, float* res, int nres);
 int kernel_matrix_nonzeros(float* mat, int ni, int nj);
 void kernel_matrix_nonzeros_rows(float* mat, int ni, int nj, int* rows, int nrows);
 void kernel_matrix_sumcol(float* mat, int ni, int nj, float* im, int npix);

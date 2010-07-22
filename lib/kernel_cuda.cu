@@ -3,6 +3,9 @@
 #include <cublas.h>
 #include <sys/time.h>
 
+// declare texture ref for 1D float texture
+texture<float, 1, cudaReadModeElementType> tex;
+
 // kernel to update image in pet2D EMML algorithm
 __global__ void pet2D_im_update(float* im, float* S, float* F, int npix) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
@@ -48,6 +51,23 @@ __global__ void pet2D_SRM_DDA(float* d_SRM, int* d_X1, int* d_Y1, int* d_X2, int
 	}
 }
 
+__global__ void matrix_ell_spmv(float* d_vals, int* d_cols, float* d_res, int niv, int njv) {
+	int j, ind, vcol;
+	float sum;
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < niv) {
+		ind = idx * njv;
+		vcol = d_cols[ind];
+		j = 0;
+		sum = 0.0f;
+		while (vcol != -1) {
+			sum += (d_vals[ind+j] * tex1D(tex, vcol));
+			++j;
+			vcol = d_cols[ind+j];
+		}
+		d_res[idx] = sum;
+	}
+}
 
 void kernel_pet2D_EMML_wrap_cuda(float* SRM, int nlor, int npix, float* im, int npixim, int* LOR_val, int nval, float* S, int ns, int maxit) {
 	// select a GPU
@@ -136,6 +156,7 @@ void kernel_pet2D_SRM_DDA_wrap_cuda(float* SRM, int wy, int wx, int* X1, int nx1
 	grid_size = (nx1 + block_size - 1) / block_size;
 	dim3 threads(block_size);
 	dim3 grid(grid_size);
+
 	//timeval start, end;
 	//double t1, t2, diff;
 	//gettimeofday(&start, NULL);
@@ -155,4 +176,63 @@ void kernel_pet2D_SRM_DDA_wrap_cuda(float* SRM, int wy, int wx, int* X1, int nx1
 	cudaFree(d_Y1);
 	cudaFree(d_X2);
 	cudaFree(d_Y2);
+}
+
+void kernel_matrix_ell_spmv_wrap_cuda(float* vals, int niv, int njv, int* cols, int nic, int njc, float* y, int ny, float* res, int nres) {
+	// select a GPU
+	cudaSetDevice(0);
+	// some vars
+	int size_data = niv * njv;
+	unsigned int mem_size_dataf = sizeof(float) * size_data;
+	unsigned int mem_size_y = sizeof(float) * ny;
+	unsigned int mem_size_res = sizeof(float) * nres;
+	unsigned int mem_size_datai = sizeof(int) * size_data;
+	// alloacte device memory
+	float* d_vals;
+	float* d_res;
+	//float* d_y;
+	int* d_cols;
+	cudaMalloc((void**) &d_vals, mem_size_dataf);
+	cudaMalloc((void**) &d_res, mem_size_res);
+	//cudaMalloc((void**) &d_y, mem_size_y);
+	cudaMalloc((void**) &d_cols, mem_size_datai);
+	// copy host memory to device
+	cudaMemcpy(d_vals, vals, mem_size_dataf, cudaMemcpyHostToDevice);
+	//cudaMemcpy(d_y, y, mem_size_res, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_cols, cols, mem_size_datai, cudaMemcpyHostToDevice);
+	// prepare texture
+	cudaChannelFormatDesc channelDesc = cudaCreateChannelDesc(32, 0, 0, 0, cudaChannelFormatKindFloat);
+    cudaArray* cu_array;
+    cudaMallocArray( &cu_array, &channelDesc, ny, 1 ); 
+    cudaMemcpyToArray(cu_array, 0, 0, y, mem_size_y, cudaMemcpyHostToDevice);
+	tex.addressMode[0] = cudaAddressModeClamp;
+    tex.addressMode[1] = cudaAddressModeClamp;
+    tex.filterMode = cudaFilterModePoint;
+    tex.normalized = false;
+    cudaBindTextureToArray(tex, cu_array, channelDesc);
+
+	// setup execution parameters
+	int block_size, grid_size;
+	block_size = 256;
+	grid_size = (niv + block_size - 1) / block_size;
+	dim3 threads(block_size);
+	dim3 grid(grid_size);
+	timeval start, end;
+	double t1, t2, diff;
+	gettimeofday(&start, NULL);
+	t1 = start.tv_sec + start.tv_usec / 1000000.0;
+	// spmv kernel
+	matrix_ell_spmv<<< grid, threads >>>(d_vals, d_cols, d_res, niv, njv);
+	cudaThreadSynchronize();
+	// get back results to the host
+	cudaMemcpy(res, d_res, mem_size_res, cudaMemcpyDeviceToHost);
+	gettimeofday(&end, NULL);
+	t2 = end.tv_sec + end.tv_usec / 1000000.0;
+	diff = t2 - t1;
+	printf("kernel time %f s\n", diff);
+	// clean up memory
+	cudaFree(d_vals);
+	cudaFree(d_cols);
+	//cudaFree(d_y);
+	cudaFree(d_res);
 }

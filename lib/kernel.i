@@ -49,16 +49,18 @@ void kernel_draw_2D_lines_SIDDON(float* INPLACE_ARRAY2, int DIM1, int DIM2, floa
 
 // PET Scan Allegro
 void kernel_pet2D_SRM_entryexit(float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int b, int res, int srmsize, int* INPLACE_ARRAY1, int DIM1);
+void kernel_pet2D_SRM_clean_entryexit(int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1);
 void kernel_pet2D_SRM_DDA(float* INPLACE_ARRAY2, int DIM1, int DIM2, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int width_image);
+void kernel_pet2D_SRM_ELL_DDA(float* INPLACE_ARRAY2, int DIM1, int DIM2, int* INPLACE_ARRAY2, int DIM1, int DIM2, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int width_image);
+void kernel_pet2D_SRM_DDA_cuda(float* INPLACE_ARRAY2, int DIM1, int DIM2, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int width_image); // cuda version
+void kernel_pet2D_SRM_DDA_omp(float* INPLACE_ARRAY2, int DIM1, int DIM2, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int width_image); // omp version
 void kernel_pet2D_SRM_DDAA(float* INPLACE_ARRAY2, int DIM1, int DIM2, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int width_image);
 void kernel_pet2D_SRM_DDAA2(float* INPLACE_ARRAY2, int DIM1, int DIM2, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int width_image);
 void kernel_pet2D_SRM_BLA(float* INPLACE_ARRAY2, int DIM1, int DIM2, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int width_image);
 void kernel_pet2D_SRM_SIDDON(float* INPLACE_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, int res, int b, int matsize);
 void kernel_allegro_idtopos(int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float respix, int sizespacexy, int sizespacez);
-// cuda version
-void kernel_pet2D_SRM_DDA_cuda(float* INPLACE_ARRAY2, int DIM1, int DIM2, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int width_image);
-// omp version
-void kernel_pet2D_SRM_DDA_omp(float* INPLACE_ARRAY2, int DIM1, int DIM2, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int width_image);
+
+
 
 // PET 2D Simulated four squares
 //void kernel_pet2D_square_gen_sim_ID(int* INPLACE_ARRAY1, int DIM1, float posx, float posy, float alpha, int nx);
@@ -87,21 +89,22 @@ void kernel_draw_3D_line_DDA(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3
 void kernel_matrix_mat2coo(float* IN_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int roffset, int coffset);
 
 void kernel_matrix_coo_sumcol(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
-void kernel_matrix_coo_saxy(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
-void kernel_matrix_coo_satxy(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
+void kernel_matrix_coo_spmv(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
+void kernel_matrix_coo_spmtv(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
 
 void kernel_matrix_mat2csr(float* IN_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1);
 void kernel_matrix_csr_sumcol(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
-void kernel_matrix_csr_saxy(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
-void kernel_matrix_csr_satxy(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
+void kernel_matrix_csr_spmv(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
+void kernel_matrix_csr_spmtv(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
 
 void kernel_matrix_mat2ell(float* IN_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY2, int DIM1, int DIM2, int* INPLACE_ARRAY2, int DIM1, int DIM2);
 void kernel_matrix_ell_sumcol(float* IN_ARRAY2, int DIM1, int DIM2, int* INPLACE_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY1, int DIM1);
-void kernel_matrix_ell_saxy(float* IN_ARRAY2, int DIM1, int DIM2, int* INPLACE_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
-void kernel_matrix_ell_satxy(float* IN_ARRAY2, int DIM1, int DIM2, int* INPLACE_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
+void kernel_matrix_ell_spmv(float* IN_ARRAY2, int DIM1, int DIM2, int* INPLACE_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
+void kernel_matrix_ell_spmv_cuda(float* IN_ARRAY2, int DIM1, int DIM2, int* INPLACE_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
+void kernel_matrix_ell_spmtv(float* IN_ARRAY2, int DIM1, int DIM2, int* INPLACE_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
 
-void kernel_matrix_saxy(float* IN_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
-void kernel_matrix_satxy(float* IN_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
+void kernel_matrix_spmv(float* IN_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
+void kernel_matrix_spmtv(float* IN_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
 int kernel_matrix_nonzeros(float* IN_ARRAY2, int DIM1, int DIM2);
 void kernel_matrix_nonzeros_rows(float* IN_ARRAY2, int DIM1, int DIM2, int* INPLACE_ARRAY1, int DIM1);
 void kernel_matrix_sumcol(float* IN_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY1, int DIM1);

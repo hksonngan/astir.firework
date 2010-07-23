@@ -181,7 +181,7 @@ void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* q
 	}
 }
 
-// Clean LOR (entry-exit point) outside ROI
+// Cleanning LORs outside of ROi based on SRM entry-exit point calculation
 void kernel_pet2D_SRM_clean_entryexit(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* x2, int nx2, float* y2, int ny2,
 									  int* xi1, int nxi1, int* yi1, int nyi1, int* xi2, int nxi2, int* yi2, int nyi2) {
 	int i, c;
@@ -196,7 +196,32 @@ void kernel_pet2D_SRM_clean_entryexit(int* enable, int ne, float* x1, int nx1, f
 		}
 	}
 }
-	
+
+// Cleanning LORs outside of ROI based on center LOR position (used by SIDDON to start drawing)
+void kernel_pet2D_SRM_clean_LOR_center(float* x1, int nx1, float* y1, int ny1, float* x2, int nx2, float* y2, int ny2,
+									   float* xc1, int nxc1, float* yc1, int nyc1, float* xc2, int nxc2, float* yc2, int ncy2, int border, int size_im) {
+	int i, c;
+	float tx, ty;
+	float lx1, ly1, lx2, ly2;
+	float lxc1, lyc1, lxc2, lyc2;
+	c = 0;
+	for (i=0; i<nx1; ++i) {
+		lx1 = x1[i];
+		ly1 = y1[i];
+		lx2 = x2[i];
+		ly2 = y2[i];
+		tx = (lx2 - lx1) * 0.5 + lx1;
+		ty = (ly2 - ly1) * 0.5 + ly1;
+		if (tx<border || ty<border) {continue;}
+		if (tx>=(border+size_im) || ty>=(border+size_im)) {continue;}
+		xc1[c] = lx1;
+		yc1[c] = ly1;
+		xc2[c] = lx2;
+		yc2[c] = ly2;
+		++c;
+	}
+}
+
 // Raytrace SRM matrix with DDA algorithm
 void kernel_pet2D_SRM_DDA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
 	int length, i, n;
@@ -260,7 +285,6 @@ void kernel_pet2D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic,
 		x = x1 + 0.5;
 		y = y1 + 0.5;
 		for (n=0; n<=length; ++n) {
-			//SRM[LOR_ind + (int)y * width_image + (int)x] = val;
 			vals[LOR_ind + n] = val;
 			cols[LOR_ind + n] = (int)y * width_image + (int)x;
 			x = x + xinc;
@@ -538,7 +562,6 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 		stepx = fabs((res*pq / divx));
 		stepy = fabs((res*pq / divy));
 		startl = astart * pq;
-
 		// first half-ray
 		runx = axstart * pq;
 		runy = aystart * pq;
@@ -559,8 +582,8 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
 			if (val > 10.0) {val = 1.0;}
-			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
 			SRM[LOR_ind + j * matsize + i] = val;
+			
 			oldv = newv;
 			if (runx == newv) {
 				i += stepi;
@@ -570,6 +593,7 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 				j += stepj;
 				runy += stepy;
 			}
+			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
 		}
 
 		// second half-ray
@@ -589,6 +613,7 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 			j += stepj;
 			runy += stepy;
 		}
+		
 		SRM[LOR_ind + ej * matsize + ei] = fabs(newv - oldv);
 		oldv = 0.0f;
 		while (1) {
@@ -596,7 +621,6 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
 			if (val > 10.0) {val = 1.0;}
-			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
 			SRM[LOR_ind + j * matsize + i] = val;
 			oldv = newv;
 			if (runx == newv) {
@@ -607,10 +631,383 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 				j += stepj;
 				runy += stepy;
 			}
+			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
 		}
 	}
 }
 
+// Draw a list of lines in SRM by Wu's Line Algorithm (modified version 1D)
+void kernel_pet2D_SRM_WLA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int wim) {
+	int dx, dy, stepx, stepy, n, LOR_ind;
+	int length, extras, incr2, incr1, c, d, i;
+	int x1, y1, x2, y2;
+	float val;
+	for (n=0; n<nx1; ++n) {
+		LOR_ind = n * wx;
+		x1 = X1[n];
+		y1 = Y1[n];
+		x2 = X2[n];
+		y2 = Y2[n];
+	    dy = y2 - y1;
+		dx = x2 - x1;
+	
+		if (dy < 0) { dy = -dy;  stepy = -1; } else { stepy = 1; }
+		if (dx < 0) { dx = -dx;  stepx = -1; } else { stepx = 1; }
+		if (dx > dy) {val = 1 / float(dx);}
+		else {val = 1 / float(dy);}
+
+		SRM[LOR_ind + y1 * wim + x1] = val;
+		SRM[LOR_ind + y2 * wim + x2] = val;
+		if (dx > dy) {
+			length = (dx - 1) >> 2;
+			extras = (dx - 1) & 3;
+			incr2 = (dy << 2) - (dx << 1);
+			if (incr2 < 0) {
+				c = dy << 1;
+				incr1 = c << 1;
+				d =  incr1 - dx;
+				for (i = 0; i < length; i++) {
+					x1 = x1 + stepx;
+					x2 = x2 - stepx;
+					if (d < 0) {                            // Pattern:
+						SRM[LOR_ind + y1 * wim + x1] = val; //
+						x1 = x1 + stepx;                    // x o o
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						SRM[LOR_ind + y2 * wim + x2] = val;
+						x2 = x2 - stepx;
+						SRM[LOR_ind + y2 * wim + x2] = val;
+						d += incr1;
+					} else {
+						if (d < c) {                                 // Pattern:
+							SRM[LOR_ind + y1 * wim + x1] = val;      //       o
+							x1 = x1 + stepx;                         //   x o
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+							
+						} else {
+							y1 = y1 + stepy;                      // Pattern
+							SRM[LOR_ind + y1 * wim + x1] = val;   //    o o
+							x1 = x1 + stepx;                      //  x
+							SRM[LOR_ind + y1 * wim + x1] = val;
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+							x2 = x2 - stepx;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+						d += incr2;
+					}
+				}
+				if (extras > 0) {
+					if (d < 0) {
+						x1 = x1 + stepx;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+					} else 
+	                if (d < c) {
+						x1 = x1 + stepx;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+					} else {
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+	                }
+				}
+			} else {
+			    c = (dy - dx) << 1;
+				incr1 = c << 1;
+				d =  incr1 + dx;
+				for (i = 0; i < length; i++) {
+					x1 = x1 + stepx;
+					x2 = x2 - stepx;
+					if (d > 0) {
+						y1 = y1 + stepy;                     // Pattern
+						SRM[LOR_ind + y1 * wim + x1] = val;  //      o
+						x1 = x1 + stepx;                     //    o
+						y1 = y1 + stepy;                     //   x
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						y2 = y2 - stepy;
+						SRM[LOR_ind + y2 * wim + x2] = val;
+						x2 = x2 - stepx;
+						y2 = y2 - stepy;
+						SRM[LOR_ind + y2 * wim + x2] = val;
+						d += incr1;
+					} else {
+						if (d < c) {
+							SRM[LOR_ind + y1 * wim + x1] = val;  // Pattern
+							x1 = x1 + stepx;                     //      o
+							y1 = y1 + stepy;                     //  x o
+							SRM[LOR_ind + y1 * wim + x1] = val;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						} else {
+							y1 = y1 + stepy;                    // Pattern
+							SRM[LOR_ind + y1 * wim + x1] = val; //    o  o
+							x1 = x1 + stepx;                    //  x
+							SRM[LOR_ind + y1 * wim + x1] = val;
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+							x2 = x2 - stepx;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+						d += incr2;
+					}
+				}
+				if (extras > 0) {
+					if (d > 0) {
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+					} else 
+	                if (d < c) {
+						x1 = x1 + stepx;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+					} else {
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+						}
+						if (extras > 2) {
+							if (d > c) {
+								x2 = x2 - stepx;
+								y2 = y2 - stepy;
+								SRM[LOR_ind + y2 * wim + x2] = val;
+							} else {
+								x2 = x2 - stepx;
+								SRM[LOR_ind + y2 * wim + x2] = val;
+							}
+						}
+					}
+				}
+			}
+	    } else {
+		    length = (dy - 1) >> 2;
+			extras = (dy - 1) & 3;
+			incr2 = (dx << 2) - (dy << 1);
+			if (incr2 < 0) {
+				c = dx << 1;
+				incr1 = c << 1;
+				d =  incr1 - dy;
+				for (i = 0; i < length; i++) {
+					y1 = y1 + stepy;
+					y2 = y2 - stepy;
+					if (d < 0) {
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						y1 = y1 + stepy;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						SRM[LOR_ind + y2 * wim + x2] = val;
+						y2 = y2 - stepy;
+						SRM[LOR_ind + y2 * wim + x2] = val;
+						d += incr1;
+					} else {
+						if (d < c) {
+							SRM[LOR_ind + y1 * wim + x1] = val;
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						} else {
+							x1 = x1 + stepx;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+							x2 = x2 - stepx;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+						d += incr2;
+					}
+				}
+				if (extras > 0) {
+					if (d < 0) {
+						y1 = y1 + stepy;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						if (extras > 1) {
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+						}
+						if (extras > 2) {
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+					} else 
+	                if (d < c) {
+						y1 = y1 + stepy;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+						}
+						if (extras > 2) {
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+	                } else {
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						if (extras > 1) {
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+	                }
+				}
+	        } else {
+				c = (dx - dy) << 1;
+				incr1 = c << 1;
+				d =  incr1 + dy;
+				for (i = 0; i < length; i++) {
+					y1 = y1 + stepy;
+					y2 = y2 - stepy;
+					if (d > 0) {
+						x1 = x1 + stepx;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						x2 = x2 - stepx;
+						SRM[LOR_ind + y2 * wim + x2] = val;
+						x2 = x2 - stepx;
+						y2 = y2 - stepy;
+						SRM[LOR_ind + y2 * wim + x2] = val;
+						d += incr1;
+					} else {
+						if (d < c) {
+							SRM[LOR_ind + y1 * wim + x1] = val;
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						} else {
+							x1 = x1 + stepx;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+							x2 = x2 - stepx;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+						d += incr2;
+					}
+				}
+				if (extras > 0) {
+					if (d > 0) {
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+					} else
+	                if (d < c) {
+						y1 = y1 + stepy;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+						}
+	                    if (extras > 2) {
+							y2 = y2 - stepy;
+							SRM[LOR_ind + y2 * wim + x2] = val;
+						}
+					} else {
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						SRM[LOR_ind + y1 * wim + x1] = val;
+						if (extras > 1) {
+							y1 = y1 + stepy;
+							SRM[LOR_ind + y1 * wim + x1] = val;
+						}
+						if (extras > 2) {
+							if (d > c)  {
+								x2 = x2 - stepx;
+								y2 = y2 - stepy;
+								SRM[LOR_ind + y2 * wim + x2] = val;
+							} else {
+								y2 = y2 - stepy;
+								SRM[LOR_ind + y2 * wim + x2] = val;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
 
 /********************************************************************************
  * GENERAL      line drawing
@@ -1504,6 +1901,380 @@ void kernel_draw_2D_line_WLA(float* mat, int wy, int wx, int x1, int y1, int x2,
 	}
 }
 
+// Draw a list of lines in 2D space by Wu's Line Algorithm (modified version 1D)
+void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
+	int dx, dy, stepx, stepy, n;
+	int length, extras, incr2, incr1, c, d, i;
+	int x1, y1, x2, y2;
+	float val;
+	for (n=0; n<nx1; ++n) {
+		x1 = X1[n];
+		y1 = Y1[n];
+		x2 = X2[n];
+		y2 = Y2[n];
+	    dy = y2 - y1;
+		dx = x2 - x1;
+	
+		if (dy < 0) { dy = -dy;  stepy = -1; } else { stepy = 1; }
+		if (dx < 0) { dx = -dx;  stepx = -1; } else { stepx = 1; }
+		if (dx > dy) {val = 1 / float(dx);}
+		else {val = 1 / float(dy);}
+	
+		mat[y1 * wx + x1] += val;
+		mat[y2 * wx + x2] += val;
+		if (dx > dy) {
+			length = (dx - 1) >> 2;
+			extras = (dx - 1) & 3;
+			incr2 = (dy << 2) - (dx << 1);
+			if (incr2 < 0) {
+				c = dy << 1;
+				incr1 = c << 1;
+				d =  incr1 - dx;
+				for (i = 0; i < length; i++) {
+					x1 = x1 + stepx;
+					x2 = x2 - stepx;
+					if (d < 0) {                    // Pattern:
+						mat[y1 * wx + x1] += val;   //
+						x1 = x1 + stepx;            // x o o
+						mat[y1 * wx + x1] += val;
+						mat[y2 * wx + x2] += val;
+						x2 = x2 - stepx;
+						mat[y2 * wx + x2] += val;
+						d += incr1;
+					} else {
+						if (d < c) {                                 // Pattern:
+							mat[y1 * wx + x1] += val;                //       o
+							x1 = x1 + stepx;                         //   x o
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+							mat[y2 * wx + x2] += val;
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+							
+						} else {
+							y1 = y1 + stepy;                      // Pattern
+							mat[y1 * wx + x1] += val;             //    o o
+							x1 = x1 + stepx;                      //  x
+							mat[y1 * wx + x1] += val;
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+							x2 = x2 - stepx;
+							mat[y2 * wx + x2] += val;
+						}
+						d += incr2;
+					}
+				}
+				if (extras > 0) {
+					if (d < 0) {
+						x1 = x1 + stepx;
+						mat[y1 * wx + x1] += val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							mat[y1 * wx + x1] += val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							mat[y2 * wx + x2] += val;
+						}
+					} else 
+	                if (d < c) {
+						x1 = x1 + stepx;
+						mat[y1 * wx + x1] += val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							mat[y2 * wx + x2] += val;
+						}
+					} else {
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						mat[y1 * wx + x1] += val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							mat[y1 * wx + x1] += val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+						}
+	                }
+				}
+			} else {
+			    c = (dy - dx) << 1;
+				incr1 = c << 1;
+				d =  incr1 + dx;
+				for (i = 0; i < length; i++) {
+					x1 = x1 + stepx;
+					x2 = x2 - stepx;
+					if (d > 0) {
+						y1 = y1 + stepy;           // Pattern
+						mat[y1 * wx + x1] += val;  //      o
+						x1 = x1 + stepx;           //    o
+						y1 = y1 + stepy;           //   x
+						mat[y1 * wx + x1] += val;
+						y2 = y2 - stepy;
+						mat[y2 * wx + x2] += val;
+						x2 = x2 - stepx;
+						y2 = y2 - stepy;
+						mat[y2 * wx + x2] += val;
+						d += incr1;
+					} else {
+						if (d < c) {
+							mat[y1 * wx + x1] += val;  // Pattern
+							x1 = x1 + stepx;           //      o
+							y1 = y1 + stepy;           //  x o
+							mat[y1 * wx + x1] += val;
+							mat[y2 * wx + x2] += val;
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+						} else {
+							y1 = y1 + stepy;          // Pattern
+							mat[y1 * wx + x1] += val; //    o  o
+							x1 = x1 + stepx;          //  x
+							mat[y1 * wx + x1] += val;
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+							x2 = x2 - stepx;
+							mat[y2 * wx + x2] += val;
+						}
+						d += incr2;
+					}
+				}
+				if (extras > 0) {
+					if (d > 0) {
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						mat[y1 * wx + x1] += val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+						}
+					} else 
+	                if (d < c) {
+						x1 = x1 + stepx;
+						mat[y1 * wx + x1] += val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							mat[y2 * wx + x2] += val;
+						}
+					} else {
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						mat[y1 * wx + x1] += val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							mat[y1 * wx + x1] += val;
+						}
+						if (extras > 2) {
+							if (d > c) {
+								x2 = x2 - stepx;
+								y2 = y2 - stepy;
+								mat[y2 * wx + x2] += val;
+							} else {
+								x2 = x2 - stepx;
+								mat[y2 * wx + x2] += val;
+							}
+						}
+					}
+				}
+			}
+	    } else {
+		    length = (dy - 1) >> 2;
+			extras = (dy - 1) & 3;
+			incr2 = (dx << 2) - (dy << 1);
+			if (incr2 < 0) {
+				c = dx << 1;
+				incr1 = c << 1;
+				d =  incr1 - dy;
+				for (i = 0; i < length; i++) {
+					y1 = y1 + stepy;
+					y2 = y2 - stepy;
+					if (d < 0) {
+						mat[y1 * wx + x1] += val;
+						y1 = y1 + stepy;
+						mat[y1 * wx + x1] += val;
+						mat[y2 * wx + x2] += val;
+						y2 = y2 - stepy;
+						mat[y2 * wx + x2] += val;
+						d += incr1;
+					} else {
+						if (d < c) {
+							mat[y1 * wx + x1] += val;
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+							mat[y2 * wx + x2] += val;
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+						} else {
+							x1 = x1 + stepx;
+							mat[y1 * wx + x1] += val;
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+							x2 = x2 - stepx;
+							mat[y2 * wx + x2] += val;
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+						}
+						d += incr2;
+					}
+				}
+				if (extras > 0) {
+					if (d < 0) {
+						y1 = y1 + stepy;
+						mat[y1 * wx + x1] += val;
+						if (extras > 1) {
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+						}
+						if (extras > 2) {
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+						}
+					} else 
+	                if (d < c) {
+						y1 = y1 + stepy;
+						mat[y1 * wx + x1] += val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+						}
+						if (extras > 2) {
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+						}
+	                } else {
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						mat[y1 * wx + x1] += val;
+						if (extras > 1) {
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+						}
+	                }
+				}
+	        } else {
+				c = (dx - dy) << 1;
+				incr1 = c << 1;
+				d =  incr1 + dy;
+				for (i = 0; i < length; i++) {
+					y1 = y1 + stepy;
+					y2 = y2 - stepy;
+					if (d > 0) {
+						x1 = x1 + stepx;
+						mat[y1 * wx + x1] += val;
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						mat[y1 * wx + x1] += val;
+						x2 = x2 - stepx;
+						mat[y2 * wx + x2] += val;
+						x2 = x2 - stepx;
+						y2 = y2 - stepy;
+						mat[y2 * wx + x2] += val;
+						d += incr1;
+					} else {
+						if (d < c) {
+							mat[y1 * wx + x1] += val;
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+							mat[y2 * wx + x2] += val; 
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+						} else {
+							x1 = x1 + stepx;
+							mat[y1 * wx + x1] += val;
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+							x2 = x2 - stepx;
+							mat[y2 * wx + x2] += val;
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+						}
+						d += incr2;
+					}
+				}
+				if (extras > 0) {
+					if (d > 0) {
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						mat[y1 * wx + x1] += val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+						}
+						if (extras > 2) {
+							x2 = x2 - stepx;
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+						}
+					} else
+	                if (d < c) {
+						y1 = y1 + stepy;
+						mat[y1 * wx + x1] += val;
+						if (extras > 1) {
+							x1 = x1 + stepx;
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+						}
+	                    if (extras > 2) {
+							y2 = y2 - stepy;
+							mat[y2 * wx + x2] += val;
+						}
+					} else {
+						x1 = x1 + stepx;
+						y1 = y1 + stepy;
+						mat[y1 * wx + x1] += val;
+						if (extras > 1) {
+							y1 = y1 + stepy;
+							mat[y1 * wx + x1] += val;
+						}
+						if (extras > 2) {
+							if (d > c)  {
+								x2 = x2 - stepx;
+								y2 = y2 - stepy;
+								mat[y2 * wx + x2] += val;
+							} else {
+								y2 = y2 - stepy;
+								mat[y2 * wx + x2] += val;
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+
+
 /**************************************************************
  * 2D PET SCAN      resconstruction
  **************************************************************/
@@ -1548,6 +2319,7 @@ void kernel_pet2D_LM_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs
 		qi = 0.0;
 		ind = i * npix;
 		for (j=0; j<npix; ++j) {qi += (SRM[ind+j] * im[j]);}
+		if (qi == 0.0) {qi = 1.0f;}
 		Q[i] = qi;
 	}
 
@@ -1580,10 +2352,57 @@ void kernel_pet2D_LM_EMML_COO_iter(float* SRMvals, int nvals, int* SRMrows, int 
 	for (i=0; i<nvals; ++i) {
 		Q[SRMrows[i]] += (SRMvals[i] * im[SRMcols[i]]);
 	}
+	printf("Q %f %f %f\n", Q[0], Q[1], Q[2]);
 	// Sparse matrix operation F = SRM^T * Q
 	for (i=0; i<nvals; ++i) {
 		F[SRMcols[i]] += (SRMvals[i] / Q[SRMrows[i]]);
 	}
+	printf("F %f %f %f\n", F[0], F[1], F[2]);
+
+	// update pixel
+	for (j=0; j<npix; ++j) {
+		buf = im[j];
+		if (buf != 0) {
+			im[j] = buf / S[j] * F[j];
+		}
+	}
+	free(Q);
+	free(F);
+}
+
+// EM-ML algorithm with sparse matrix (ELL)
+void kernel_pet2D_LM_EMML_ELL_iter(float* SRMvals, int nivals, int njvals, int* SRMcols, int nicols, int njcols, float* S, int ns, float* im, int npix) {
+	int i, j, ind, vcol;
+	float buf, sum;
+	float* Q = (float*)calloc(nivals, sizeof(float));
+	float* F = (float*)calloc(npix, sizeof(float));
+
+	// Sparse matrix operation Q = SRM * im
+	for (i=0; i<nivals; ++i) {
+		ind = i * njvals;
+		vcol = SRMcols[ind];
+		j = 0;
+		sum = 0.0f;
+		while (vcol != -1) {
+			sum += (SRMvals[ind+j] * im[vcol]);
+			++j;
+			vcol = SRMcols[ind+j];
+		}
+		Q[i] = sum;
+	}
+	printf("Q %f %f %f\n", Q[0], Q[1], Q[2]);
+	// Sparse matrix operation F = SRM^T * Q
+	for (i=0; i<nivals; ++i) {
+		ind = i * njvals;
+		vcol = SRMcols[ind];
+		j = 0;
+		while (vcol != -1) {
+			F[vcol] += (SRMvals[ind+j] * Q[i]);
+			++j;
+			vcol = SRMcols[ind+j];
+		}
+	}
+	printf("F %f %f %f\n", F[0], F[1], F[2]);
 	// update pixel
 	for (j=0; j<npix; ++j) {
 		buf = im[j];
@@ -1866,4 +2685,14 @@ void kernel_matrix_sumcol(float* mat, int ni, int nj, float* im, int npix) {
 			im[j] += mat[ind + j];
 		}
 	}
+}
+
+// Count non-zeros elements inside the matrix
+int kernel_vector_nonzeros(float* mat, int ni) {
+	int i;
+	int c=0;
+	for (i=0; i<ni; ++i) {
+		if (mat[i] != 0) {++c;}
+	}
+	return c;
 }

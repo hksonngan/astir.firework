@@ -2352,13 +2352,10 @@ void kernel_pet2D_LM_EMML_COO_iter(float* SRMvals, int nvals, int* SRMrows, int 
 	for (i=0; i<nvals; ++i) {
 		Q[SRMrows[i]] += (SRMvals[i] * im[SRMcols[i]]);
 	}
-	printf("Q %f %f %f\n", Q[0], Q[1], Q[2]);
-	// Sparse matrix operation F = SRM^T * Q
+	// Sparse matrix operation F = SRM^T / Q
 	for (i=0; i<nvals; ++i) {
 		F[SRMcols[i]] += (SRMvals[i] / Q[SRMrows[i]]);
 	}
-	printf("F %f %f %f\n", F[0], F[1], F[2]);
-
 	// update pixel
 	for (j=0; j<npix; ++j) {
 		buf = im[j];
@@ -2390,19 +2387,17 @@ void kernel_pet2D_LM_EMML_ELL_iter(float* SRMvals, int nivals, int njvals, int* 
 		}
 		Q[i] = sum;
 	}
-	printf("Q %f %f %f\n", Q[0], Q[1], Q[2]);
-	// Sparse matrix operation F = SRM^T * Q
+	// Sparse matrix operation F = SRM^T / Q
 	for (i=0; i<nivals; ++i) {
 		ind = i * njvals;
 		vcol = SRMcols[ind];
 		j = 0;
 		while (vcol != -1) {
-			F[vcol] += (SRMvals[ind+j] * Q[i]);
+			F[vcol] += (SRMvals[ind+j] / Q[i]);
 			++j;
 			vcol = SRMcols[ind+j];
 		}
 	}
-	printf("F %f %f %f\n", F[0], F[1], F[2]);
 	// update pixel
 	for (j=0; j<npix; ++j) {
 		buf = im[j];
@@ -2448,6 +2443,10 @@ void kernel_pet2D_EMML_cuda(float* SRM, int nlor, int npix, float* im, int npixi
 	kernel_pet2D_EMML_wrap_cuda(SRM, nlor, npix, im, npixim, LOR_val, nval, S, ns, maxit);
 }
 
+// List mode 2D rexonstruction with DDA and ELL format, all iterations are perform on GPU
+void kernel_pet2D_LM_EMML_DDA_ELL_cuda(float* buf, int nbuf, int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* im, int nim, float* S, int ns, int wsrm, int wim, int maxite) {
+	kernel_pet2D_LM_EMML_DDA_ELL_wrap_cuda(buf, nbuf, x1, nx1, y1, ny1, x2, nx2, y2, ny2, im, nim, S, ns, wsrm, wim, maxite);
+}
 
 /**************************************************************
  * Utils

@@ -513,7 +513,7 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 	float tx, ty, px, qx, py, qy;
 	int ei, ej, u, v, i, j;
 	int stepi, stepj;
-	float divx, divy, runx, runy, oldv, newv, val;
+	float divx, divy, runx, runy, oldv, newv, val, valmax;
 	float axstart, aystart, astart, pq, stepx, stepy, startl;
 	for (n=0; n<nx1; ++n) {
 		LOR_ind = n * wx;
@@ -562,6 +562,10 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 		stepx = fabs((res*pq / divx));
 		stepy = fabs((res*pq / divy));
 		startl = astart * pq;
+		valmax = stepx;
+		if (stepy < valmax) {valmax = stepy;}
+		valmax = valmax + valmax*0.01f;
+
 		// first half-ray
 		runx = axstart * pq;
 		runy = aystart * pq;
@@ -575,13 +579,13 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 			j += stepj;
 			runy += stepy;
 		}
-		oldv = 0.0f;
+		oldv = startl;
 		if (runx < runy) {oldv = runx;}
 		while (1) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
-			if (val > 10.0) {val = 1.0;}
+			if (val > valmax) {val = valmax;}
 			SRM[LOR_ind + j * matsize + i] = val;
 			
 			oldv = newv;
@@ -614,13 +618,13 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 			runy += stepy;
 		}
 		
-		SRM[LOR_ind + ej * matsize + ei] = fabs(newv - oldv);
-		oldv = 0.0f;
+		SRM[LOR_ind + ej * matsize + ei] = .5f;
+		oldv = startl;
 		while (1) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
-			if (val > 10.0) {val = 1.0;}
+			if (val > valmax) {val = valmax;}
 			SRM[LOR_ind + j * matsize + i] = val;
 			oldv = newv;
 			if (runx == newv) {
@@ -1346,7 +1350,7 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 	float tx, ty, px, qx, py, qy;
 	int ei, ej, u, v, i, j;
 	int stepi, stepj;
-	float divx, divy, runx, runy, oldv, newv;
+	float divx, divy, runx, runy, oldv, newv, val, valmax;
 	float axstart, aystart, astart, pq, stepx, stepy, startl;
 	for (n=0; n<nx1; ++n) {
 		px = X2[n];
@@ -1395,6 +1399,10 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 		stepx = fabs((res*pq / divx));
 		stepy = fabs((res*pq / divy));
 		startl = astart * pq;
+		valmax = stepx;
+		if (stepy < valmax) {valmax = stepy;}
+		valmax = valmax + valmax*0.01f;
+		//valmax = sqrt(stepx * stepx + stepy * stepy);
 
 		// first half-ray
 		runx = axstart * pq;
@@ -1413,8 +1421,9 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 		while (1) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
-			mat[j * wx + i] += fabs(newv-oldv);
-			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			mat[j * wx + i] = val;
 			oldv = newv;
 			if (runx == newv) {
 				i += stepi;
@@ -1424,6 +1433,7 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 				j += stepj;
 				runy += stepy;
 			}
+			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
 		}
 
 		// second half-ray
@@ -1443,13 +1453,14 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 			j += stepj;
 			runy += stepy;
 		}
-		mat[ej * wx + ei] += fabs(newv - oldv);
 		oldv = startl;
+		mat[ej * wx + ei] = valmax;
 		while (1) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
-			mat[j * wx + i] += fabs(newv - oldv);
-			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			mat[j * wx + i] = val;
 			oldv = newv;
 			if (runx == newv) {
 				i += stepi;
@@ -1459,6 +1470,7 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 				j += stepj;
 				runy += stepy;
 			}
+			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
 		}
 	}
 }
@@ -2443,9 +2455,10 @@ void kernel_pet2D_EMML_cuda(float* SRM, int nlor, int npix, float* im, int npixi
 	kernel_pet2D_EMML_wrap_cuda(SRM, nlor, npix, im, npixim, LOR_val, nval, S, ns, maxit);
 }
 
+
 // List mode 2D rexonstruction with DDA and ELL format, all iterations are perform on GPU
-void kernel_pet2D_LM_EMML_DDA_ELL_cuda(float* buf, int nbuf, int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* im, int nim, float* S, int ns, int wsrm, int wim, int maxite) {
-	kernel_pet2D_LM_EMML_DDA_ELL_wrap_cuda(buf, nbuf, x1, nx1, y1, ny1, x2, nx2, y2, ny2, im, nim, S, ns, wsrm, wim, maxite);
+void kernel_pet2D_LM_EMML_DDA_ELL_cuda(int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* im, int nim, float* S, int ns, int wsrm, int wim, int maxite) {
+	kernel_pet2D_LM_EMML_DDA_ELL_wrap_cuda(x1, nx1, y1, ny1, x2, nx2, y2, ny2, im, nim, S, ns, wsrm, wim, maxite);
 }
 
 /**************************************************************

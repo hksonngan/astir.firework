@@ -96,6 +96,12 @@ __global__ void pet2D_SRM_ELL_init(float* d_SRM_vals, int* d_SRM_cols, int wsrm,
 		}
 	}
 }
+// init Q and F to zeros
+__global__ void pet2D_QF_init(float* d_Q, float* d_F, int nq, int nf) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < nq) {d_Q[idx] = 0.0f;}
+	if (idx < nf) {d_F[idx] = 0.0f;}
+}
 // Compute Q vector by SRM * IM (ELL sparse matrix format)
 __global__ void pet2D_ell_spmv(float* d_SRM_vals, int* d_SRM_cols, float* d_Q, float* d_im,  int niv, int njv) {
 	int j, ind, vcol;
@@ -122,7 +128,7 @@ __global__ void pet2D_ell_F(float* d_SRM_vals, int* d_SRM_cols, float* d_F, floa
 		for (i=0; i < niv; ++i) {
 			ind = i * njv + idx;
 			vcol = d_SRM_cols[ind];
-			if (vcol != -1) {d_F[vcol] += (d_SRM_vals[ind] / d_Q[i]);}
+			if (vcol != -1) {d_F[vcol] +=(d_SRM_vals[ind] / d_Q[i]);}
 			__syncthreads();
 		}
 	}
@@ -329,7 +335,7 @@ void kernel_matrix_ell_spmv_wrap_cuda(float* vals, int niv, int njv, int* cols, 
 	cudaFree(d_res);
 }
 
-void kernel_pet2D_LM_EMML_DDA_ELL_wrap_cuda(float* buf, int nbuf, int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* im, int nim, float* S, int ns, int wsrm, int wim, int maxite) {
+void kernel_pet2D_LM_EMML_DDA_ELL_wrap_cuda(int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* im, int nim, float* S, int ns, int wsrm, int wim, int maxite) {
 	// select a GPU
 	cudaSetDevice(0);
 	// to time
@@ -342,6 +348,8 @@ void kernel_pet2D_LM_EMML_DDA_ELL_wrap_cuda(float* buf, int nbuf, int* x1, int n
 	dim3 threads2, grid2;
 	dim3 threads3, grid3;
 	// allocate device memory
+	gettimeofday(&start, NULL);
+	t1 = start.tv_sec + start.tv_usec / 1000000.0;
 	int size_SRM = nx1 * wsrm;
 	unsigned int mem_size_iSRM = size_SRM * sizeof(int);
 	unsigned int mem_size_fSRM = size_SRM * sizeof(float);
@@ -378,6 +386,10 @@ void kernel_pet2D_LM_EMML_DDA_ELL_wrap_cuda(float* buf, int nbuf, int* x1, int n
 	cudaMemcpy(d_y1, y1, mem_size_point, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_x2, x2, mem_size_point, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_y2, y2, mem_size_point, cudaMemcpyHostToDevice);
+	gettimeofday(&end, NULL);
+	t2 = end.tv_sec + end.tv_usec / 1000000.0;
+	diff = t2 - t1;
+	printf("prepare mem: %f s\n", diff);
 
 	// Init kernel
 	block_size = 256;
@@ -403,7 +415,6 @@ void kernel_pet2D_LM_EMML_DDA_ELL_wrap_cuda(float* buf, int nbuf, int* x1, int n
 	t2 = end.tv_sec + end.tv_usec / 1000000.0;
 	diff = t2 - t1;
 	printf("kernel DDA: %f s\n", diff);
-
 	// IM kernel
 	block_size = 8;
 	grid_size = (wsrm + block_size - 1) / block_size;
@@ -432,23 +443,34 @@ void kernel_pet2D_LM_EMML_DDA_ELL_wrap_cuda(float* buf, int nbuf, int* x1, int n
 	grid_size = (nim + block_size - 1) / block_size;
 	threads3.x = block_size;
 	grid3.x = grid_size;
+	gettimeofday(&start, NULL);
+	t1 = start.tv_sec + start.tv_usec / 1000000.0;
 	for (ite=0; ite<maxite; ++ite) {
+		// init F and Q to zeros
+		pet2D_QF_init<<<grid, threads>>>(d_Q, d_F, nx1, nim);
 		// compute Q
 		pet2D_ell_spmv<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, d_Q, d_im, nx1, wsrm);
-		float* Q = (float*)malloc(nx1 * sizeof(float));
-		cudaMemcpy(Q, d_Q, nx1*sizeof(float), cudaMemcpyDeviceToHost);
-		printf("Q %f %f %f\n", Q[0], Q[1], Q[2]);
 		// compute f = sum{SRMi / qi} for each i LOR
 		pet2D_ell_F<<<grid2, threads2>>>(d_SRM_vals, d_SRM_cols, d_F, d_Q, nx1, wsrm);
-		float* F = (float*)malloc(nim * sizeof(float));
-		cudaMemcpy(F, d_F, nim*sizeof(float), cudaMemcpyDeviceToHost);
-		printf("F %f %f %f\n", F[0], F[1], F[2]);
 		// update image
 		pet2D_im_update<<< grid3, threads3 >>>(d_im, d_S, d_F, nim);
+
 	}
 
+	gettimeofday(&end, NULL);
+	t2 = end.tv_sec + end.tv_usec / 1000000.0;
+	diff = t2 - t1;
+	printf("kernel iter: %f s\n", diff);
+	
+
 	// get back image
+	gettimeofday(&start, NULL);
+	t1 = start.tv_sec + start.tv_usec / 1000000.0;
 	cudaMemcpy(im, d_im, mem_size_im, cudaMemcpyDeviceToHost);
+	gettimeofday(&end, NULL);
+	t2 = end.tv_sec + end.tv_usec / 1000000.0;
+	diff = t2 - t1;
+	printf("get image back: %f s\n", diff);
 
 	cudaFree(d_SRM_vals);
 	cudaFree(d_SRM_cols);
@@ -462,3 +484,4 @@ void kernel_pet2D_LM_EMML_DDA_ELL_wrap_cuda(float* buf, int nbuf, int* x1, int n
 	cudaFree(d_y2);
 	
 }
+

@@ -76,7 +76,8 @@ void kernel_pet2D_LM_EMML_COO_iter(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, i
 void kernel_pet2D_LM_EMML_ELL_iter(float* IN_ARRAY2, int DIM1, int DIM2, int* IN_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1);
 void kernel_pet2D_EMML_cuda(float* INPLACE_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, int maxit);
 void kernel_pet2D_EMML_iter_MPI(float* INPLACE_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int N_start, int N_stop);
-void kernel_pet2D_LM_EMML_DDA_ELL_cuda(float* INPLACE_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, int wsrm, int wim, int maxite);
+void kernel_pet2D_LM_EMML_DDA_ELL_cuda(int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wsrm, int wim, int maxite);
+
 
 // PET 2D Simulated ring scan
 //void kernel_pet2D_ring_build_SM(float* INPLACE_ARRAY2, int DIM1, int DIM2, int x1, int y1, int x2, int y2, int nx, int numlor);

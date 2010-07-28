@@ -230,6 +230,19 @@ def prefix_SI(mem):
 
     return '%5.2f %sB' % (mem, pref[iemem])
 
+# convert time format to nice format
+def time_format(t):
+    time_r  = int(t)
+    time_h  = time_r // 3600
+    time_m  = (time_r % 3600) // 60
+    time_s  = (time_r % 3600)  % 60
+    time_ms = int((t - time_r) * 1000.0)
+    txt     = ' %03i ms' % time_ms
+    if time_s != 0: txt = ' %02i s' % time_s + txt
+    if time_m != 0: txt = ' %02i m' % time_m + txt
+    if time_h != 0: txt = ' %02i h' % time_h + txt
+    return txt
+
 # ==== List-Mode ============================
 # ===========================================
     

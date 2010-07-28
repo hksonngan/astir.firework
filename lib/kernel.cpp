@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <math.h>
+#include <time.h>
 #include <omp.h>
 #include "kernel_cuda.h"
 
@@ -113,17 +114,15 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 #undef twopi
 
 // SRM Raytracing (transversal algorithm), Compute entry and exit point on SRM of the ray
-void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* qx, int nqx, float* qy, int nqy, int b, int res, int srmsize, int* enable, int nenable) {
+void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* qx, int nqx, float* qy, int nqy, int b, int srmsize, int* enable, int nenable) {
 	float divx, divy, fsrmsize;
 	float axn, ax0, ayn, ay0;
 	float amin, amax, buf1, buf2;
 	float x1, y1, x2, y2;
 	float pxi, pyi, qxi, qyi;
-	int xi1, yi1, xi2, yi2;
 	int i;
 		
 	b = (float)b;
-	res = (float)res;
 	fsrmsize = (float)srmsize;
 
 	for (i=0; i<npx; ++i) {
@@ -136,9 +135,9 @@ void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* q
 		else {divx = pxi - qxi;}
 		if (pyi == qyi) {divy = 1.0;}
 		else {divy = pyi - qyi;}
-		axn = (fsrmsize * res + b - qxi) / divx;
+		axn = (fsrmsize + b - qxi) / divx;
 		ax0 = (b - qxi) / divx;
-		ayn = (fsrmsize * res + b - qyi) / divy;
+		ayn = (fsrmsize + b - qyi) / divy;
 		ay0 = (b - qyi) / divy;
 
 		buf1 = ax0;
@@ -154,35 +153,31 @@ void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* q
 		amax = buf2;
 		if (buf1 < buf2) {amax = buf1;}
 
-		x1 = (qxi + amax * (pxi - qxi) - b) / res;
-		y1 = (qyi + amax * (pyi - qyi) - b) / res;
-		x2 = (qxi + amin * (pxi - qxi) - b) / res;
-		y2 = (qyi + amin * (pyi - qyi) - b) / res;
+		x1 = (qxi + amax * (pxi - qxi) - b);
+		y1 = (qyi + amax * (pyi - qyi) - b);
+		x2 = (qxi + amin * (pxi - qxi) - b);
+		y2 = (qyi + amin * (pyi - qyi) - b);
 
 		// format
-		xi1 = (int)x1;
-		if (xi1 == srmsize) {xi1 = srmsize-1;}
-		yi1 = (int)y1;
-		if (yi1 == srmsize) {yi1 = srmsize-1;}
-		xi2 = (int)x2;
-		if (xi2 == srmsize) {xi2 = srmsize-1;}
-		yi2 = (int)y2;
-		if (yi2 == srmsize) {yi2 = srmsize-1;}
+		if (x1 == fsrmsize) {x1 = fsrmsize-1.0f;}
+		if (y1 == fsrmsize) {y1 = fsrmsize-1.0f;}
+		if (x2 == fsrmsize) {x2 = fsrmsize-1.0f;}
+		if (y2 == fsrmsize) {y2 = fsrmsize-1.0f;}
 		// check if ray through the image
 		enable[i] = 1;
-		if (xi1 < 0 || xi1 > srmsize || yi1 < 0 || yi1 > srmsize) {enable[i] = 0;}
-		if (xi2 < 0 || xi2 > srmsize || yi2 < 0 || yi2 > srmsize) {enable[i] = 0;}
+		if (x1 < 0 || x1 > fsrmsize-1 || y1 < 0 || y1 > fsrmsize-1) {enable[i] = 0;}
+		if (x2 < 0 || x2 > fsrmsize-1 || y2 < 0 || y2 > fsrmsize-1) {enable[i] = 0;}
 		// check if the ray is > 0
-		if (xi1 == xi2 && yi1 == yi2) {enable[i] = 0;}
-		px[i] = xi1;
-		py[i] = yi1;
-		qx[i] = xi2;
-		qy[i] = yi2;
+		if (int(x1) == int(x2) && int(y1) == int(y2)) {enable[i] = 0;}
+		px[i] = x1;
+		py[i] = y1;
+		qx[i] = x2;
+		qy[i] = y2;
 	}
 }
 
-// Cleanning LORs outside of ROi based on SRM entry-exit point calculation
-void kernel_pet2D_SRM_clean_entryexit(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* x2, int nx2, float* y2, int ny2,
+// Cleanning LORs outside of ROi based on SRM entry-exit point calculation (return int)
+void kernel_pet2D_SRM_clean_entryexit_int(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* x2, int nx2, float* y2, int ny2,
 									  int* xi1, int nxi1, int* yi1, int nyi1, int* xi2, int nxi2, int* yi2, int nyi2) {
 	int i, c;
 	c = 0;
@@ -192,6 +187,21 @@ void kernel_pet2D_SRM_clean_entryexit(int* enable, int ne, float* x1, int nx1, f
 			yi1[c] = (int)y1[i];
 			xi2[c] = (int)x2[i];
 			yi2[c] = (int)y2[i];
+			++c;
+		}
+	}
+}
+// Cleanning LORs outside of ROi based on SRM entry-exit point calculation (return float)
+void kernel_pet2D_SRM_clean_entryexit_float(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* x2, int nx2, float* y2, int ny2,
+									  float* xf1, int nxf1, float* yf1, int nyf1, float* xf2, int nxf2, float* yf2, int nyf2) {
+	int i, c;
+	c = 0;
+	for (i=0; i<nx1; ++i) {
+		if (enable[i]) {
+			xf1[c] = x1[i];
+			yf1[c] = y1[i];
+			xf2[c] = x2[i];
+			yf2[c] = y2[i];
 			++c;
 		}
 	}
@@ -265,7 +275,7 @@ void kernel_pet2D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic,
 	float xinc, yinc;
 	int x1, y1, x2, y2, diffx, diffy;
 	int LOR_ind;
-	
+	val = 1.0f;
 	for (i=0; i< nx1; ++i) {
 		LOR_ind = i * njv;
 		x1 = X1[i];
@@ -281,7 +291,7 @@ void kernel_pet2D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic,
 		flength = (float)length;
 		xinc = diffx / flength;
 		yinc = diffy / flength;
-		val  = 1 / flength;
+		//val  = 1 / flength;
 		x = x1 + 0.5;
 		y = y1 + 0.5;
 		for (n=0; n<=length; ++n) {
@@ -439,6 +449,72 @@ void kernel_pet2D_SRM_DDAA2(float* SRM, int wy, int wx, int* X1, int nx1, int* Y
 	}
 }
 
+// Draw lines in SRM with DDA anti-aliased version 2 pix, SRM is in ELL sparse matrix format 
+void kernel_pet2D_SRM_ELL_DDAA2(float* SRMvals, int niv, int njv, int* SRMcols, int nic, int njc, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
+	int length, i, n;
+	float flength;
+	float x, y, lx, ly;
+	float xinc, yinc;
+	int x1, y1, x2, y2, diffx, diffy, xint, yint, ind, ind2;
+	float val, vd, vu;
+	int LOR_ind;
+
+	for (i=0; i< nx1; ++i) {
+		LOR_ind = i * njv;
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		length = ly;
+		if (lx > length) {length = lx;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		x = x1 + 0.5;
+		y = y1 + 0.5;
+
+		// first pixel
+		xint = int(x);
+		yint = int(y);
+		val = 1 - fabs(x - (xint + 0.5));
+		SRMvals[LOR_ind] = val;
+		SRMcols[LOR_ind] = yint * width_image + xint;
+		//SRM[LOR_ind + yint * width_image + xint] = val;
+		x = x + xinc;
+		y = y + yinc;
+		// line
+		for (n=1; n<length; ++n) {
+			xint = int(x);
+			yint = int(y);
+			ind = yint * width_image + xint;
+			val = 1 - fabs(x - (xint + 0.5));
+			vu = (x - xint) * 0.5;
+			// vd = 0.5 - vu;
+			ind2 = LOR_ind + 2*n;
+			SRMvals[ind2] = vu;
+			SRMcols[ind2] = ind + 1;
+			SRMvals[ind2 + 1] = val;
+			SRMcols[ind2 + 1] = ind;
+			//SRM[ind+1] = vu;
+			//SRM[ind] = val;
+			x = x + xinc;
+			y = y + yinc;
+		}
+		// last pixel
+		xint = int(x);
+		yint = int(y);
+		val = 1 - fabs(x - (xint + 0.5));
+		ind2 = LOR_ind + 2*n;
+		SRMvals[ind2] = val;
+		SRMcols[ind2] = yint * width_image + xint;
+		//SRM[LOR_ind + yint * width_image + xint] = val;
+	}
+}
+
 // Draw lines in SRM by Bresenham's Line Algorithm (modified version 1D)
 void kernel_pet2D_SRM_BLA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
 	int x, y, n;
@@ -508,24 +584,28 @@ void kernel_pet2D_SRM_BLA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1,
 }
 
 // Draw lines in SRM by Siddon's Line Algorithm (modified version 1D)
-void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, float* Y1, int ny1, float* X2, int nx2, float* Y2, int ny2, int res, int b, int matsize) {
+void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, float* Y1, int ny1, float* X2, int nx2, float* Y2, int ny2, int matsize) {
 	int n, LOR_ind;
 	float tx, ty, px, qx, py, qy;
 	int ei, ej, u, v, i, j;
 	int stepi, stepj;
 	float divx, divy, runx, runy, oldv, newv, val, valmax;
-	float axstart, aystart, astart, pq, stepx, stepy, startl;
+	float axstart, aystart, astart, pq, stepx, stepy, startl, initl;
+
+	// random seed
+	srand(time(NULL));
 	for (n=0; n<nx1; ++n) {
 		LOR_ind = n * wx;
-
 		px = X2[n];
 		py = Y2[n];
 		qx = X1[n];
 		qy = Y1[n];
-		tx = (px-qx) * 0.5 + qx;
-		ty = (py-qy) * 0.5 + qy;
-		ei = int((tx-b) / (float)res);
-		ej = int((ty-b) / (float)res);
+		initl = (float)rand() / (float)RAND_MAX;
+		initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
+		ty = (py-qy) * initl + qy;
+		ei = int(tx);
+		ej = int(ty);
 		if (qx-tx>0) {
 			u=ei+1;
 			stepi=1;
@@ -554,13 +634,13 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 		else {divx = float(qx-px);}
 		if (qy==py) {divy=1.0;}
 		else {divy = float(qy-py);}
-		axstart = ((u*res)+b-px) / divx;
-		aystart = ((v*res)+b-py) / divy;
+		axstart = (u-px) / divx;
+		aystart = (v-py) / divy;
 		astart = aystart;
 		if (axstart > aystart) {astart = axstart;}
 		pq = sqrt((qx-px)*(qx-px)+(qy-py)*(qy-py));
-		stepx = fabs((res*pq / divx));
-		stepy = fabs((res*pq / divy));
+		stepx = fabs(pq / divx);
+		stepy = fabs(pq / divy);
 		startl = astart * pq;
 		valmax = stepx;
 		if (stepy < valmax) {valmax = stepy;}
@@ -580,14 +660,12 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 			runy += stepy;
 		}
 		oldv = startl;
-		if (runx < runy) {oldv = runx;}
-		while (1) {
+		while (i>=0 && j>=0 && i<matsize && j<matsize) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
 			if (val > valmax) {val = valmax;}
 			SRM[LOR_ind + j * matsize + i] = val;
-			
 			oldv = newv;
 			if (runx == newv) {
 				i += stepi;
@@ -597,7 +675,139 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 				j += stepj;
 				runy += stepy;
 			}
-			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
+		}
+		// second half-ray
+		if (px-tx>0) {stepi=1;}
+		if (px-tx<0) {stepi=-1;}
+		if (py-ty>0) {stepj=1;}
+		if (py-ty<0) {stepj=-1;}
+		runx = axstart * pq;
+		runy = aystart * pq;
+		i = ei;
+		j = ej;
+		if (runx==startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy==startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		SRM[LOR_ind + ej * matsize + ei] = val;
+		oldv = startl;
+		while (i>=0 && j>=0 && i<matsize && j<matsize) {
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			SRM[LOR_ind + j * matsize + i] = val;
+			oldv = newv;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
+		}
+	}
+}
+
+// Draw lines in SRM by Siddon's Line Algorithm (modified version 1D), SRM is in ELL sparse matrix format
+void kernel_pet2D_SRM_ELL_SIDDON(float* SRMvals, int niv, int njv, int* SRMcols, int nic, int njc, float* X1, int nx1, float* Y1, int ny1, float* X2, int nx2, float* Y2, int ny2, int matsize) {
+	int n, LOR_ind;
+	float tx, ty, px, qx, py, qy;
+	int ei, ej, u, v, i, j, ct;
+	int stepi, stepj;
+	float divx, divy, runx, runy, oldv, newv, val, valmax;
+	float axstart, aystart, astart, pq, stepx, stepy, startl, initl;
+	// random seed
+	srand(time(NULL));
+	for (n=0; n<nx1; ++n) {
+		LOR_ind = n * njv;
+		ct = 0;
+		px = X2[n];
+		py = Y2[n];
+		qx = X1[n];
+		qy = Y1[n];
+		initl = (float)rand() / (float)RAND_MAX;
+		initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
+		ty = (py-qy) * initl + qy;
+		ei = int(tx);
+		ej = int(ty);
+		if (qx-tx>0) {
+			u=ei+1;
+			stepi=1;
+		}
+		if (qx-tx<0) {
+			u=ei;
+			stepi=-1;
+		}
+		if (qx-tx==0) {
+			u=ei;
+			stepi=0;
+		}
+		if (qy-ty>0) {
+			v=ej+1;
+			stepj=1;
+		}
+		if (qy-ty<0) {
+			v=ej;
+			stepj=-1;
+		}
+		if (qy-ty==0) {
+			v=ej;
+			stepj=0;
+		}
+		if (qx==px) {divx=1.0;}
+		else {divx = float(qx-px);}
+		if (qy==py) {divy=1.0;}
+		else {divy = float(qy-py);}
+		axstart = (u-px) / divx;
+		aystart = (v-py) / divy;
+		astart = aystart;
+		if (axstart > aystart) {astart = axstart;}
+		pq = sqrt((qx-px)*(qx-px)+(qy-py)*(qy-py));
+		stepx = fabs(pq / divx);
+		stepy = fabs(pq / divy);
+		startl = astart * pq;
+		valmax = stepx;
+		if (stepy < valmax) {valmax = stepy;}
+		valmax = valmax + valmax*0.01f;
+
+		// first half-ray
+		runx = axstart * pq;
+		runy = aystart * pq;
+		i = ei;
+		j = ej;
+		if (runx == startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy == startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		oldv = startl;
+		while (i>=0 && j>=0 && i<matsize && j<matsize) {
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			SRMvals[LOR_ind + ct] = val;
+			SRMcols[LOR_ind + ct] = j * matsize + i;
+			ct++;
+			oldv = newv;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
 		}
 
 		// second half-ray
@@ -617,15 +827,18 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 			j += stepj;
 			runy += stepy;
 		}
-		
-		SRM[LOR_ind + ej * matsize + ei] = .5f;
+		SRMvals[LOR_ind + ct] = val;
+		SRMcols[LOR_ind + ct] = ej * matsize + ei;
+		ct++;
 		oldv = startl;
-		while (1) {
+		while (i>=0 && j>=0 && i<matsize && j<matsize) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
 			if (val > valmax) {val = valmax;}
-			SRM[LOR_ind + j * matsize + i] = val;
+			SRMvals[LOR_ind + ct] = val;
+			SRMcols[LOR_ind + ct] = j * matsize + i;
+			ct++;
 			oldv = newv;
 			if (runx == newv) {
 				i += stepi;
@@ -635,7 +848,6 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 				j += stepj;
 				runy += stepy;
 			}
-			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
 		}
 	}
 }
@@ -1357,8 +1569,8 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 		py = Y2[n];
 		qx = X1[n];
 		qy = Y1[n];
-		tx = (px-qx) * 0.5 + qx;
-		ty = (py-qy) * 0.5 + qy;
+		tx = (px-qx) * 0.4 + qx; // not 0.5 to avoid an image artefact
+		ty = (py-qy) * 0.4 + qy;
 		ei = int((tx-b) / (float)res);
 		ej = int((ty-b) / (float)res);
 		
@@ -1418,12 +1630,12 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 			runy += stepy;
 		}
 		oldv = startl;
-		while (1) {
+		while (i>=0 && j>=0 && i<matsize && j<matsize) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
 			if (val > valmax) {val = valmax;}
-			mat[j * wx + i] = val;
+			mat[j * wx + i] = 0.1f; //val;
 			oldv = newv;
 			if (runx == newv) {
 				i += stepi;
@@ -1433,7 +1645,6 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 				j += stepj;
 				runy += stepy;
 			}
-			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
 		}
 
 		// second half-ray
@@ -1454,13 +1665,13 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 			runy += stepy;
 		}
 		oldv = startl;
-		mat[ej * wx + ei] = valmax;
-		while (1) {
+		mat[ej * wx + ei] = 0.1f; //valmax;
+		while (i>=0 && j>=0 && i<matsize && j<matsize) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
 			if (val > valmax) {val = valmax;}
-			mat[j * wx + i] = val;
+			mat[j * wx + i] = 0.1f; //val;
 			oldv = newv;
 			if (runx == newv) {
 				i += stepi;
@@ -1470,7 +1681,6 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 				j += stepj;
 				runy += stepy;
 			}
-			if (i>=(matsize-1) || j>=(matsize-1) || i<=0 || j<=0) {break;}
 		}
 	}
 }

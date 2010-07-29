@@ -36,6 +36,7 @@ def image_open(name):
 
     return data
 
+# export image
 def image_write(im, name):
     from PIL import Image
     slice = im.copy()
@@ -100,13 +101,26 @@ def image_fft(im):
     from numpy import fft
     l, w = im.shape
     if l != w:
-        print 'Image must be square !'
+        print 'Image must be square!'
         return -1
     if w % 2 == 1: imf = fft.fft2(im)
     else:          imf = fft.fft2(im, s=(w+1, w+1))
     imf  = fft.fftshift(imf)
 
     return imf
+
+# compute ifft of image
+def image_ifft(imf, wo = -1):
+    from numpy import fft
+    l, w = imf.shape
+    if wo == -1: wo = w
+    if l!= w:
+        print 'Image must be square!'
+        return -1
+    if wo % 2 == 1: im = fft.ifft2(imf)
+    else:           im = fft.ifft2(imf, s=(wo, wo))
+
+    return im
 
 # compute power spectrum of image
 def image_pows(im):
@@ -138,14 +152,14 @@ def image_periodogram(im):
     return imf
 
 # create image noise (gauss model)
-def image_noise(l, w, sigma):
+def image_noise(w, h, sigma):
     from numpy import zeros
     from random import gauss
 
     mu = 0.5
-    im = zeros((l, w), 'float32')
-    for i in xrange(w):
-        for j in xrange(l):
+    im = zeros((w, h), 'float32')
+    for i in xrange(h):
+        for j in xrange(w):
             im[j, i] = gauss(mu, sigma)
 
     im -= im.min()
@@ -153,7 +167,7 @@ def image_noise(l, w, sigma):
     
     return im
             
-# compute RAPS, radial averaging power spectrum
+# Compute RAPS, radial averaging power spectrum
 def image_raps(im):
     from numpy import zeros, array
 
@@ -188,30 +202,212 @@ def image_raps(im):
     
     return val, freq
 
+# Compute FRC curve (Fourier Ring Correlation)
+def image_frc(im1, im2):
+    from numpy import zeros, array
+    
+    if im1.shape != im2.shape:
+        print 'Images must have the same size!'
+        return -1
+
+    wo, ho = im1.shape
+    im1    = image_normalize(im1)
+    im2    = image_normalize(im2)
+    imf1   = image_fft(im1)
+    imf2   = image_fft(im2)
+    imf2c  = imf2.conj()
+    w, h   = imf1.shape
+    c      = (w - 1) // 2
+    rmax   = c
+    fsc    = zeros((rmax + 1), 'float32')
+    nf1    = zeros((rmax + 1), 'float32')
+    nf2    = zeros((rmax + 1), 'float32')
+    # center
+    fsc[0] = imf1[c, c] * imf2c[c, c]
+    nf1[0] = abs(imf1[c, c])**2
+    nf2[0] = abs(imf2[c, c])**2
+    # over all rings
+    for i in xrange(c-rmax, c+rmax+1):
+        for j in xrange(c-rmax, c+rmax+1):
+            r = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5)
+            if r >= rmax: continue
+            ir    = int(r)
+            cir   = ir + 1
+            frac  = r - ir
+            cfrac = 1 - frac
+            ifsc  = imf1[i, j] * imf2c[i, j]
+            inf1  = abs(imf1[i, j])**2
+            inf2  = abs(imf2[i, j])**2
+            fsc[ir] += (cfrac * ifsc)
+            nf1[ir] += (cfrac * inf1)
+            nf2[ir] += (cfrac * inf2)
+            if cir <= rmax:
+                fsc[cir] += (frac * ifsc)
+                nf1[cir] += (frac * inf1)
+                nf2[cir] += (frac * inf2)
+
+    fsc = fsc / (nf1 * nf2)**0.5
+
+    freq  = range(0, wo // 2 + 1)
+    freq  = array(freq, 'float32')
+    freq /= float(wo)
+
+    return fsc, freq
+
+# Compute SNR
+def image_snr(im):
+    wo, ho = im.shape
+    noise  = image_noise(wo, ho, 1.0)
+    noise  = image_normalize(noise)
+    im     = image_normalize(im)
+    Pim    = image_pows(im)
+    Pnoise = image_pows(noise)
+    print Pnoise.mean()
+    w, h   = Pim.shape
+    c      = (w - 1) // 2
+    rmax   = c
+    snr    = 0.0
+    ct     = 0
+    # calculate inside a mask circle
+    for i in xrange(c - rmax, c + rmax + 1):
+        for j in xrange(c - rmax, c + rmax + 1):
+            r = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5)
+            if r >= rmax: continue
+            snr += (Pim[i, j] / Pnoise[i, j])
+            ct  += 1
+
+    return snr/ct
+            
+
+            
+# Low pass filter
+def image_lp_filter(im, fc, order):
+    from numpy import zeros, array
+    order *= 2
+    wo, ho = im.shape
+    imf    = image_fft(im)
+    w, h   = imf.shape
+    c      = (w - 1) // 2
+    H      = zeros((w, h), 'float32')
+    for i in xrange(h):
+        for j in xrange(w):
+            r       = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5) # radius
+            f       = r / (w-1)                          # fequency
+            H[i, j] = 1 / (1 + (f / fc)**order)**0.5     # filter
+
+    imf *= H
+    im   = image_ifft(imf, wo)
+            
+    profil  = image_1D_slice(H, c, c, w, c)
+    freq    = range(0, wo // 2 + 1)
+    freq    = array(freq, 'float32')
+    freq   /= float(wo)
+
+    return im, profil, freq
+
+# High pass filter
+def image_hp_filter(im, fc, order):
+    from numpy import zeros, array
+    order *= 2
+    wo, ho = im.shape
+    imf    = image_fft(im)
+    w, h   = imf.shape
+    c      = (w - 1) // 2
+    H      = zeros((w, h), 'float32')
+    for i in xrange(h):
+        for j in xrange(w):
+            r       = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5) # radius
+            f       = r / (w-1)                          # fequency
+            # build like a low pass filter with fc = 0.5 - fc and mirror also f (0.5 - f)
+            H[i, j] = 1 / (1 + ((0.5-f) / (0.5-fc))**order)**0.5 
+
+    imf *= H
+    im   = image_ifft(imf, wo)
+            
+    profil  = image_1D_slice(H, c, c, w, c)
+    freq    = range(0, wo // 2 + 1)
+    freq    = array(freq, 'float32')
+    freq   /= float(wo)
+
+    return im, profil, freq
+
+# Band pass filter
+def image_bp_filter(im, fl, fh, order):
+    from numpy import zeros, array
+    order *= 2
+    wo, ho = im.shape
+    imf    = image_fft(im)
+    w, h   = imf.shape
+    c      = (w - 1) // 2
+    H      = zeros((w, h), 'float32')
+    for i in xrange(h):
+        for j in xrange(w):
+            r       = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5) # radius
+            f       = r / (w-1)                          # fequency
+            # low pass filter
+            a1      = 1 / (1 + (f / fh)**order)**0.5 
+            # high pass filter
+            a2      = 1 / (1 + ((0.5-f) / (0.5-fl))**order)**0.5
+            # band pass filter
+            H[i, j] = a1 * a2
+
+    imf *= H
+    im   = image_ifft(imf, wo)
+            
+    profil  = image_1D_slice(H, c, c, w, c)
+    freq    = range(0, wo // 2 + 1)
+    freq    = array(freq, 'float32')
+    freq   /= float(wo)
+
+    return im, profil, freq
+
+
 # ==== Volume ===============================
 # ===========================================
 
-# open a raw volume
-def volume_open(name, nx, ny, nz, nbyte):
-    from numpy  import zeros
-    from sys    import exit
-    try:
-        data = open(name, 'rb').read()
-    except IOError:
-        print 'open_volume error: can not open the file'
-        exit()
-    if nbyte == 1:   buf = fromstring(data, 'uint8').astype(float)
-    elif nbyte == 2: buf = fromstring(data, 'uint16').astype(float)
-    buf *= 1.0 / max(buf)
-    buf  = buf.reshape(nz, ny, nx)
+# open a raw volume (datatype = 'uint8', 'uint16', etc.)
+def volume_open(name, nx, ny, nz, datatype):
+    import numpy
+    
+    data = open(name, 'rb').read()
+    vol  = numpy.fromstring(data, datatype)
+    vol  = vol.astype('float32')
+    '''
+    if   datatype == 'uint8':  val /= 255.0
+    elif datatype == 'uint16': val /= 65535.0
+    elif datatype == 'uint32'; val /= 4294967295.0
+    '''
+    vol *= 1.0 / vol.max()
+    vol  = vol.reshape(nz, ny, nx)
 
-    return buf
+    return vol
 
 # get a slice from a volume
 def volume_slice(vol, pos=0, axe='z'):
     if   axe == 'z': return vol[pos]
     elif axe == 'x': return vol[:, :, pos]
     elif axe == 'y': return vol[:, pos, :]
+
+# export volume as multipage tiff file (unfortunately in separate file)
+def volume_export_tiff(vol, name):
+    from PIL  import Image
+    from time import sleep
+    import os, sys
+    vol  = vol.copy()
+    vol /= vol.max()
+    vol *= 255
+    vol  = vol.astype('uint8')
+    nz, ny, nx = vol.shape
+    for z in xrange(nz):
+        slice = volume_slice(vol, z, 'z')
+        pilImage = Image.frombuffer('L', (nx, ny), slice, 'raw', 'L', 0, 1)
+        pilImage.save('%03i_tmp.tiff' % z)
+    try:
+        os.system('convert *_tmp.tiff -adjoin %s' % name)
+        os.system('rm -f *_tmp.tiff')
+    except:
+        print 'Imagemagick must install !!'
+        sys.exit()
 
 # ==== Misc =================================
 # ===========================================
@@ -242,6 +438,12 @@ def time_format(t):
     if time_m != 0: txt = ' %02i m' % time_m + txt
     if time_h != 0: txt = ' %02i h' % time_h + txt
     return txt
+
+# plot
+def plot(x, y):
+    import matplotlib.pyplot as plt
+    plt.plot(x, y)
+    plt.show()
 
 # ==== List-Mode ============================
 # ===========================================

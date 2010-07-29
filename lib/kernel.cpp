@@ -2671,6 +2671,16 @@ void kernel_pet2D_LM_EMML_DDA_ELL_cuda(int* x1, int nx1, int* y1, int ny1, int* 
 	kernel_pet2D_LM_EMML_DDA_ELL_wrap_cuda(x1, nx1, y1, ny1, x2, nx2, y2, ny2, im, nim, S, ns, wsrm, wim, maxite);
 }
 
+// Compute first image in 2D-LM-OSEM reconstruction (from IM, x, y build SRM in ELL format then compute IM+=IM)
+void kernel_pet2D_IM_SRM_DDA_ELL_cuda(int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* im, int nim, int wsrm, int wim) {
+	kernel_pet2D_IM_SRM_DDA_ELL_wrap_cuda(x1, nx1, y1, ny1, x2, nx2, y2, ny2, im, nim, wsrm, wim);
+}
+
+// Update image for the 2D-LM-OSEM reconstruction (from x, y, IM and S, build SRM in ELL format then update IM)
+void kernel_pet2D_IM_SRM_DDA_ELL_iter_cuda(int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* S, int ns, float* im, int nim, int wsrm, int wim){
+	kernel_pet2D_IM_SRM_DDA_ELL_iter_wrap_cuda(x1, nx1, y1, ny1, x2, nx2, y2, ny2, S, ns, im, nim, wsrm, wim);
+}
+
 /**************************************************************
  * Utils
  **************************************************************/

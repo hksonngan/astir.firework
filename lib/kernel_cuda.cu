@@ -56,6 +56,7 @@ __global__ void pet2D_SRM_DDA_ELL(float* d_SRM_vals, int* d_SRM_cols, int* d_x1,
 	int length, n, x1, y1, x2, y2, diffx, diffy, LOR_ind;
 	float flength, val, x, y, lx, ly, xinc, yinc;
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	val = 1.0f;
 	if (idx < nx1) {
 		LOR_ind = idx * wsrm;
 		x1 = d_x1[idx];
@@ -71,7 +72,7 @@ __global__ void pet2D_SRM_DDA_ELL(float* d_SRM_vals, int* d_SRM_cols, int* d_x1,
 		flength = (float)length;
 		xinc = diffx / flength;
 		yinc = diffy / flength;
-		val  = 1.0f / flength;
+		//val  = 1.0f / flength;
 		x = x1 + 0.5f;
 		y = y1 + 0.5f;
 		for (n=0; n<=length; ++n) {
@@ -485,3 +486,158 @@ void kernel_pet2D_LM_EMML_DDA_ELL_wrap_cuda(int* x1, int nx1, int* y1, int ny1, 
 	
 }
 
+// Compute the first image in lLM 2D-OSEM algorithm (from x, y build SRM, then compute IM)
+void kernel_pet2D_IM_SRM_DDA_ELL_wrap_cuda(int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* im, int nim, int wsrm, int wim) {
+	// select a GPU
+	cudaSetDevice(0);
+	// vars
+	int block_size, grid_size;
+	dim3 threads, grid;
+	// allocate device memory
+	int size_SRM = nx1 * wsrm;
+	unsigned int mem_size_iSRM = size_SRM * sizeof(int);
+	unsigned int mem_size_fSRM = size_SRM * sizeof(float);
+	unsigned int mem_size_im = nim * sizeof(float);
+	unsigned int mem_size_point = nx1 * sizeof(int);
+	float* d_SRM_vals;
+	int* d_SRM_cols;
+	float* d_im;
+	int* d_x1;
+	int* d_x2;
+	int* d_y1;
+	int* d_y2;
+	cudaMalloc((void**) &d_SRM_vals, mem_size_fSRM);
+	cudaMalloc((void**) &d_SRM_cols, mem_size_iSRM);
+	cudaMalloc((void**) &d_im, mem_size_im);
+	cudaMalloc((void**) &d_x1, mem_size_point);
+	cudaMalloc((void**) &d_y1, mem_size_point);
+	cudaMalloc((void**) &d_x2, mem_size_point);
+	cudaMalloc((void**) &d_y2, mem_size_point);
+	// copy from host to device
+	cudaMemcpy(d_im, im, mem_size_im, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x1, x1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y1, y1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x2, x2, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y2, y2, mem_size_point, cudaMemcpyHostToDevice);
+	// Init kernel
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size;
+	threads.x = block_size;
+	grid.x = grid_size;
+	pet2D_SRM_ELL_init<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, wsrm, nx1);
+	// DDA kernel
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size; // CODE IS LIMITED TO < 16 Mlines
+	threads.x = block_size;
+	grid.x = grid_size;
+	pet2D_SRM_DDA_ELL<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, d_x1, d_y1, d_x2, d_y2, wsrm, wim, nx1);
+	// IM kernel
+	block_size = 8;
+	grid_size = (wsrm + block_size - 1) / block_size;
+	threads.x = block_size;
+	grid.x = grid_size;
+	matrix_ell_sumcol<<<grid, threads>>>(d_SRM_vals, nx1, wsrm, d_SRM_cols, d_im);
+	// get back image
+	cudaMemcpy(im, d_im, mem_size_im, cudaMemcpyDeviceToHost);
+	// Free mem
+	cudaFree(d_SRM_vals);
+	cudaFree(d_SRM_cols);
+	cudaFree(d_im);
+	cudaFree(d_x1);
+	cudaFree(d_y1);
+	cudaFree(d_x2);
+	cudaFree(d_y2);
+}
+
+// Update image for the 2D-LM-OSEM reconstruction (from x, y, IM and S, build SRM in ELL format then update IM)
+void kernel_pet2D_IM_SRM_DDA_ELL_iter_wrap_cuda(int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* S, int ns, float* im, int nim, int wsrm, int wim) {
+	// select a GPU
+	cudaSetDevice(0);
+	// vars
+	int block_size, grid_size;
+	dim3 threads, grid;
+	dim3 threads2, grid2;
+	dim3 threads3, grid3;
+	// allocate device memory
+	int size_SRM = nx1 * wsrm;
+	unsigned int mem_size_iSRM = size_SRM * sizeof(int);
+	unsigned int mem_size_fSRM = size_SRM * sizeof(float);
+	unsigned int mem_size_im = nim * sizeof(float);
+	unsigned int mem_size_S = ns * sizeof(float);
+	unsigned int mem_size_Q = nx1 * sizeof(float);
+	unsigned int mem_size_F = nim * sizeof(float);
+	unsigned int mem_size_point = nx1 * sizeof(int);
+	float* d_SRM_vals;
+	int* d_SRM_cols;
+	float* d_im;
+	float* d_S;
+	float* d_Q;
+	float* d_F;
+	int* d_x1;
+	int* d_x2;
+	int* d_y1;
+	int* d_y2;
+	cudaMalloc((void**) &d_SRM_vals, mem_size_fSRM);
+	cudaMalloc((void**) &d_SRM_cols, mem_size_iSRM);
+	cudaMalloc((void**) &d_im, mem_size_im);
+	cudaMalloc((void**) &d_S, mem_size_S);
+	cudaMalloc((void**) &d_Q, mem_size_Q);
+	cudaMalloc((void**) &d_F, mem_size_F);
+	cudaMalloc((void**) &d_x1, mem_size_point);
+	cudaMalloc((void**) &d_y1, mem_size_point);
+	cudaMalloc((void**) &d_x2, mem_size_point);
+	cudaMalloc((void**) &d_y2, mem_size_point);
+	// copy from host to device
+	cudaMemcpy(d_im, im, mem_size_im, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_S, S, mem_size_S, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x1, x1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y1, y1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x2, x2, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y2, y2, mem_size_point, cudaMemcpyHostToDevice);
+	// Init kernel
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size;
+	threads.x = block_size;
+	grid.x = grid_size;
+	pet2D_SRM_ELL_init<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, wsrm, nx1);
+	// DDA kernel
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size; // CODE IS LIMITED TO < 16 Mlines
+	threads.x = block_size;
+	grid.x = grid_size;
+	pet2D_SRM_DDA_ELL<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, d_x1, d_y1, d_x2, d_y2, wsrm, wim, nx1);
+	// One iteration
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size; // CODE IS LIMITED TO < 16 Mlines
+	threads.x = block_size;
+	grid.x = grid_size;
+	block_size = 8;
+	grid_size = (wsrm + block_size - 1) / block_size;
+	threads2.x = block_size;
+	grid2.x = grid_size;
+	block_size = 64;
+	grid_size = (nim + block_size - 1) / block_size;
+	threads3.x = block_size;
+	grid3.x = grid_size;
+	// init F and Q to zeros
+	pet2D_QF_init<<<grid, threads>>>(d_Q, d_F, nx1, nim);
+	// compute Q
+	pet2D_ell_spmv<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, d_Q, d_im, nx1, wsrm);
+	// compute f = sum{SRMi / qi} for each i LOR
+	pet2D_ell_F<<<grid2, threads2>>>(d_SRM_vals, d_SRM_cols, d_F, d_Q, nx1, wsrm);
+	// update image
+	pet2D_im_update<<< grid3, threads3 >>>(d_im, d_S, d_F, nim);
+	// get back image
+	cudaMemcpy(im, d_im, mem_size_im, cudaMemcpyDeviceToHost);
+	// Free mem
+	cudaFree(d_SRM_vals);
+	cudaFree(d_SRM_cols);
+	cudaFree(d_im);
+	cudaFree(d_S);
+	cudaFree(d_Q);
+	cudaFree(d_F);
+	cudaFree(d_x1);
+	cudaFree(d_y1);
+	cudaFree(d_x2);
+	cudaFree(d_y2);
+}

@@ -20,6 +20,7 @@
 #include <math.h>
 #include <time.h>
 #include <omp.h>
+#include <GL/gl.h>
 #include "kernel_cuda.h"
 
 /********************************************************************************
@@ -1225,6 +1226,379 @@ void kernel_pet2D_SRM_WLA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1,
 	}
 }
 
+// SRM Raycasting, Compute ray intersection with the 3D SRM
+void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+								float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+								int* enable, int nenable, int border, int srmsize) {
+	// Smith's algorithm ray-box AABB intersection
+	int i, chk1, chk2;
+	float xd, yd, zd, xmin, ymin, zmin, xmax, ymax, zmax;
+	float tmin, tmax, tymin, tymax, tzmin, tzmax, buf;
+	float xi1, yi1, zi1, xp1, yp1, zp1, xp2, yp2, zp2;
+	// define box and ray direction
+	xmin = float(border);
+	xmax = float(border + srmsize);
+	ymin = float(border);
+	ymax = float(border + srmsize);
+	zmin = float(border);
+	zmax = float(border + srmsize);
+	for (i=0; i<nx1; ++i) {
+		xi1 = x1[i];
+		yi1 = y1[i];
+		zi1 = z1[i];
+		xd = x2[i] - xi1;
+		yd = y2[i] - yi1;
+		zd = z2[i] - zi1;
+		tmin = -1e9f;
+		tmax = 1e9f;
+		// on x
+		if (xd != 0.0f) {
+			tmin = (xmin - xi1) / xd;
+			tmax = (xmax - xi1) / xd;
+			if (tmin > tmax) {
+				buf = tmin;
+				tmin = tmax;
+				tmax = buf;
+			}
+		}
+		// on y
+		if (yd != 0.0f) {
+			tymin = (ymin - yi1) / yd;
+			tymax = (ymax - yi1) / yd;
+			if (tymin > tymax) {
+				buf = tymin;
+				tymin = tymax;
+				tymax = buf;
+			}
+			if (tymin > tmin) {tmin = tymin;}
+			if (tymax < tmax) {tmax = tymax;}
+		}
+		// on z
+		if (zd != 0.0f) {
+			tzmin = (zmin - zi1) / zd;
+			tzmax = (zmax - zi1) / zd;
+			if (tzmin > tzmax) {
+				buf = tzmin;
+				tzmin = tzmax;
+				tzmax = buf;
+			}
+			if (tzmin > tmin) {tmin = tzmin;}
+			if (tzmax < tmax) {tmax = tzmax;}
+		}
+		// compute points
+		xp1 = xi1 + xd * tmin;
+		yp1 = yi1 + yd * tmin;
+		zp1 = zi1 + zd * tmin;
+		xp2 = xi1 + xd * tmax;
+		yp2 = yi1 + yd * tmax;
+		zp2 = zi1 + zd * tmax;
+		//printf("p1 %f %f %f - p2 %f %f %f\n", xp1, yp1, zp1, xp2, yp2, zp2);
+		// check point p1
+		chk1 = 0;
+		chk2 = 0;
+		if (xp1 >= xmin && xp1 <= xmax) {
+			if (yp1 >= ymin && yp1 <= ymax) {
+				if (zp1 >= zmin && zp1 <= zmax) {
+					xp1 -= border;
+					yp1 -= border;
+					zp1 -= border;
+					xp1 = int(xp1);
+					yp1 = int(yp1);
+					zp1 = int(zp1);
+					if (xp1 == srmsize) {xp1 = srmsize-1;}
+					if (yp1 == srmsize) {yp1 = srmsize-1;}
+					if (zp1 == srmsize) {zp1 = srmsize-1;}
+					x1[i] = xp1;
+					y1[i] = yp1;
+					z1[i] = zp1;
+					chk1 = 1;
+				} else {continue;}
+			} else {continue;}
+		} else {continue;}
+		// check point p2
+		if (xp2 >= xmin && xp2 <= xmax) {
+			if (yp2 >= ymin && yp2 <= ymax) {
+				if (zp2 >= zmin && zp2 <= zmax) {
+					xp2 -= border;
+					yp2 -= border;
+					zp2 -= border;
+					xp2 = int(xp2);
+					yp2 = int(yp2);
+					zp2 = int(zp2);
+					if (xp2 == srmsize) {xp2 = srmsize-1;}
+					if (yp2 == srmsize) {yp2 = srmsize-1;}
+					if (zp2 == srmsize) {zp2 = srmsize-1;}
+					x2[i] = xp2;
+					y2[i] = yp2;
+					z2[i] = zp2;
+					chk2 = 1;
+				} else {continue;}
+			} else {continue;}
+		} else {continue;}
+		if (chk1 && chk2) {enable[i] = 1;}
+	}
+}
+
+// Cleanning LORs outside of ROI based on SRM raycasting intersection calculation (return int)
+void kernel_pet3D_SRM_clean_LOR_int(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+									float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+									int* xi1, int nxi1, int* yi1, int nyi1, int* zi1, int nzi1,
+									int* xi2, int nxi2, int* yi2, int nyi2, int* zi2, int nzi2) {
+	int i, c;
+	c = 0;
+	for (i=0; i<nx1; ++i) {
+		if (enable[i]) {
+			xi1[c] = (int)x1[i];
+			yi1[c] = (int)y1[i];
+			zi1[c] = (int)z1[i];
+			xi2[c] = (int)x2[i];
+			yi2[c] = (int)y2[i];
+			zi2[c] = (int)z2[i];
+			++c;
+		}
+	}
+}
+
+// Raytrace SRM matrix with DDA algorithm in ELL sparse matrix format
+void kernel_pet3D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic, int njc,
+							  unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1, unsigned short int* Z1, int nz1,
+							  unsigned short int* X2, int nx2, unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2, int wim) {
+	int length, lengthy, lengthz, i, n;
+	float flength, val;
+	float x, y, z, lx, ly, lz;
+	float xinc, yinc, zinc;
+	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
+	int LOR_ind;
+	int step;
+	val = 1.0f;
+	step = wim*wim;
+	
+	for (i=0; i< nx1; ++i) {
+		LOR_ind = i * njv;
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		z1 = Z1[i];
+		z2 = Z2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		zinc = diffz / flength;
+		x = x1 + 0.5;
+		y = y1 + 0.5;
+		z = z1 + 0.5;
+		for (n=0; n<=length; ++n) {
+			vals[LOR_ind + n] = val;
+			cols[LOR_ind + n] = (int)z * step + (int)y * wim + (int)x;
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+		cols[LOR_ind + n] = -1; // eof
+	}
+}
+
+
+/********************************************************************************
+ * GENERAL      volume rendering
+ ********************************************************************************/
+// helper function to rendering volume
+void kernel_draw_voxels(int* posxyz, int npos, float* val, int nval, float* valthr, int nthr, float gamma, float thres){
+	int ind, n, x, y, z;
+	float r, g, b, l;
+	for (n=0; n<nthr; ++n) {
+		l = valthr[n];
+		if (l <= thres) {continue;}
+		ind = 3 * n;
+		x = posxyz[ind];
+		y = posxyz[ind+1];
+		z = posxyz[ind+2];
+		r = val[ind];
+		g = val[ind+1];
+		b = val[ind+2];
+		l *= gamma;
+		glColor4f(r, g, b, l);
+		// face 0
+		glBegin(GL_QUADS);
+		glNormal3f(-1, 0, 0);
+		glVertex3f(x, y, z); // 1
+		glVertex3f(x, y+1.0, z); // 2
+		glVertex3f(x, y+1.0, z+1.0); // 3
+		glVertex3f(x, y, z+1.0); // 4
+		glEnd();
+		// face 1
+		glBegin(GL_QUADS);
+		glNormal3f(0, 1, 0);
+		glVertex3f(x, y+1, z+1); // 3
+		glVertex3f(x, y+1, z); // 2
+		glVertex3f(x+1, y+1, z); // 6
+		glVertex3f(x+1, y+1, z+1); // 7
+		glEnd();
+		// face 2 
+		glBegin(GL_QUADS);
+		glNormal3f(1, 0, 0);
+		glVertex3f(x+1, y+1, z+1); // 7
+		glVertex3f(x+1, y+1, z); // 6
+		glVertex3f(x+1, y, z); // 5
+		glVertex3f(x+1, y, z+1); // 4
+		glEnd();
+		// face 3
+		glBegin(GL_QUADS);
+		glNormal3f(0, -1, 0);
+		glVertex3f(x+1, y, z+1); // 4
+		glVertex3f(x+1, y, z); // 5
+		glVertex3f(x, y, z); // 1
+		glVertex3f(x, y, z+1); // 0
+		glEnd();
+		// face 4
+		glBegin(GL_QUADS);
+		glNormal3f(0, 0, 1);
+		glVertex3f(x+1, y, z); // 5
+		glVertex3f(x+1, y+1, z); // 6
+		glVertex3f(x, y+1, z); // 2
+		glVertex3f(x, y, z); // 1
+		glEnd();
+		// face 5
+		glBegin(GL_QUADS);
+		glNormal3f(0, 0, -1);
+		glVertex3f(x+1, y+1, z+1); // 7
+		glVertex3f(x+1, y, z+1); // 4
+		glVertex3f(x, y, z+1); // 0
+		glVertex3f(x, y+1, z+1); // 3
+		glEnd();
+		
+	}
+	glColor4f(1.0, 1.0, 1.0, 1.0);
+}
+// helper function to rendering volume (with edge)
+void kernel_draw_voxels_edge(int* posxyz, int npos, float* val, int nval, float* valthr, int nthr,  float thres){
+	int ind, n, x, y, z;
+	float r, g, b, l;
+	for (n=0; n<nthr; ++n) {
+		ind = 3 * n;
+		x = posxyz[ind];
+		y = posxyz[ind+1];
+		z = posxyz[ind+2];
+		r = val[ind];
+		g = val[ind+1];
+		b = val[ind+2];
+		l = valthr[n];
+		if (l <= thres) {continue;}
+		// face 0
+		glColor4f(r, g, b, l);
+		glBegin(GL_QUADS);
+		glNormal3f(-1, 0, 0);
+		glVertex3f(x, y, z); // 1
+		glVertex3f(x, y+1.0, z); // 2
+		glVertex3f(x, y+1.0, z+1.0); // 3
+		glVertex3f(x, y, z+1.0); // 4
+		glEnd();
+		glColor3f(0.0, 0.0, 0.0);
+		glBegin(GL_LINE_LOOP);
+		glVertex3f(x, y, z); // 1
+		glVertex3f(x, y+1.0, z); // 2
+		glVertex3f(x, y+1.0, z+1.0); // 3
+		glVertex3f(x, y, z+1.0); // 4
+		glEnd();
+		// face 1
+		glColor4f(1.0, 1.0, 1.0, l);
+		glBegin(GL_QUADS);
+		glNormal3f(0, 1, 0);
+		glVertex3f(x, y+1, z+1); // 3
+		glVertex3f(x, y+1, z); // 2
+		glVertex3f(x+1, y+1, z); // 6
+		glVertex3f(x+1, y+1, z+1); // 7
+		glEnd();
+		glColor3f(0.0, 0.0, 0.0);
+		glBegin(GL_LINE_LOOP);
+		glNormal3f(0, 1, 0);
+		glVertex3f(x, y+1, z+1); // 3
+		glVertex3f(x, y+1, z); // 2
+		glVertex3f(x+1, y+1, z); // 6
+		glVertex3f(x+1, y+1, z+1); // 7
+		glEnd();
+		// face 2
+		glColor4f(1.0, 1.0, 1.0, l);
+		glBegin(GL_QUADS);
+		glNormal3f(1, 0, 0);
+		glVertex3f(x+1, y+1, z+1); // 7
+		glVertex3f(x+1, y+1, z); // 6
+		glVertex3f(x+1, y, z); // 5
+		glVertex3f(x+1, y, z+1); // 4
+		glEnd();
+		glColor3f(0.0, 0.0, 0.0);
+		glBegin(GL_LINE_LOOP);
+		glNormal3f(1, 0, 0);
+		glVertex3f(x+1, y+1, z+1); // 7
+		glVertex3f(x+1, y+1, z); // 6
+		glVertex3f(x+1, y, z); // 5
+		glVertex3f(x+1, y, z+1); // 4
+		glEnd();
+		// face 3
+		glColor4f(1.0, 1.0, 1.0, l);
+		glBegin(GL_QUADS);
+		glNormal3f(0, -1, 0);
+		glVertex3f(x+1, y, z+1); // 4
+		glVertex3f(x+1, y, z); // 5
+		glVertex3f(x, y, z); // 1
+		glVertex3f(x, y, z+1); // 0
+		glEnd();
+		glColor3f(0.0, 0.0, 0.0);
+		glBegin(GL_LINE_LOOP);
+		glNormal3f(0, -1, 0);
+		glVertex3f(x+1, y, z+1); // 4
+		glVertex3f(x+1, y, z); // 5
+		glVertex3f(x, y, z); // 1
+		glVertex3f(x, y, z+1); // 0
+		glEnd();
+		// face 4
+		glColor4f(1.0, 1.0, 1.0, l);
+		glBegin(GL_QUADS);
+		glNormal3f(0, 0, 1);
+		glVertex3f(x+1, y, z); // 5
+		glVertex3f(x+1, y+1, z); // 6
+		glVertex3f(x, y+1, z); // 2
+		glVertex3f(x, y, z); // 1
+		glEnd();
+		glColor3f(0.0, 0.0, 0.0);
+		glBegin(GL_LINE_LOOP);
+		glNormal3f(0, 0, 1);
+		glVertex3f(x+1, y, z); // 5
+		glVertex3f(x+1, y+1, z); // 6
+		glVertex3f(x, y+1, z); // 2
+		glVertex3f(x, y, z); // 1
+		glEnd();
+		// face 5
+		glColor4f(1.0, 1.0, 1.0, l);
+		glBegin(GL_QUADS);
+		glNormal3f(0, 0, -1);
+		glVertex3f(x+1, y+1, z+1); // 7
+		glVertex3f(x+1, y, z+1); // 4
+		glVertex3f(x, y, z+1); // 0
+		glVertex3f(x, y+1, z+1); // 3
+		glEnd();
+		glColor3f(0.0, 0.0, 0.0);
+		glBegin(GL_LINE_LOOP);
+		glNormal3f(0, 0, -1);
+		glVertex3f(x+1, y+1, z+1); // 7
+		glVertex3f(x+1, y, z+1); // 4
+		glVertex3f(x, y, z+1); // 0
+		glVertex3f(x, y+1, z+1); // 3
+		glEnd();
+	}
+	glColor4f(1.0, 1.0, 1.0, 1.0);
+}
+
 /********************************************************************************
  * GENERAL      line drawing
  ********************************************************************************/
@@ -1635,7 +2009,7 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
 			if (val > valmax) {val = valmax;}
-			mat[j * wx + i] = 0.1f; //val;
+			mat[j * wx + i] += val;
 			oldv = newv;
 			if (runx == newv) {
 				i += stepi;
@@ -1665,13 +2039,13 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 			runy += stepy;
 		}
 		oldv = startl;
-		mat[ej * wx + ei] = 0.1f; //valmax;
+		mat[ej * wx + ei] += valmax;
 		while (i>=0 && j>=0 && i<matsize && j<matsize) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
 			if (val > valmax) {val = valmax;}
-			mat[j * wx + i] = 0.1f; //val;
+			mat[j * wx + i] += val;
 			oldv = newv;
 			if (runx == newv) {
 				i += stepi;

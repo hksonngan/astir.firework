@@ -20,11 +20,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-void omp_vec_square(float* data, int n);
+//void omp_vec_square(float* data, int n);
 
 // Volume rendering
-//void kernel_draw_voxels(int* posxyz, int npos, float* val, int nval, float gamma, float thres);
-//void kernel_draw_voxels_edge(int* posxyz, int npos, float* val, int nval, float thres);
+void kernel_draw_voxels(int* posxyz, int npos, float* val, int nval, float* valthr, int nthr, float gamma, float thres);
+void kernel_draw_voxels_edge(int* posxyz, int npos, float* val, int nval, float* valthr, int nthr, float thres);
 
 // 2D drawing line
 void kernel_draw_2D_line_DDA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val);
@@ -66,6 +66,17 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 							int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
 							float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
 							float respix, int sizespacexy, int sizespacez);
+void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+								float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+								 int* enable, int nenable, int border, int srmsize);
+void kernel_pet3D_SRM_clean_LOR_int(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+									float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+									int* xi1, int nxi1, int* yi1, int nyi1, int* zi1, int nzi1,
+									int* xi2, int nxi2, int* yi2, int nyi2, int* zi2, int nzi2);
+void kernel_pet3D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic, int njc,
+							  unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1, unsigned short int* Z1, int nz1,
+							  unsigned short int* X2, int nx2, unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2, int wim);
+
 
 // PET 2D Simulated four heads
 //void kernel_pet2D_square_gen_sim_ID(int* RES, int nres, float posx, float posy, float alpha, int nx);

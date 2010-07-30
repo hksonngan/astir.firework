@@ -49,3 +49,296 @@ def hist1D_plot(data, nbins):
     plt.grid(True)
     
     plt.show()
+
+from OpenGL.GLUT       import *
+from OpenGL.GL         import *
+from OpenGL.GLU        import *
+
+# volume rendering by opengl
+def volume_show(vol):
+    from numpy             import array, arange, zeros, flipud, take, sqrt
+    from sys               import exit
+    from kernel            import kernel_draw_voxels, kernel_draw_voxels_edge
+
+    global rotx, roty, rotz, scale
+    global xmouse, ymouse, lmouse, rmouse
+    global w, h
+    global vec, lmap, lmapl, lmapc, lthr
+    global flag_trans, flag_edge, flag_color
+    global gamma, thres
+
+    wz, wy, wx       = vol.shape
+    cz, cy, cx       = wz//2, wy//2, wx//2
+    w, h             = 800, 500
+    scale            = 3.0
+    lmouse, rmouse   = 0, 0
+    xmouse, ymouse   = 0.0, 0.0
+    rotx, roty, rotz = 0.0, 0.0, 0.0
+    vec, lmap        = [], []
+    flag_trans       = 0
+    flag_edge        = 0
+    flag_color       = 0
+    gamma            = 1.0
+    thres            = 0.0
+
+    def init():
+        glClearColor(0.0, 0.0, 0.0, 0.0)
+        glShadeModel(GL_FLAT) # not gouraud (only cube)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE)
+        glLightfv(GL_LIGHT0, GL_AMBIENT,  [0.5, 0.5, 0.5, 1.0])
+        glLightfv(GL_LIGHT0, GL_DIFFUSE,  [1.0, 1.0, 1.0, 1.0])
+        glLightfv(GL_LIGHT0, GL_POSITION, [1.0, 1.0, 1.0, 0.0])
+        glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
+        glEnable(GL_COLOR_MATERIAL)
+
+    def build_voxel():
+        global vec, lmap, lmapl, lmapc, lthr
+        buf1 = []
+        buf2 = []
+        for z in xrange(wz):
+            for y in xrange(wy):
+                for x in xrange(wx):
+                    val = vol[z, y, x]
+                    if val != 0:
+                        buf1.extend([x, y, z])
+                        buf2.append(val)
+                        
+        vec       = array(buf1, 'i')
+        lthr      = array(buf2, 'f')
+        lmapi     = lthr  * 255
+        lthr      = sqrt(lthr)
+        N         = len(lthr)
+        lmapi     = lmapi.astype('int32')
+        lutr      = zeros((256), 'int32')
+        lutg      = zeros((256), 'int32')
+        lutb      = zeros((256), 'int32')
+        # jet color
+        up        = array(range(0, 255,  3), 'int32')
+        dw        = array(range(255, 0, -3), 'int32')
+        stp       = 85
+        lutr[stp:2*stp]   = up
+        lutr[2*stp:]      = 255
+        lutg[0:stp]       = up
+        lutg[stp:2*stp]   = 255
+        lutg[2*stp:3*stp] = dw
+        lutb[0:stp]       = 255
+        lutb[stp:2*stp]   = dw
+        matr = take(lutr, lmapi)
+        matg = take(lutg, lmapi)
+        matb = take(lutb, lmapi)
+        lmapc = zeros((3*N), 'float32')
+        lmapl = zeros((3*N), 'float32')
+        for i in xrange(N):
+            ind = 3*i
+            lmapc[ind]   = matr[i] / 255.0
+            lmapc[ind+1] = matg[i] / 255.0
+            lmapc[ind+2] = matb[i] / 255.0
+            lmapl[ind]   = lthr[i] #**0.5 # increase brightness
+            lmapl[ind+1] = lthr[i] #**0.5
+            lmapl[ind+2] = lthr[i] #**0.5
+        lmap = lmapl.copy()
+        del matr, matg, matb, lutr, lutg, lutb, lmapi
+        
+    def draw_workspace():
+        # draw workspace
+        glBegin(GL_LINES)
+        # front face
+        glColor3f(1.0, 1.0, 1.0)
+        glVertex3f(0.0, 0.0, wz)
+        glVertex3f(wx, 0.0, wz)
+        glVertex3f(wx, 0.0, wz)
+        glVertex3f(wx, wy, wz)
+        glVertex3f(wx, wy, wz)
+        glVertex3f(0.0, wy, wz)
+        glVertex3f(0.0, wy, wz)
+        glVertex3f(0.0, 0.0, wz)
+        # back face
+        glColor3f(1.0, 0.0, 0.0) # x axe
+        glVertex3f(0.0, 0.0, 0.0)
+        glVertex3f(wx, 0.0, 0.0)
+        glColor3f(1.0, 1.0, 1.0)
+        glVertex3f(wx, 0.0, 0.0)
+        glVertex3f(wx, wy, 0.0)
+        glVertex3f(wx, wy, 0.0)
+        glVertex3f(0.0, wy, 0.0)
+        glColor3f(0.0, 1.0, 0.0) # y axe
+        glVertex3f(0.0, wy, 0.0)
+        glVertex3f(0.0, 0.0, 0.0)
+        # four remain edges
+        glColor3f(0.0, 0.0, 1.0) # z axe
+        glVertex3f(0.0, 0.0, 0.0)
+        glVertex3f(0.0, 0.0, wz)
+        glColor3f(1.0, 1.0, 1.0)
+        glVertex3f(wx, 0.0, 0.0)
+        glVertex3f(wx, 0.0, wz)
+        glVertex3f(0.0, wy, 0.0)
+        glVertex3f(0.0, wy, wz)
+        glVertex3f(wx, wy, 0.0)
+        glVertex3f(wx, wy, wz)
+        glEnd()
+
+    def draw_HUD():
+        global w, h, rotx, roty, rotz, scale
+        txt = 'Volume %ix%ix%i rot x y z %6.2f %6.2f %6.2f scale %5.2f gamma %5.2f thr %5.2f' % (wx, wy, wz, rotx, roty, rotz, scale, gamma, thres)
+        glRasterPos2i(-w//2, -h//2+1)
+        for char in txt: glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, ord(char))
+
+        txt2 = 't: transparency     e: edges     c: colors     7/1: +/- gamma    9/3: +/- threshold'
+        glRasterPos2i(-w//2, h//2-12)
+        for char in txt2: glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, ord(char))
+
+
+    def display():
+        global w, h, vec, lmap, flag_trans, flag_edge, gamma, lthr, thres
+        glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+        # some options
+        if flag_trans:
+            glEnable(GL_BLEND)
+            glDisable(GL_DEPTH_TEST)
+            glDisable(GL_LIGHTING)
+            glDisable(GL_LIGHT0)
+            #glDisable(GL_CULL_FACE)
+            glDepthMask(GL_FALSE);
+        else:
+            glDisable(GL_BLEND)
+            glEnable(GL_DEPTH_TEST)
+            glEnable(GL_LIGHTING)
+            glEnable(GL_LIGHT0)
+            #glEnable(GL_CULL_FACE)
+        
+        glPushMatrix()
+        glRotatef(rotx, 1.0, 0.0, 0.0)
+        glRotatef(roty, 0.0, 1.0, 0.0)
+        glRotatef(rotz, 0.0, 0.0, 1.0)
+        glScalef(scale, scale, scale)
+        glTranslatef(-cx, -cy, -cz)
+
+        draw_workspace()
+        if flag_edge: kernel_draw_voxels_edge(vec, lmap, lthr, thres)
+        else:         kernel_draw_voxels(vec, lmap, lthr, gamma, thres)
+        if flag_trans:
+            glDepthMask(GL_TRUE)
+        
+        glTranslate(cx, cy, cz)
+        glRotatef(-rotx, 1.0, 0.0, 0.0)
+        glRotatef(-roty, 0.0, 1.0, 0.0)
+        glRotatef(-rotz, 0.0, 0.0, 1.0)
+        glPopMatrix()
+         
+        # draw HUD
+        draw_HUD()
+        glutSwapBuffers()        
+        
+    def reshape(neww, newh):
+        # must be even, more easy for the next...
+        neww = neww + neww % 2
+        newh = newh + newh % 2
+                
+        glViewport (0, 0, neww, newh)
+        glMatrixMode (GL_PROJECTION)
+        glLoadIdentity ()
+        glOrtho(-neww//2, neww//2, -newh//2, newh//2, -1000.0, 1000.0)
+        glMatrixMode (GL_MODELVIEW)
+        glLoadIdentity()
+        glTranslatef(0.0, 0.0, -3*wz)
+        w, h = neww, newh
+
+    def keyboard(key, x, y):
+        global rotx, roty, rotz, flag_trans, flag_edge, flag_color, gamma, thres, lmap, lmpal, lmapc
+        if key == chr(27): sys.exit(0)
+        elif key == 'a':   rotx += .5
+        elif key == 'z':   rotx -= .5
+        elif key == 'q':   roty += .5
+        elif key == 's':   roty -= .5
+        elif key == 'w':   rotz += .5
+        elif key == 'x':   rotz -= .5
+        elif key == 't':
+            if flag_trans == 0:
+                flag_trans = 1
+                flag_edge  = 0
+            else:               flag_trans = 0
+        elif key == 'e':
+            if flag_edge == 0:
+                flag_edge  = 1
+                flag_trans = 0
+            else:               flag_edge = 0
+        elif key == '7':
+            gamma += 0.01
+            if gamma >= 1.0: gamma = 1.0
+        elif key == '1':
+            gamma -= 0.01
+            if gamma < 0.0: gamma = 0.0
+        elif key == '9':
+            thres += 0.01
+            if thres >= 1.0: thres = 1.0
+        elif key == '3':
+            thres -= 0.01
+            if thres < 0.0: thres = 0.0
+        elif key == 'c':
+            if flag_color:
+                lmap = lmapl.copy()
+                flag_color = 0
+            else:
+                lmap = lmapc.copy()
+                flag_color = 1
+        elif key == '1': print key
+
+        glutPostRedisplay()
+
+    def mouse_click(button, state, x, y):
+        global lmouse, rmouse, xmouse, ymouse
+
+        if button == GLUT_LEFT_BUTTON:
+            if state == GLUT_DOWN: lmouse = 1
+            elif state == GLUT_UP:
+                lmouse = 0
+                xmouse = 0
+                ymouse = 0
+
+        if button == GLUT_RIGHT_BUTTON:
+            if state == GLUT_DOWN: rmouse = 1
+            elif state == GLUT_UP:
+                rmouse = 0
+                xmouse = 0
+                ymosue = 0
+            
+    def mouse_move(x, y):
+        global xmouse, ymouse, lmouse, rmouse, rotx, roty, scale
+        if lmouse:
+            if xmouse == 0 and ymouse == 0:
+                xmouse = x
+                ymouse = y
+                return
+            else:
+                dx      = x - xmouse
+                dy      = y - ymouse
+                xmouse  = x
+                ymouse  = y
+                roty   += dx * 0.25
+                rotx   += dy * 0.25
+                glutPostRedisplay()
+
+        if rmouse:
+            if xmouse == 0:
+                xmouse = x
+                return
+            else:
+                dx = x- xmouse
+                xmouse = x
+                scale += dx * 0.01
+                glutPostRedisplay()
+        
+    glutInit(sys.argv)
+    glutInitDisplayMode (GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH)
+    glutInitWindowSize (w, h)
+    glutInitWindowPosition (100, 100)
+    glutCreateWindow ('Viewer - FIREwork')
+    init()
+    build_voxel()
+    glutDisplayFunc(display)
+    glutReshapeFunc(reshape)
+    glutKeyboardFunc(keyboard)
+    glutMouseFunc(mouse_click)
+    glutMotionFunc(mouse_move)
+    glutMainLoop()

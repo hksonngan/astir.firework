@@ -84,6 +84,61 @@ __global__ void pet2D_SRM_DDA_ELL(float* d_SRM_vals, int* d_SRM_cols, int* d_x1,
 		d_SRM_cols[LOR_ind + n] = -1; // eof
 	}
 }
+// kernel to raytrace line in SRM with DDA anti-aliased version 2 pix, SRM is in ELL sparse matrix format 
+__global__ void pet2D_SRM_DDAA_ELL(float* d_SRM_vals, int* d_SRM_cols, int* d_x1, int* d_y1, int* d_x2, int* d_y2, int wsrm, int wim, int nx1) {
+	int length, n, x1, y1, x2, y2, diffx, diffy, LOR_ind, ind, ind2, xint, yint;
+	float flength, val, vu, x, y, lx, ly, xinc, yinc;
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < nx1) {
+		LOR_ind = idx * wsrm;
+		x1 = d_x1[idx];
+		x2 = d_x2[idx];
+		y1 = d_y1[idx];
+		y2 = d_y2[idx];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		length = ly;
+		if (lx > length) {length = lx;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		x = x1 + 0.5f;
+		y = y1 + 0.5f;
+		// first pixel
+		xint = int(x);
+		yint = int(y);
+		val = 1 - fabs(x - (xint + 0.5f));
+		d_SRM_vals[LOR_ind] = val;
+		d_SRM_cols[LOR_ind] = yint * wim + xint;
+		x = x + xinc;
+		y = y + yinc;
+		// line
+		for (n=1; n<length; ++n) {
+			xint = int(x);
+			yint = int(y);
+			ind = yint * wim + xint;
+			val = 1 - fabs(x - (xint + 0.5f));
+			vu = (x - xint) * 0.5f;
+			// vd = 0.5 - vu;
+			ind2 = LOR_ind + 2*n;
+			d_SRM_vals[ind2] = vu;
+			d_SRM_cols[ind2] = ind + 1;
+			d_SRM_vals[ind2 + 1] = val;
+			d_SRM_cols[ind2 + 1] = ind;
+			x = x + xinc;
+			y = y + yinc;
+		}
+		// last pixel
+		xint = int(x);
+		yint = int(y);
+		val = 1 - fabs(x - (xint + 0.5f));
+		ind2 = LOR_ind + 2*n;
+		d_SRM_vals[ind2] = val;
+		d_SRM_cols[ind2] = yint * wim + xint;
+	}
+}
 // init SRM to zeros with the format ELL
 __global__ void pet2D_SRM_ELL_init(float* d_SRM_vals, int* d_SRM_cols, int wsrm, int nx) {
 	int j, ind;
@@ -531,6 +586,7 @@ void kernel_pet2D_IM_SRM_DDA_ELL_wrap_cuda(int* x1, int nx1, int* y1, int ny1, i
 	threads.x = block_size;
 	grid.x = grid_size;
 	pet2D_SRM_DDA_ELL<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, d_x1, d_y1, d_x2, d_y2, wsrm, wim, nx1);
+	//pet2D_SRM_DDAA_ELL<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, d_x1, d_y1, d_x2, d_y2, wsrm, wim, nx1);
 	// IM kernel
 	block_size = 8;
 	grid_size = (wsrm + block_size - 1) / block_size;
@@ -606,6 +662,7 @@ void kernel_pet2D_IM_SRM_DDA_ELL_iter_wrap_cuda(int* x1, int nx1, int* y1, int n
 	threads.x = block_size;
 	grid.x = grid_size;
 	pet2D_SRM_DDA_ELL<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, d_x1, d_y1, d_x2, d_y2, wsrm, wim, nx1);
+	//pet2D_SRM_DDAA_ELL<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, d_x1, d_y1, d_x2, d_y2, wsrm, wim, nx1);
 	// One iteration
 	block_size = 256;
 	grid_size = (nx1 + block_size - 1) / block_size; // CODE IS LIMITED TO < 16 Mlines

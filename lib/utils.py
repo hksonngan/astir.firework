@@ -120,7 +120,7 @@ def image_ifft(imf, wo = -1):
     if wo % 2 == 1: im = fft.ifft2(imf)
     else:           im = fft.ifft2(imf, s=(wo, wo))
 
-    return im
+    return abs(im)
 
 # compute power spectrum of image
 def image_pows(im):
@@ -377,7 +377,7 @@ def volume_open(name, nx, ny, nz, datatype):
     elif datatype == 'uint16': val /= 65535.0
     elif datatype == 'uint32'; val /= 4294967295.0
     '''
-    vol *= 1.0 / vol.max()
+    #vol *= 1.0 / vol.max()
     vol  = vol.reshape(nz, ny, nx)
 
     return vol
@@ -408,6 +408,118 @@ def volume_export_tiff(vol, name):
     except:
         print 'Imagemagick must install !!'
         sys.exit()
+
+# Compute Maximum Intensity Projection (MIP)
+def volume_mip(vol, axe='z'):
+    if axe == 'z':   axis = 0
+    elif axe == 'y': axis = 1
+    elif axe == 'x': axis = 2
+
+    return vol.max(axis=axis)
+
+# Compute Minimum Intensity Projection (MiIP)
+def volume_miip(vol, axe='z'):
+    if axe == 'z':   axis = 0
+    elif axe == 'y': axis = 1
+    elif axe == 'x': axis = 2
+
+    return vol.min(axis=axis)
+
+# Display volume as a mosaic
+def volume_mosaic(vol):
+    from numpy import zeros
+    
+    z, y, x = vol.shape
+    wi  = int(z**0.5 + 0.5)
+    hi  = int(z / wi + 0.5)
+    ct  = 0
+    mos = zeros((hi * y, wi * x), 'float32')
+    zi  = 0
+    for i in xrange(hi):
+        for j in xrange(wi):
+            im  = volume_slice(vol, zi, 'z')
+            mos[i*y:(i+1)*y, j*x:(j+1)*x] = im
+            zi += 1
+            if zi >= z: break
+        if zi >= z: break
+
+    return mos
+
+# compute volume fft
+def volume_fft(vol):
+    from numpy import fft
+    z, y, x = vol.shape
+    if z != y or z != x or x != y:
+        print 'Volume must be square!'
+        return -1
+    if x % 2 == 1: volf = fft.fftn(vol)
+    else:          volf = fft.fftn(vol, s=(z+1, y+1, x+1))
+    volf = fft.fftshift(volf)
+
+    return volf
+
+# compute volume ifft
+def volume_ifft(volf, xo = -1):
+    from numpy import fft
+    z, y, x = volf.shape
+    if xo == -1: xo = x
+    if z != y or z != x or x != y:    
+        print 'Volume must be square!'
+        return -1
+    if xo % 2 == 1: vol = fft.ifftn(volf)
+    else:           vol = fft.ifftn(volf, s=(zo, yo, xo))
+
+    return abs(vol)
+
+# Low pass filter
+def volume_lp_filter(vol, fc, order):
+    from numpy import zeros, array
+    order      *= 2
+    zo, yo, xo  = vol.shape
+    volf        = volume_fft(vol)
+    z, y, x     = volf.shape
+    c           = (x - 1) // 2
+    H           = zeros((z, y, x), 'float32')
+    for k in xrange(z):
+        for j in xrange(y):
+            for i in xrange(x):
+                r          = ((i-c)*(i-c) + (j-c)*(j-c) + (z-c)*(z-c))**(0.5) # radius
+                f          = r / (x-1)                                        # fequency
+                H[k, i, j] = 1 / (1 + (f / fc)**order)**0.5                   # filter
+
+    volf *= H
+    vol   = volume_ifft(volf, xo)
+            
+    #profil  = image_1D_slice(H, c, c, w, c)
+    #freq    = range(0, wo // 2 + 1)
+    #freq    = array(freq, 'float32')
+    #freq   /= float(wo)
+
+    return vol    #, profil, freq
+
+# create box mask
+def volume_mask_box(wb, hb, db, w, h, d):
+    from numpy import zeros
+    vol  = zeros((d, h, w), 'float32')
+    cv   = (w-1)  // 2
+    cb   = (wb-1) // 2
+    staw = cv - cb
+    stow = staw + wb
+    cv   = (h-1)  // 2
+    cb   = (hb-1) // 2
+    stah = cv - cb
+    stoh = stah + hb
+    cv   = (d-1)  // 2
+    cb   = (db-1) // 2
+    stad = cv - cb
+    stod = stad + db
+    # draw mask box
+    for k in xrange(stad, stod):
+        for j in xrange(staw, stow):
+            for i in xrange(stah, stoh):
+                vol[k, j, i] = 1.0
+
+    return vol
 
 # ==== Misc =================================
 # ===========================================
@@ -447,6 +559,42 @@ def plot(x, y):
 
 # ==== List-Mode ============================
 # ===========================================
+
+# Open list-mode pre-compute data set, values are entry-exit point of SRM matrix
+def listmode_open_xyz(basename):
+    from numpy import fromfile
+    
+    f  = open(basename + '.x1', 'rb')
+    x1 = fromfile(file=f, dtype='uint8')
+    x1 = x1.astype('uint16')
+    f.close()
+
+    f  = open(basename + '.y1', 'rb')
+    y1 = fromfile(file=f, dtype='uint8')
+    y1 = y1.astype('uint16')
+    f.close()
+    
+    f  = open(basename + '.z1', 'rb')
+    z1 = fromfile(file=f, dtype='uint8')
+    z1 = z1.astype('uint16')
+    f.close()
+    
+    f  = open(basename + '.x2', 'rb')
+    x2 = fromfile(file=f, dtype='uint8')
+    x2 = x2.astype('uint16')
+    f.close()
+    
+    f  = open(basename + '.y2', 'rb')
+    y2 = fromfile(file=f, dtype='uint8')
+    y2 = y2.astype('uint16')
+    f.close()
+    
+    f  = open(basename + '.z2', 'rb')
+    z2 = fromfile(file=f, dtype='uint8')
+    z2 = z2.astype('uint16')
+    f.close()
+
+    return x1, y1, z1, x2, y2, z2
     
 # Open list-mode subset
 def listmode_open_subset(filename, N_start, N_stop):
@@ -478,17 +626,18 @@ def listmode_nb_events(filename):
 
 # Open Sensibility Matrix
 def listmode_open_SM(filename):
-    from numpy import array
-    f    = open(filename, 'r')
-    s    = 0
-    S    = []
-    while 1:
-        s = f.readline()
-        if s == '': break
-        S.append(float(s))
-    f.close()
-    SM = array(S, 'float32')
-    del S
+    from numpy import fromfile
+
+    '''
+    data = open(filename, 'r').readlines()
+    Ns   = len(data)
+    SM   = zeros((Ns), 'float32')
+    for n in xrange(Ns):
+        SM[n] = float(data[n])
+    del data
+    '''
+    f  = open(filename, 'rb')
+    SM = fromfile(file=f, dtype='float32') 
 
     return SM
 

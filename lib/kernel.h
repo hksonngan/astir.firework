@@ -76,7 +76,14 @@ void kernel_pet3D_SRM_clean_LOR_int(int* enable, int ne, float* x1, int nx1, flo
 void kernel_pet3D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic, int njc,
 							  unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1, unsigned short int* Z1, int nz1,
 							  unsigned short int* X2, int nx2, unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2, int wim);
-
+void kernel_pet3D_IM_SRM_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+								float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2, float* im, int nim, int wim);
+void kernel_pet3D_IM_SRM_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+									 float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2, float* im, int nim, float* F, int nf, int wim);
+void kernel_pet3D_IM_SRM_COO_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+									float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2, float* im, int nim, int wim, int isub);
+void kernel_pet3D_IM_SRM_COO_SIDDON_iter_vec(float* im, int nim, float* F, int nf, int N, int isub);
+void kernel_pet3D_IM_SRM_COO_SIDDON_iter_mat(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* im, int nim, float* F, int nf, int N, int isub);
 
 // PET 2D Simulated four heads
 //void kernel_pet2D_square_gen_sim_ID(int* RES, int nres, float posx, float posy, float alpha, int nx);
@@ -85,7 +92,8 @@ void kernel_pet3D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic,
 // PET 2D reconstruction
 void kernel_pet2D_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim, int* LOR_val, int nlorval);
 void kernel_pet2D_LM_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim);
-void kernel_pet2D_LM_EMML_COO_iter(float* SRMvals, int nvals, int* SRMrows, int nrows, int* SRMcols, int ncols, float* S, int nbs, float* im, int npix, int nevents);
+void kernel_pet2D_LM_EMML_COO_iter_mat(float* SRMvals, int nvals, int* SRMrows, int nrows, int* SRMcols, int ncols, float* S, int nbs, float* im, int npix, int nevents);
+void kernel_pet2D_LM_EMML_COO_iter_vec(float* SRMvals, int nvals, int* SRMrows, int nrows, int* SRMcols, int ncols, float* S, int nbs, float* im, int npix, int nevents);
 void kernel_pet2D_LM_EMML_ELL_iter(float* SRMvals, int nivals, int njvals, int* SRMcols, int nicols, int njcols, float* S, int ns, float* im, int npix);
 void kernel_pet2D_EMML_iter_MPI(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim, int* LOR_val, int nlorval, int N_start, int N_stop);
 // CUDA wrapper

@@ -662,6 +662,7 @@ void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, flo
 		}
 		oldv = startl;
 		while (i>=0 && j>=0 && i<matsize && j<matsize) {
+			
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
@@ -1335,7 +1336,10 @@ void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* 
 				} else {continue;}
 			} else {continue;}
 		} else {continue;}
-		if (chk1 && chk2) {enable[i] = 1;}
+		if (chk1 && chk2) {
+			if (xp1 == xp2 && yp1 == yp2 && zp1 == zp2) {continue;}
+			enable[i] = 1;
+		}
 	}
 }
 
@@ -1408,6 +1412,738 @@ void kernel_pet3D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic,
 	}
 }
 
+// Compute first image ionline by Siddon's Line Algorithm
+void kernel_pet3D_IM_SRM_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+								float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2, float* im, int nim, int wim) {
+	int n;
+	float tx, ty, tz, px, qx, py, qy, pz, qz;
+	int ei, ej, ek, u, v, w, i, j, k, oldi, oldj, oldk;
+	int stepi, stepj, stepk;
+	float divx, divy, divz, runx, runy, runz, oldv, newv, val, valmax;
+	float axstart, aystart, azstart, astart, pq, stepx, stepy, stepz, startl, initl;
+	int wim2 = wim*wim;
+
+	// random seed
+	srand(time(NULL));
+	for (n=0; n<nx1; ++n) {
+		px = X2[n];
+		py = Y2[n];
+		pz = Z2[n];
+		qx = X1[n];
+		qy = Y1[n];
+		qz = Z1[n];
+		initl = (float)rand() / (float)RAND_MAX;
+		initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
+		ty = (py-qy) * initl + qy;
+		tz = (pz-qz) * initl + qz;
+		ei = int(tx);
+		ej = int(ty);
+		ek = int(tz);
+		if (qx-tx>0) {
+			u=ei+1;
+			stepi=1;
+		}
+		if (qx-tx<0) {
+			u=ei;
+			stepi=-1;
+		}
+		if (qx-tx==0) {
+			u=ei;
+			stepi=0;
+		}
+		if (qy-ty>0) {
+			v=ej+1;
+			stepj=1;
+		}
+		if (qy-ty<0) {
+			v=ej;
+			stepj=-1;
+		}
+		if (qy-ty==0) {
+			v=ej;
+			stepj=0;
+		}
+		if (qz-tz>0) {
+			w=ek+1;
+			stepk=1;
+		}
+		if (qz-tz<0) {
+			w=ek;
+			stepk=-1;
+		}
+		if (qz-tz==0) {
+			w=ej;
+			stepk=0;
+		}
+		
+		if (qx==px) {divx=1.0;}
+		else {divx = float(qx-px);}
+		if (qy==py) {divy=1.0;}
+		else {divy = float(qy-py);}
+		if (qz==pz) {divz=1.0;}
+		else {divz = float(qz-pz);}
+		axstart = (u-px) / divx;
+		aystart = (v-py) / divy;
+		azstart = (w-pz) / divz;
+		astart = aystart;
+		if (axstart > aystart) {astart = axstart;}
+		if (azstart > astart) {astart = azstart;}
+		pq = sqrt((qx-px)*(qx-px)+(qy-py)*(qy-py)+(qz-pz)*(qz-pz));
+		stepx = fabs(pq / divx);
+		stepy = fabs(pq / divy);
+		stepz = fabs(pq / divz);
+		startl = astart * pq;
+		valmax = stepx;
+		if (stepy < valmax) {valmax = stepy;}
+		if (stepz < valmax) {valmax = stepz;}
+		valmax = valmax + valmax*0.01f;
+
+		// first half-ray
+		runx = axstart * pq;
+		runy = aystart * pq;
+		runz = azstart * pq;
+		i = ei;
+		j = ej;
+		k = ek;
+		if (runx == startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy == startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		if (runz == startl) {
+			k += stepk;
+			runz += stepz;
+		}
+		oldv = startl;
+		oldi = -1;
+		oldj = -1;
+		oldk = -1;
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			if (runz < newv) {newv = runz;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			if (oldi != i || oldj != j || oldk != k) {im[k * wim2 + j * wim + i] += val;}
+			oldv = newv;
+			oldi = i;
+			oldj = j;
+			oldk = k;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
+			if (runz == newv) {
+				k += stepk;
+				runz += stepz;
+			}
+		}
+		// second half-ray
+		if (px-tx>0) {stepi=1;}
+		if (px-tx<0) {stepi=-1;}
+		if (py-ty>0) {stepj=1;}
+		if (py-ty<0) {stepj=-1;}
+		if (pz-tz>0) {stepk=1;}
+		if (pz-tz<0) {stepk=-1;}
+		runx = axstart * pq;
+		runy = aystart * pq;
+		runz = azstart * pq;
+		i = ei;
+		j = ej;
+		k = ek;
+		if (runx==startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy==startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		if (runz==startl) {
+			k += stepk;
+			runz += stepz;
+		}
+		im[ek * wim2 + ej * wim + ei] += 0.707f; //val;
+		oldv = startl;
+		oldi = -1;
+		oldj = -1;
+		oldk = -1;
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			if (runz < newv) {newv = runz;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			if (oldi != i || oldj != j || oldk != k) {im[k * wim2 + j * wim + i] += val;}
+			oldv = newv;
+			oldi = i;
+			oldj = j;
+			oldk = k;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
+			if (runz == newv) {
+				k += stepk;
+				runz += stepz;
+			}
+		}
+	}
+}
+
+// Update image online, SRM is build with Siddon's Line Algorithm, and update with LM-OSEM
+void kernel_pet3D_IM_SRM_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+									 float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
+									 float* im, int nim, float* F, int nf, int wim) {
+	int n;
+	float tx, ty, tz, px, qx, py, qy, pz, qz;
+	int ei, ej, ek, u, v, w, i, j, k, oldi, oldj, oldk;
+	int stepi, stepj, stepk;
+	float divx, divy, divz, runx, runy, runz, oldv, newv, val, valmax;
+	float axstart, aystart, azstart, astart, pq, stepx, stepy, stepz, startl, initl;
+	int wim2 = wim*wim;
+	double Qi;
+	float* SRM = (float*)malloc(nim * sizeof(float));
+
+	// random seed
+	srand(time(NULL));
+	for (n=0; n<nx1; ++n) {
+		// init SRM and Qi
+		for (i=0; i<nim; ++i) {SRM[i] = 0.0f;}
+		Qi = 0.0f;
+		// draw the line
+		px = X2[n];
+		py = Y2[n];
+		pz = Z2[n];
+		qx = X1[n];
+		qy = Y1[n];
+		qz = Z1[n];
+		initl = (float)rand() / (float)RAND_MAX;
+		initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
+		ty = (py-qy) * initl + qy;
+		tz = (pz-qz) * initl + qz;
+		ei = int(tx);
+		ej = int(ty);
+		ek = int(tz);
+		if (qx-tx>0) {
+			u=ei+1;
+			stepi=1;
+		}
+		if (qx-tx<0) {
+			u=ei;
+			stepi=-1;
+		}
+		if (qx-tx==0) {
+			u=ei;
+			stepi=0;
+		}
+		if (qy-ty>0) {
+			v=ej+1;
+			stepj=1;
+		}
+		if (qy-ty<0) {
+			v=ej;
+			stepj=-1;
+		}
+		if (qy-ty==0) {
+			v=ej;
+			stepj=0;
+		}
+		if (qz-tz>0) {
+			w=ek+1;
+			stepk=1;
+		}
+		if (qz-tz<0) {
+			w=ek;
+			stepk=-1;
+		}
+		if (qz-tz==0) {
+			w=ej;
+			stepk=0;
+		}
+		
+		if (qx==px) {divx=1.0;}
+		else {divx = float(qx-px);}
+		if (qy==py) {divy=1.0;}
+		else {divy = float(qy-py);}
+		if (qz==pz) {divz=1.0;}
+		else {divz = float(qz-pz);}
+		axstart = (u-px) / divx;
+		aystart = (v-py) / divy;
+		azstart = (w-pz) / divz;
+		astart = aystart;
+		if (axstart > aystart) {astart = axstart;}
+		if (azstart > astart) {astart = azstart;}
+		pq = sqrt((qx-px)*(qx-px)+(qy-py)*(qy-py)+(qz-pz)*(qz-pz));
+		stepx = fabs(pq / divx);
+		stepy = fabs(pq / divy);
+		stepz = fabs(pq / divz);
+		startl = astart * pq;
+		valmax = stepx;
+		if (stepy < valmax) {valmax = stepy;}
+		if (stepz < valmax) {valmax = stepz;}
+		valmax = valmax + valmax*0.01f;
+
+		// first half-ray
+		runx = axstart * pq;
+		runy = aystart * pq;
+		runz = azstart * pq;
+		i = ei;
+		j = ej;
+		k = ek;
+		if (runx == startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy == startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		if (runz == startl) {
+			k += stepk;
+			runz += stepz;
+		}
+		oldv = startl;
+		oldi = -1;
+		oldj = -1;
+		oldk = -1;
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+			
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			if (runz < newv) {newv = runz;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			if (oldi != i || oldj != j || oldk != k) {SRM[k * wim2 + j * wim + i] += val;}
+			oldv = newv;
+			oldi = i;
+			oldj = j;
+			oldk = k;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
+			if (runz == newv) {
+				k += stepk;
+				runz += stepz;
+			}
+		}
+		// second half-ray
+		if (px-tx>0) {stepi=1;}
+		if (px-tx<0) {stepi=-1;}
+		if (py-ty>0) {stepj=1;}
+		if (py-ty<0) {stepj=-1;}
+		if (pz-tz>0) {stepk=1;}
+		if (pz-tz<0) {stepk=-1;}
+		runx = axstart * pq;
+		runy = aystart * pq;
+		runz = azstart * pq;
+		i = ei;
+		j = ej;
+		k = ek;
+		if (runx==startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy==startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		if (runz==startl) {
+			k += stepk;
+			runz += stepz;
+		}
+		SRM[ek * wim2 + ej * wim + ei] += 0.707f; //val;
+		oldv = startl;
+		oldi = -1;
+		oldj = -1;
+		oldk = -1;
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			if (runz < newv) {newv = runz;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			if (oldi != i || oldj != j || oldk != k) {SRM[k * wim2 + j * wim + i] += val;}
+			oldv = newv;
+			oldi = i;
+			oldj = j;
+			oldk = k;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
+			if (runz == newv) {
+				k += stepk;
+				runz += stepz;
+			}
+		}
+		// first compute Qi
+		for (i=0; i<nim; ++i) {Qi += (SRM[i] * im[i]);}
+		if (Qi == 0.0f) {continue;}
+		// accumulate to F
+		for (i=0; i<nim; ++i) {
+			if (im[i] != 0.0f) {
+				F[i] += (SRM[i] / Qi);
+			}
+		}
+		
+	} // LORs loop
+	
+}
+
+// Compute first image online by Siddon's Line Algorithm, and store SRM matrix to the harddrive with COO format
+void kernel_pet3D_IM_SRM_COO_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+									float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2, float* im, int nim, int wim, int isub) {
+	int n;
+	float tx, ty, tz, px, qx, py, qy, pz, qz;
+	int ei, ej, ek, u, v, w, i, j, k, oldi, oldj, oldk;
+	int stepi, stepj, stepk;
+	float divx, divy, divz, runx, runy, runz, oldv, newv, val, valmax;
+	float axstart, aystart, azstart, astart, pq, stepx, stepy, stepz, startl, initl;
+	int wim2 = wim*wim;
+	int col, ct;
+
+	// init file
+	FILE * pfile_vals;
+	FILE * pfile_rows;
+	FILE * pfile_cols;
+	//FILE * pfile_cts;
+	char namevals [20];
+	char namecols [20];
+	char namerows [20];
+	//char namects [20];
+	sprintf(namevals, "SRMvals_%i.coo", isub);
+	sprintf(namecols, "SRMcols_%i.coo", isub);
+	sprintf(namerows, "SRMrows_%i.coo", isub);
+	//sprintf(namects, "SRMcts_%i.coo", isub);
+	pfile_vals = fopen(namevals, "wb");
+	pfile_cols = fopen(namecols, "wb");
+	pfile_rows = fopen(namerows, "wb");
+	//pfile_cts = fopen(namects, "wb");
+
+	// random seed
+	srand(time(NULL));
+	for (n=0; n<nx1; ++n) {
+		ct = 0;
+		px = X2[n];
+		py = Y2[n];
+		pz = Z2[n];
+		qx = X1[n];
+		qy = Y1[n];
+		qz = Z1[n];
+		initl = (float)rand() / (float)RAND_MAX;
+		initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
+		ty = (py-qy) * initl + qy;
+		tz = (pz-qz) * initl + qz;
+		ei = int(tx);
+		ej = int(ty);
+		ek = int(tz);
+		if (qx-tx>0) {
+			u=ei+1;
+			stepi=1;
+		}
+		if (qx-tx<0) {
+			u=ei;
+			stepi=-1;
+		}
+		if (qx-tx==0) {
+			u=ei;
+			stepi=0;
+		}
+		if (qy-ty>0) {
+			v=ej+1;
+			stepj=1;
+		}
+		if (qy-ty<0) {
+			v=ej;
+			stepj=-1;
+		}
+		if (qy-ty==0) {
+			v=ej;
+			stepj=0;
+		}
+		if (qz-tz>0) {
+			w=ek+1;
+			stepk=1;
+		}
+		if (qz-tz<0) {
+			w=ek;
+			stepk=-1;
+		}
+		if (qz-tz==0) {
+			w=ej;
+			stepk=0;
+		}
+		
+		if (qx==px) {divx=1.0;}
+		else {divx = float(qx-px);}
+		if (qy==py) {divy=1.0;}
+		else {divy = float(qy-py);}
+		if (qz==pz) {divz=1.0;}
+		else {divz = float(qz-pz);}
+		axstart = (u-px) / divx;
+		aystart = (v-py) / divy;
+		azstart = (w-pz) / divz;
+		astart = aystart;
+		if (axstart > aystart) {astart = axstart;}
+		if (azstart > astart) {astart = azstart;}
+		pq = sqrt((qx-px)*(qx-px)+(qy-py)*(qy-py)+(qz-pz)*(qz-pz));
+		stepx = fabs(pq / divx);
+		stepy = fabs(pq / divy);
+		stepz = fabs(pq / divz);
+		startl = astart * pq;
+		valmax = stepx;
+		if (stepy < valmax) {valmax = stepy;}
+		if (stepz < valmax) {valmax = stepz;}
+		valmax = valmax + valmax*0.01f;
+
+		// first half-ray
+		runx = axstart * pq;
+		runy = aystart * pq;
+		runz = azstart * pq;
+		i = ei;
+		j = ej;
+		k = ek;
+		if (runx == startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy == startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		if (runz == startl) {
+			k += stepk;
+			runz += stepz;
+		}
+		oldv = startl;
+		oldi = -1;
+		oldj = -1;
+		oldk = -1;
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+			
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			if (runz < newv) {newv = runz;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			if (oldi != i || oldj != j || oldk != k) {
+				col = k * wim2 + j * wim + i;
+				im[col] += val;
+				fwrite(&val, sizeof(float), 1, pfile_vals);
+				fwrite(&col, sizeof(int), 1, pfile_cols);
+				fwrite(&n, sizeof(int), 1, pfile_rows);
+				++ct;
+			}
+			oldv = newv;
+			oldi = i;
+			oldj = j;
+			oldk = k;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
+			if (runz == newv) {
+				k += stepk;
+				runz += stepz;
+			}
+		}
+		// second half-ray
+		if (px-tx>0) {stepi=1;}
+		if (px-tx<0) {stepi=-1;}
+		if (py-ty>0) {stepj=1;}
+		if (py-ty<0) {stepj=-1;}
+		if (pz-tz>0) {stepk=1;}
+		if (pz-tz<0) {stepk=-1;}
+		runx = axstart * pq;
+		runy = aystart * pq;
+		runz = azstart * pq;
+		i = ei;
+		j = ej;
+		k = ek;
+		if (runx==startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy==startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		if (runz==startl) {
+			k += stepk;
+			runz += stepz;
+		}
+		col = ek * wim2 + ej * wim + ei;
+		val = 0.707f;
+		im[col] += val;
+		fwrite(&val, sizeof(float), 1, pfile_vals);
+		fwrite(&col, sizeof(int), 1, pfile_cols);
+		fwrite(&n, sizeof(int), 1, pfile_rows);
+		++ct;
+		oldv = startl;
+		oldi = -1;
+		oldj = -1;
+		oldk = -1;
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			if (runz < newv) {newv = runz;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			if (oldi != i || oldj != j || oldk != k) {
+				col = k * wim2 + j * wim + i;
+				im[col] += val;
+				fwrite(&val, sizeof(float), 1, pfile_vals);
+				fwrite(&col, sizeof(int), 1, pfile_cols);
+				fwrite(&n, sizeof(int), 1, pfile_rows);
+				++ct;
+			}
+			oldv = newv;
+			oldi = i;
+			oldj = j;
+			oldk = k;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
+			if (runz == newv) {
+				k += stepk;
+				runz += stepz;
+			}
+		}
+		//fwrite(&ct, sizeof(int), 1, pfile_cts);
+	}
+	// close files
+	fclose(pfile_vals);
+	fclose(pfile_cols);
+	fclose(pfile_rows);
+	//fclose(pfile_cts);
+}
+
+// Update image online, SRM is read from the hard-drive and update with LM-OSEM
+void kernel_pet3D_IM_SRM_COO_SIDDON_iter_vec(float* im, int nim, float* F, int nf, int N, int isub) {
+	// open files
+	FILE * pfile_vals;
+	FILE * pfile_rows;
+	FILE * pfile_cols;
+	char namevals [20];
+	char namecols [20];
+	char namerows [20];
+	sprintf(namevals, "SRMvals_%i.coo", isub);
+	sprintf(namecols, "SRMcols_%i.coo", isub);
+	sprintf(namerows, "SRMrows_%i.coo", isub);
+	pfile_vals = fopen(namevals, "rb");
+	pfile_cols = fopen(namecols, "rb");
+	pfile_rows = fopen(namerows, "rb");
+
+	// init
+	float* SRM = (float*)malloc(nim * sizeof(float));
+	int* Ni = (int*)calloc(N, sizeof(int));
+	float Qi, ival;
+	int i, n, icol;
+	// compute number of elements per rows
+	int nbele;
+	fseek(pfile_rows, 0, SEEK_END);
+	nbele = ftell(pfile_rows);
+	rewind(pfile_rows);
+	nbele /= sizeof(float);
+	int irows;
+	for (i=0; i<nbele; ++i) {
+		fread(&irows, 1, sizeof(int), pfile_rows);
+		Ni[irows] += 1;
+	}
+
+	// read SRM
+	for (n=0; n<N; ++n) {
+		printf("%i\n", n);
+		// init SRM and Qi
+		for (i=0; i<nim; ++i) {SRM[i] = 0.0f;}
+		Qi = 0.0f;
+		// read lines and decompress COO format
+		for (i=0; i<Ni[n]; ++i) {
+			fread(&icol, 1, sizeof(int), pfile_cols);
+			fread(&ival, 1, sizeof(float), pfile_vals);
+			SRM[icol] = ival;
+		}
+		// first compute Qi
+		for (i=0; i<nim; ++i) {Qi += (SRM[i] * im[i]);}
+		if (Qi == 0.0f) {continue;}
+		// accumulate to F
+		for (i=0; i<nim; ++i) {
+			if (im[i] != 0.0f) {
+				F[i] += (SRM[i] / Qi);
+			}
+		}
+	}
+	// close files
+	fclose(pfile_vals);
+	fclose(pfile_cols);
+	fclose(pfile_rows);
+	free(Ni);
+	free(SRM);
+	
+}
+
+// Update image online, SRM is read from the hard-drive and update with LM-OSEM
+void kernel_pet3D_IM_SRM_COO_SIDDON_iter_mat(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* im, int nim, float* F, int nf, int N, int isub) {
+	int i, j, ind;
+	float buf;
+	float* Q = (float*)malloc(N * sizeof(float));
+
+	// init Q and F
+	for (i=0; i<N; ++i) {Q[i] = 0.0f;}
+	
+	// Sparse matrix multiplication Q = SRM * im
+	for (i=0; i<nvals; ++i) {
+		Q[rows[i]] += (vals[i] * im[cols[i]]);
+	}
+	// Sparse matrix operation F = SRM^T / Q
+	for (i=0; i<nvals; ++i) {
+		if (Q[rows[i]] == 0.0f) {continue;}
+		F[cols[i]] += (vals[i] / Q[rows[i]]);
+	}
+	/*
+	// update pixel
+	for (j=0; j<npix; ++j) {
+		buf = im[j];
+		if (buf != 0) {
+			im[j] = buf / S[j] * F[j];
+		}
+	}
+	*/
+	free(Q);
+}
 
 /********************************************************************************
  * GENERAL      volume rendering
@@ -2904,7 +3640,7 @@ void kernel_pet2D_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, f
 	free(Q);
 }
 
-// EM-ML algorithm, only one iteration (list-mode)
+// EM-ML algorithm, only one iteration (list-mode), Naive implementation as define by the method
 void kernel_pet2D_LM_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs, float* im, int npixim) {
 	int i, j, ind;
 	float qi, buf, f;
@@ -2933,8 +3669,8 @@ void kernel_pet2D_LM_EMML_iter(float* SRM, int nlor, int npix, float* S, int nbs
 	free(Q);
 }
 
-// EM-ML algorithm with sparse matrix (COO), only one iteration (list-mode)
-void kernel_pet2D_LM_EMML_COO_iter(float* SRMvals, int nvals, int* SRMrows, int nrows, int* SRMcols, int ncols, float* S, int nbs, float* im, int npix, int nevents) {
+// EM-ML algorithm with sparse matrix (COO), only one iteration (list-mode), matrix operation
+void kernel_pet2D_LM_EMML_COO_iter_mat(float* SRMvals, int nvals, int* SRMrows, int nrows, int* SRMcols, int ncols, float* S, int nbs, float* im, int npix, int nevents) {
 	int i, j, ind;
 	float buf;
 	float* Q = (float*)malloc(nevents * sizeof(float));
@@ -2959,9 +3695,40 @@ void kernel_pet2D_LM_EMML_COO_iter(float* SRMvals, int nvals, int* SRMrows, int 
 			im[j] = buf / S[j] * F[j];
 		}
 	}
-	free(Q);
 	free(F);
+	free(Q);
 }
+
+// EM-ML algorithm with sparse matrix (COO), only one iteration (list-mode), naive method scalar operation
+void kernel_pet2D_LM_EMML_COO_iter_vec(float* SRMvals, int nvals, int* SRMrows, int nrows, int* SRMcols, int ncols, float* S, int nbs, float* im, int npix, int nevents) {
+	int i, j, ind;
+	float buf, f;
+	float* Q = (float*)malloc(nevents * sizeof(float));
+
+	// init Q and F
+	for (i=0; i<nevents; ++i) {Q[i] = 0.0f;}
+	
+	// Sparse matrix multiplication Q = SRM * im
+	for (i=0; i<nvals; ++i) {
+		Q[SRMrows[i]] += (SRMvals[i] * im[SRMcols[i]]);
+	}
+	// update pixel
+	for (j=0; j<npix; ++j) {
+		printf("%i\n", j);
+		buf = im[j];
+		if (buf != 0) {
+			f = 0.0;
+			for (i=0; i<ncols; ++i) {
+				if (SRMcols[i] == j) {
+					f += (SRMvals[i] / Q[SRMrows[i]]);
+				}
+			}
+			im[j] = buf / S[j] * f;
+		}
+	}
+	free(Q);
+}
+
 
 // EM-ML algorithm with sparse matrix (ELL)
 void kernel_pet2D_LM_EMML_ELL_iter(float* SRMvals, int nivals, int njvals, int* SRMcols, int nicols, int njcols, float* S, int ns, float* im, int npix) {

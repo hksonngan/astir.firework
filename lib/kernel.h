@@ -73,9 +73,22 @@ void kernel_pet3D_SRM_clean_LOR_int(int* enable, int ne, float* x1, int nx1, flo
 									float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
 									int* xi1, int nxi1, int* yi1, int nyi1, int* zi1, int nzi1,
 									int* xi2, int nxi2, int* yi2, int nyi2, int* zi2, int nzi2);
+void kernel_pet3D_SRM_clean_LOR_float(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+									  float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+									  float* xf1, int nxi1, float* yf1, int nyi1, float* zf1, int nzi1,
+									  float* xf2, int nxi2, float* yf2, int nyi2, float* zf2, int nzi2);
 void kernel_pet3D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic, int njc,
 							  unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1, unsigned short int* Z1, int nz1,
 							  unsigned short int* X2, int nx2, unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2, int wim);
+void kernel_pet3D_IM_SRM_DDA( unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1, unsigned short int* Z1, int nz1,
+							  unsigned short int* X2, int nx2, unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+							  float* im, int nim, int wim);
+void kernel_pet3D_IM_SRM_ELL_DDA_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1, unsigned short int* Z1, int nz1,
+									  unsigned short int* X2, int nx2, unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+									  float* im, int nim, float* F, int nf, int wim, int ndata);
+void kernel_pet3D_IM_SRM_ELL_DDA_iter_vec(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1, unsigned short int* Z1, int nz1,
+										  unsigned short int* X2, int nx2, unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+										  float* im, int nim, float* F, int nf, int wim, int ndata);
 void kernel_pet3D_IM_SRM_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
 								float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2, float* im, int nim, int wim);
 void kernel_pet3D_IM_SRM_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
@@ -84,6 +97,9 @@ void kernel_pet3D_IM_SRM_COO_SIDDON(float* X1, int nx1, float* Y1, int ny1, floa
 									float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2, float* im, int nim, int wim, int isub);
 void kernel_pet3D_IM_SRM_COO_SIDDON_iter_vec(float* im, int nim, float* F, int nf, int N, int isub);
 void kernel_pet3D_IM_SRM_COO_SIDDON_iter_mat(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* im, int nim, float* F, int nf, int N, int isub);
+void kernel_pet3D_IM_SRM_ELL_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+										 float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
+										 float* im, int nim, float* F, int nf, int wim, int ndata);
 
 // PET 2D Simulated four heads
 //void kernel_pet2D_square_gen_sim_ID(int* RES, int nres, float posx, float posy, float alpha, int nx);
@@ -101,7 +117,12 @@ void kernel_pet2D_EMML_cuda(float* SRM, int nlor, int npix, float* im, int npixi
 void kernel_pet2D_LM_EMML_DDA_ELL_cuda(int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* im, int nim, float* S, int ns, int wsrm, int wim, int maxite);
 void kernel_pet2D_IM_SRM_DDA_ELL_cuda(int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* im, int nim, int wsrm, int wim);
 void kernel_pet2D_IM_SRM_DDA_ELL_iter_cuda(int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* S, int ns, float* im, int nim, int wsrm, int wim);
-
+void kernel_pet3D_IM_SRM_DDA_ELL_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
+									  unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+									  float* im, int nim, int wsrm, int wim);
+void kernel_pet3D_IM_SRM_DDA_ELL_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
+										   unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+										   float* im, int nim, float* F, int nf, int wsrm, int wim);
 // PET 2D  Simulated ring scan
 //void kernel_pet2D_ring_build_SM(float* SRM, int sy, int sx, int x1, int y1, int x2, int y2, int nx, int numlor);
 //void kernel_pet2D_ring_gen_sim_ID(int* RES, int nres, int posx, int posy, float alpha, int radius);
@@ -132,5 +153,7 @@ void kernel_matrix_spmtv(float* mat, int ni, int nj, float* y, int ny, float* re
 int kernel_matrix_nonzeros(float* mat, int ni, int nj);
 void kernel_matrix_nonzeros_rows(float* mat, int ni, int nj, int* rows, int nrows);
 void kernel_matrix_sumcol(float* mat, int ni, int nj, float* im, int npix);
+void kernel_matrix_lp_H(float* mat, int nk, int nj, int ni, float fc, int order);
 
 int kernel_vector_nonzeros(float* mat, int ni);
+

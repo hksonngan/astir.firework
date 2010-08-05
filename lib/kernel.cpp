@@ -17,6 +17,7 @@
 
 #include <stdlib.h>
 #include <stdio.h>
+#include <string.h>
 #include <math.h>
 #include <time.h>
 #include <omp.h>
@@ -1303,12 +1304,9 @@ void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* 
 					xp1 -= border;
 					yp1 -= border;
 					zp1 -= border;
-					xp1 = int(xp1);
-					yp1 = int(yp1);
-					zp1 = int(zp1);
-					if (xp1 == srmsize) {xp1 = srmsize-1;}
-					if (yp1 == srmsize) {yp1 = srmsize-1;}
-					if (zp1 == srmsize) {zp1 = srmsize-1;}
+					if (int(xp1) == srmsize) {xp1 = srmsize-1.0f;}
+					if (int(yp1) == srmsize) {yp1 = srmsize-1.0f;}
+					if (int(zp1) == srmsize) {zp1 = srmsize-1.0f;}
 					x1[i] = xp1;
 					y1[i] = yp1;
 					z1[i] = zp1;
@@ -1323,12 +1321,9 @@ void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* 
 					xp2 -= border;
 					yp2 -= border;
 					zp2 -= border;
-					xp2 = int(xp2);
-					yp2 = int(yp2);
-					zp2 = int(zp2);
-					if (xp2 == srmsize) {xp2 = srmsize-1;}
-					if (yp2 == srmsize) {yp2 = srmsize-1;}
-					if (zp2 == srmsize) {zp2 = srmsize-1;}
+					if (int(xp2) == srmsize) {xp2 = srmsize-1.0f;}
+					if (int(yp2) == srmsize) {yp2 = srmsize-1.0f;}
+					if (int(zp2) == srmsize) {zp2 = srmsize-1.0f;}
 					x2[i] = xp2;
 					y2[i] = yp2;
 					z2[i] = zp2;
@@ -1337,7 +1332,7 @@ void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* 
 			} else {continue;}
 		} else {continue;}
 		if (chk1 && chk2) {
-			if (xp1 == xp2 && yp1 == yp2 && zp1 == zp2) {continue;}
+			if (int(xp1) == int(xp2) && int(yp1) == int(yp2) && int(zp1) == int(zp2)) {continue;}
 			enable[i] = 1;
 		}
 	}
@@ -1362,6 +1357,27 @@ void kernel_pet3D_SRM_clean_LOR_int(int* enable, int ne, float* x1, int nx1, flo
 		}
 	}
 }
+
+// Cleanning LORs outside of ROI based on SRM raycasting intersection calculation (return float)
+void kernel_pet3D_SRM_clean_LOR_float(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+									  float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+									  float* xf1, int nxi1, float* yf1, int nyi1, float* zf1, int nzi1,
+									  float* xf2, int nxi2, float* yf2, int nyi2, float* zf2, int nzi2) {
+	int i, c;
+	c = 0;
+	for (i=0; i<nx1; ++i) {
+		if (enable[i]) {
+			xf1[c] = x1[i];
+			yf1[c] = y1[i];
+			zf1[c] = z1[i];
+			xf2[c] = x2[i];
+			yf2[c] = y2[i];
+			zf2[c] = z2[i];
+			++c;
+		}
+	}
+}
+
 
 // Raytrace SRM matrix with DDA algorithm in ELL sparse matrix format
 void kernel_pet3D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic, int njc,
@@ -1410,6 +1426,215 @@ void kernel_pet3D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic,
 		}
 		cols[LOR_ind + n] = -1; // eof
 	}
+}
+
+// Compute the first image with DDA algorithm
+void kernel_pet3D_IM_SRM_DDA( unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1, unsigned short int* Z1, int nz1,
+							  unsigned short int* X2, int nx2, unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+							  float* im, int nim, int wim) {
+	int length, lengthy, lengthz, i, n;
+	float flength, val;
+	float x, y, z, lx, ly, lz;
+	float xinc, yinc, zinc;
+	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
+	int step;
+	val = 1.0f;
+	step = wim*wim;
+	
+	for (i=0; i< nx1; ++i) {
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		z1 = Z1[i];
+		z2 = Z2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		zinc = diffz / flength;
+		x = x1 + 0.5;
+		y = y1 + 0.5;
+		z = z1 + 0.5;
+		for (n=0; n<=length; ++n) {
+			im[(int)z * step + (int)y * wim + (int)x] += val;
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+	}
+}
+
+// Update image online, SRM is build with DDA's Line Algorithm, store in ELL format and update with LM-OSEM
+void kernel_pet3D_IM_SRM_ELL_DDA_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1, unsigned short int* Z1, int nz1,
+									  unsigned short int* X2, int nx2, unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+									  float* im, int nim, float* F, int nf, int wim, int ndata) {
+	int length, lengthy, lengthz, i, j, n;
+	float flength, val;
+	float x, y, z, lx, ly, lz;
+	float xinc, yinc, zinc;
+	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
+	int step;
+	val = 1.0f;
+	step = wim*wim;
+
+	// alloc mem
+	float* vals = (float*)malloc(nx1 * ndata * sizeof(float));
+	int* cols = (int*)malloc(nx1 * ndata * sizeof(int));
+	float* Q = (float*)calloc(nx1, sizeof(float));
+	int LOR_ind;
+	// to compute F
+	int vcol;
+	float buf, sum, Qi;
+
+	for (i=0; i< nx1; ++i) {
+		LOR_ind = i * ndata;
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		z1 = Z1[i];
+		z2 = Z2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		zinc = diffz / flength;
+		x = x1 + 0.5;
+		y = y1 + 0.5;
+		z = z1 + 0.5;
+		for (n=0; n<=length; ++n) {
+			vals[LOR_ind + n] = val;
+			cols[LOR_ind + n] = (int)z * step + (int)y * wim + (int)x;
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+		// eof
+		vals[LOR_ind + n] = -1;
+		cols[LOR_ind + n] = -1;
+	}
+
+	// Sparse matrix operation Q = SRM * im
+	for (i=0; i<nx1; ++i) {
+		LOR_ind = i * ndata;
+		vcol = cols[LOR_ind];
+		j = 0;
+		sum = 0.0f;
+		while (vcol != -1) {
+			sum += (vals[LOR_ind+j] * im[vcol]);
+			++j;
+			vcol = cols[LOR_ind+j];
+		}
+		Q[i] = sum;
+	}
+	// Sparse matrix operation F = SRM^T / Q
+	for (i=0; i<nx1; ++i) {
+		LOR_ind = i * ndata;
+		vcol = cols[LOR_ind];
+		j = 0;
+		Qi = Q[i];
+		if (Qi==0.0f) {continue;}
+		while (vcol != -1) {
+			F[vcol] += (vals[LOR_ind+j] / Qi);
+			++j;
+			vcol = cols[LOR_ind+j];
+		}
+	}
+
+	free(vals);
+	free(cols);
+	free(Q);
+
+	
+}
+
+
+// Update image online, SRM is build with DDA's Line Algorithm, store in ELL format and update with LM-OSEM
+void kernel_pet3D_IM_SRM_ELL_DDA_iter_vec(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1, unsigned short int* Z1, int nz1,
+									  unsigned short int* X2, int nx2, unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+									  float* im, int nim, float* F, int nf, int wim, int ndata) {
+	int length, lengthy, lengthz, i, j, n;
+	float flength, val;
+	float x, y, z, lx, ly, lz;
+	float xinc, yinc, zinc;
+	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
+	int step;
+	val = 1.0f;
+	step = wim*wim;
+
+	// alloc mem
+	float* vals = (float*)malloc(ndata * sizeof(float));
+	int* cols = (int*)malloc(ndata * sizeof(int));
+	int LOR_ind;
+	// to compute F
+	int vcol;
+	float buf, sum, Qi;
+
+	for (i=0; i< nx1; ++i) {
+		Qi = 0.0f;
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		z1 = Z1[i];
+		z2 = Z2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		zinc = diffz / flength;
+		x = x1 + 0.5;
+		y = y1 + 0.5;
+		z = z1 + 0.5;
+		for (n=0; n<=length; ++n) {
+			vals[n] = val;
+			vcol = (int)z * step + (int)y * wim + (int)x;
+			cols[n] = vcol;
+			Qi += (val * im[vcol]);
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+		// eof
+		vals[n] = -1;
+		cols[n] = -1;
+		// compute F
+		if (Qi==0.0f) {continue;}
+		vcol = cols[0];
+		j = 0;
+		while (vcol != -1) {
+			F[vcol] += (vals[j] / Qi);
+			++j;
+			vcol = cols[j];
+		}
+	}
+	free(vals);
+	free(cols);
 }
 
 // Compute first image ionline by Siddon's Line Algorithm
@@ -1620,8 +1845,10 @@ void kernel_pet3D_IM_SRM_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, flo
 	// random seed
 	srand(time(NULL));
 	for (n=0; n<nx1; ++n) {
+		//printf("%i\n", n);
 		// init SRM and Qi
-		for (i=0; i<nim; ++i) {SRM[i] = 0.0f;}
+		//for (i=0; i<nim; ++i) {SRM[i] = 0.0f;}
+		memset(SRM, 0, nim*sizeof(float));
 		Qi = 0.0f;
 		// draw the line
 		px = X2[n];
@@ -1810,6 +2037,7 @@ void kernel_pet3D_IM_SRM_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, flo
 		}
 		
 	} // LORs loop
+	free(SRM);
 	
 }
 
@@ -1846,6 +2074,7 @@ void kernel_pet3D_IM_SRM_COO_SIDDON(float* X1, int nx1, float* Y1, int ny1, floa
 	// random seed
 	srand(time(NULL));
 	for (n=0; n<nx1; ++n) {
+		//printf("%i %f %f %f - %f %f %f\n", n, px, py, pz, qx, qy, qz);
 		ct = 0;
 		px = X2[n];
 		py = Y2[n];
@@ -2068,7 +2297,7 @@ void kernel_pet3D_IM_SRM_COO_SIDDON_iter_vec(float* im, int nim, float* F, int n
 	pfile_rows = fopen(namerows, "rb");
 
 	// init
-	float* SRM = (float*)malloc(nim * sizeof(float));
+	//float* SRM = (float*)malloc(nim * sizeof(float));
 	int* Ni = (int*)calloc(N, sizeof(int));
 	float Qi, ival;
 	int i, n, icol;
@@ -2083,35 +2312,40 @@ void kernel_pet3D_IM_SRM_COO_SIDDON_iter_vec(float* im, int nim, float* F, int n
 		fread(&irows, 1, sizeof(int), pfile_rows);
 		Ni[irows] += 1;
 	}
-
+	// create a static memory
+	int max = 0;
+	for (i=0; i<N; ++i) {
+		if (Ni[i]>max) {max=Ni[i];}
+	}
+	float* vals = (float*)malloc(max * sizeof(float));
+	int* cols = (int*)malloc(max * sizeof(int));
+	
 	// read SRM
 	for (n=0; n<N; ++n) {
-		printf("%i\n", n);
+		
 		// init SRM and Qi
-		for (i=0; i<nim; ++i) {SRM[i] = 0.0f;}
 		Qi = 0.0f;
-		// read lines and decompress COO format
 		for (i=0; i<Ni[n]; ++i) {
 			fread(&icol, 1, sizeof(int), pfile_cols);
 			fread(&ival, 1, sizeof(float), pfile_vals);
-			SRM[icol] = ival;
+			vals[i] = ival;
+			cols[i] = icol;
+			Qi += (ival * im[icol]);
 		}
-		// first compute Qi
-		for (i=0; i<nim; ++i) {Qi += (SRM[i] * im[i]);}
 		if (Qi == 0.0f) {continue;}
 		// accumulate to F
-		for (i=0; i<nim; ++i) {
-			if (im[i] != 0.0f) {
-				F[i] += (SRM[i] / Qi);
-			}
+		for (i=0; i<Ni[n]; ++i) {
+			F[cols[i]] += (vals[i] / Qi);
 		}
+
 	}
 	// close files
 	fclose(pfile_vals);
 	fclose(pfile_cols);
 	fclose(pfile_rows);
 	free(Ni);
-	free(SRM);
+	free(vals);
+	free(cols);
 	
 }
 
@@ -2144,6 +2378,256 @@ void kernel_pet3D_IM_SRM_COO_SIDDON_iter_mat(float* vals, int nvals, int* cols, 
 	*/
 	free(Q);
 }
+
+// Update image online, SRM is build with Siddon's Line Algorithm, store in ELL format and update with LM-OSEM
+void kernel_pet3D_IM_SRM_ELL_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+										 float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
+										 float* im, int nim, float* F, int nf, int wim, int ndata) {
+	int n;
+	float tx, ty, tz, px, qx, py, qy, pz, qz;
+	int ei, ej, ek, u, v, w, i, j, k, oldi, oldj, oldk;
+	int stepi, stepj, stepk;
+	float divx, divy, divz, runx, runy, runz, oldv, newv, val, valmax;
+	float axstart, aystart, azstart, astart, pq, stepx, stepy, stepz, startl, initl;
+	int wim2 = wim*wim;
+
+	// alloc mem
+	float* vals = (float*)malloc(nx1 * ndata * sizeof(float));
+	int* cols = (int*)malloc(nx1 * ndata * sizeof(int));
+	float* Q = (float*)calloc(nx1, sizeof(float));
+	int ct, LOR_ind;
+	// to compute F
+	int vcol;
+	float buf, sum, Qi;
+
+	// random seed
+	srand(time(NULL));
+	for (n=0; n<nx1; ++n) {
+		LOR_ind = n * ndata;
+		ct = 0;
+		// draw the line
+		px = X2[n];
+		py = Y2[n];
+		pz = Z2[n];
+		qx = X1[n];
+		qy = Y1[n];
+		qz = Z1[n];
+		initl = (float)rand() / (float)RAND_MAX;
+		initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
+		ty = (py-qy) * initl + qy;
+		tz = (pz-qz) * initl + qz;
+		ei = int(tx);
+		ej = int(ty);
+		ek = int(tz);
+		if (qx-tx>0) {
+			u=ei+1;
+			stepi=1;
+		}
+		if (qx-tx<0) {
+			u=ei;
+			stepi=-1;
+		}
+		if (qx-tx==0) {
+			u=ei;
+			stepi=0;
+		}
+		if (qy-ty>0) {
+			v=ej+1;
+			stepj=1;
+		}
+		if (qy-ty<0) {
+			v=ej;
+			stepj=-1;
+		}
+		if (qy-ty==0) {
+			v=ej;
+			stepj=0;
+		}
+		if (qz-tz>0) {
+			w=ek+1;
+			stepk=1;
+		}
+		if (qz-tz<0) {
+			w=ek;
+			stepk=-1;
+		}
+		if (qz-tz==0) {
+			w=ej;
+			stepk=0;
+		}
+		
+		if (qx==px) {divx=1.0;}
+		else {divx = float(qx-px);}
+		if (qy==py) {divy=1.0;}
+		else {divy = float(qy-py);}
+		if (qz==pz) {divz=1.0;}
+		else {divz = float(qz-pz);}
+		axstart = (u-px) / divx;
+		aystart = (v-py) / divy;
+		azstart = (w-pz) / divz;
+		astart = aystart;
+		if (axstart > aystart) {astart = axstart;}
+		if (azstart > astart) {astart = azstart;}
+		pq = sqrt((qx-px)*(qx-px)+(qy-py)*(qy-py)+(qz-pz)*(qz-pz));
+		stepx = fabs(pq / divx);
+		stepy = fabs(pq / divy);
+		stepz = fabs(pq / divz);
+		startl = astart * pq;
+		valmax = stepx;
+		if (stepy < valmax) {valmax = stepy;}
+		if (stepz < valmax) {valmax = stepz;}
+		valmax = valmax + valmax*0.01f;
+
+		// first half-ray
+		runx = axstart * pq;
+		runy = aystart * pq;
+		runz = azstart * pq;
+		i = ei;
+		j = ej;
+		k = ek;
+		if (runx == startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy == startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		if (runz == startl) {
+			k += stepk;
+			runz += stepz;
+		}
+		oldv = startl;
+		oldi = -1;
+		oldj = -1;
+		oldk = -1;
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+			
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			if (runz < newv) {newv = runz;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			if (oldi != i || oldj != j || oldk != k) {
+				vals[LOR_ind + ct] = val;
+				cols[LOR_ind + ct] = k * wim2 + j * wim + i;
+				++ct;
+			}
+			oldv = newv;
+			oldi = i;
+			oldj = j;
+			oldk = k;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
+			if (runz == newv) {
+				k += stepk;
+				runz += stepz;
+			}
+		}
+		// second half-ray
+		if (px-tx>0) {stepi=1;}
+		if (px-tx<0) {stepi=-1;}
+		if (py-ty>0) {stepj=1;}
+		if (py-ty<0) {stepj=-1;}
+		if (pz-tz>0) {stepk=1;}
+		if (pz-tz<0) {stepk=-1;}
+		runx = axstart * pq;
+		runy = aystart * pq;
+		runz = azstart * pq;
+		i = ei;
+		j = ej;
+		k = ek;
+		if (runx==startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy==startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		if (runz==startl) {
+			k += stepk;
+			runz += stepz;
+		}
+		vals[LOR_ind + ct] = 0.707f;
+		cols[LOR_ind + ct] = ek * wim2 + ej * wim + ei;
+		++ct;
+		oldv = startl;
+		oldi = -1;
+		oldj = -1;
+		oldk = -1;
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			if (runz < newv) {newv = runz;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			if (oldi != i || oldj != j || oldk != k) {
+				vals[LOR_ind + ct] = val;
+				cols[LOR_ind + ct] = k * wim2 + j * wim + i;
+				++ct;
+			}
+			oldv = newv;
+			oldi = i;
+			oldj = j;
+			oldk = k;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
+			if (runz == newv) {
+				k += stepk;
+				runz += stepz;
+			}
+		}
+		// eof		
+		vals[LOR_ind + ct] = -1;
+		cols[LOR_ind + ct] = -1;
+		//printf("ct %i\n", ct);
+	} // LORs loop
+
+	// Sparse matrix operation Q = SRM * im
+	for (i=0; i<nx1; ++i) {
+		LOR_ind = i * ndata;
+		vcol = cols[LOR_ind];
+		j = 0;
+		sum = 0.0f;
+		while (vcol != -1) {
+			sum += (vals[LOR_ind+j] * im[vcol]);
+			++j;
+			vcol = cols[LOR_ind+j];
+		}
+		Q[i] = sum;
+	}
+	// Sparse matrix operation F = SRM^T / Q
+	for (i=0; i<nx1; ++i) {
+		LOR_ind = i * ndata;
+		vcol = cols[LOR_ind];
+		j = 0;
+		Qi = Q[i];
+		if (Qi==0.0f) {continue;}
+		while (vcol != -1) {
+			F[vcol] += (vals[LOR_ind+j] / Qi);
+			++j;
+			vcol = cols[LOR_ind+j];
+		}
+	}
+	free(vals);
+	free(cols);
+	free(Q);
+}
+
 
 /********************************************************************************
  * GENERAL      volume rendering
@@ -3818,9 +4302,24 @@ void kernel_pet2D_IM_SRM_DDA_ELL_cuda(int* x1, int nx1, int* y1, int ny1, int* x
 }
 
 // Update image for the 2D-LM-OSEM reconstruction (from x, y, IM and S, build SRM in ELL format then update IM)
-void kernel_pet2D_IM_SRM_DDA_ELL_iter_cuda(int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* S, int ns, float* im, int nim, int wsrm, int wim){
+void kernel_pet2D_IM_SRM_DDA_ELL_iter_cuda(int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* S, int ns, float* im, int nim, int wsrm, int wim) {
 	kernel_pet2D_IM_SRM_DDA_ELL_iter_wrap_cuda(x1, nx1, y1, ny1, x2, nx2, y2, ny2, S, ns, im, nim, wsrm, wim);
 }
+
+// Compute first image in 3D-LM-OSEM reconstruction (from IM, x, y build SRM in ELL format then compute IM+=IM)
+void kernel_pet3D_IM_SRM_DDA_ELL_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
+									  unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+									  float* im, int nim, int wsrm, int wim) {
+	kernel_pet3D_IM_SRM_DDA_ELL_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, wsrm, wim);
+}
+
+// Update image for the 3D-LM-OSEM reconstruction (from x, y, IM and S, build SRM in ELL format then return F)
+void kernel_pet3D_IM_SRM_DDA_ELL_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
+										   unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+										   float* im, int nim, float* F, int nf, int wsrm, int wim) {
+	kernel_pet3D_IM_SRM_DDA_ELL_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, F, nf, wsrm, wim);
+}
+
 
 /**************************************************************
  * Utils
@@ -4068,4 +4567,30 @@ int kernel_vector_nonzeros(float* mat, int ni) {
 		if (mat[i] != 0) {++c;}
 	}
 	return c;
+}
+
+// Helper to build H matrix for a low pass filter
+void kernel_matrix_lp_H(float* mat, int nk, int nj, int ni, float fc, int order) {
+	int i, j, k, step;
+	float c, r, size, fi, fj, fk, forder;
+	
+	forder = (float)order * 2.0f;
+	step = nj*ni;
+	c = ((float)ni - 1.0f) / 2.0f;
+	size = (float)nj - 1.0f;
+	for (k=0; k<nk; ++k) {
+		for (j=0; j<nj; ++j) {
+			for (i=0; i<ni; ++i) {
+				fi = (float)i;
+				fj = (float)j;
+				fk = (float)k;
+				r = sqrt((fi-c)*(fi-c) + (fj-c)*(fj-c) + (fk-c)*(fk-c));
+				r = r / size;
+				r = pow((r / fc), forder);
+				r = sqrt(1 + r);
+				mat[k*step + i*nj +j] = 1 / r;
+			}
+		}
+	}
+
 }

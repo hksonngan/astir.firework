@@ -473,22 +473,17 @@ def volume_ifft(volf, xo = -1):
 
 # Low pass filter
 def volume_lp_filter(vol, fc, order):
-    from numpy import zeros, array
-    order      *= 2
+    from kernel import kernel_matrix_lp_H
+    from numpy import zeros
+
     zo, yo, xo  = vol.shape
     volf        = volume_fft(vol)
     z, y, x     = volf.shape
-    c           = (x - 1) // 2
     H           = zeros((z, y, x), 'float32')
-    for k in xrange(z):
-        for j in xrange(y):
-            for i in xrange(x):
-                r          = ((i-c)*(i-c) + (j-c)*(j-c) + (z-c)*(z-c))**(0.5) # radius
-                f          = r / (x-1)                                        # fequency
-                H[k, i, j] = 1 / (1 + (f / fc)**order)**0.5                   # filter
-
-    volf *= H
-    vol   = volume_ifft(volf, xo)
+    kernel_matrix_lp_H(H, fc, order)
+    volf       *= H
+    vol         = volume_ifft(volf, xo)
+    vol         = vol.astype('float32')
             
     #profil  = image_1D_slice(H, c, c, w, c)
     #freq    = range(0, wo // 2 + 1)
@@ -555,13 +550,22 @@ def time_format(t):
 def plot(x, y):
     import matplotlib.pyplot as plt
     plt.plot(x, y)
+
+def plot_raps(im):
+    import matplotlib.pyplot as plt
+    im = image_normalize(im)
+    val, freq = image_raps(im)
+    val = image_atodB(val)
+    plt.plot(freq, val)
+    plt.xlabel('Nyquist frequency')
+    plt.ylabel('Power spectrum (dB)')
     plt.show()
 
 # ==== List-Mode ============================
 # ===========================================
 
-# Open list-mode pre-compute data set, values are entry-exit point of SRM matrix
-def listmode_open_xyz(basename):
+# Open list-mode pre-compute data set (int format), values are entry-exit point of SRM matrix
+def listmode_open_xyz_int(basename):
     from numpy import fromfile
     
     f  = open(basename + '.x1', 'rb')
@@ -595,7 +599,38 @@ def listmode_open_xyz(basename):
     f.close()
 
     return x1, y1, z1, x2, y2, z2
+
+# Open list-mode pre-compute data set (float format), values are entry-exit point of SRM matrix
+def listmode_open_xyz_float(basename):
+    from numpy import fromfile
     
+    f  = open(basename + '.x1', 'rb')
+    x1 = fromfile(file=f, dtype='float32')
+    f.close()
+
+    f  = open(basename + '.y1', 'rb')
+    y1 = fromfile(file=f, dtype='float32')
+    f.close()
+    
+    f  = open(basename + '.z1', 'rb')
+    z1 = fromfile(file=f, dtype='float32')
+    f.close()
+    
+    f  = open(basename + '.x2', 'rb')
+    x2 = fromfile(file=f, dtype='float32')
+    f.close()
+    
+    f  = open(basename + '.y2', 'rb')
+    y2 = fromfile(file=f, dtype='float32')
+    f.close()
+    
+    f  = open(basename + '.z2', 'rb')
+    z2 = fromfile(file=f, dtype='float32')
+    f.close()
+
+    return x1, y1, z1, x2, y2, z2
+
+
 # Open list-mode subset
 def listmode_open_subset(filename, N_start, N_stop):
     from numpy import zeros

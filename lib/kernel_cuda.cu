@@ -84,6 +84,123 @@ __global__ void pet2D_SRM_DDA_ELL(float* d_SRM_vals, int* d_SRM_cols, int* d_x1,
 		d_SRM_cols[LOR_ind + n] = -1; // eof
 	}
 }
+/*
+// DEV
+__global__ void pet3D_IM_SRM_DDA_DEV(unsigned short int* d_x1, unsigned short int* d_y1, unsigned short int* d_z1,
+								  unsigned short int* d_x2, unsigned short int* d_y2, unsigned short int* d_z2,
+								  int wsrm, int wim, int nx1) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	int i;
+	if (idx < wim) {
+		for (i=0;i<nx1;++i) {
+			
+
+
+		}
+
+
+
+	}
+}
+*/
+
+
+// kernel to raytrace 3D line in SRM with DDA algorithm and ELL sparse matrix format 
+__global__ void pet3D_SRM_DDA_ELL(float* d_SRM_vals, int* d_SRM_cols,
+								  unsigned short int* d_x1, unsigned short int* d_y1, unsigned short int* d_z1,
+								  unsigned short int* d_x2, unsigned short int* d_y2, unsigned short int* d_z2,
+								  int wsrm, int wim, int nx1) {
+	int length, n, x1, y1, z1, x2, y2, z2, diffx, diffy, diffz, LOR_ind, step;
+	float flength, val, x, y, z, lx, ly, lz, xinc, yinc, zinc;
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	val = 1.0f;
+	step = wim*wim;
+	
+	if (idx < nx1) {
+		LOR_ind = idx * wsrm;
+		x1 = d_x1[idx];
+		x2 = d_x2[idx];
+		y1 = d_y1[idx];
+		y2 = d_y2[idx];
+		z1 = d_z1[idx];
+		z2 = d_z2[idx];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		zinc = diffz / flength;
+		x = x1 + 0.5f;
+		y = y1 + 0.5f;
+		z = z1 + 0.5f;
+		for (n=0; n<=length; ++n) {
+			d_SRM_vals[LOR_ind + n] = val;
+			d_SRM_cols[LOR_ind + n] = (int)z * step + (int)y * wim + (int)x;
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+		d_SRM_cols[LOR_ind + n] = -1; // eof
+	}
+
+}
+// kernel to raytrace 3D line in SRM with DDA algorithm and ELL sparse matrix format 
+__global__ void pet3D_SRM_DDA_ELL_Q(float* d_SRM_vals, int* d_SRM_cols, float* d_im, float* d_Q,
+									unsigned short int* d_x1, unsigned short int* d_y1, unsigned short int* d_z1,
+									unsigned short int* d_x2, unsigned short int* d_y2, unsigned short int* d_z2,
+									int wsrm, int wim, int nx1) {
+	int length, n, x1, y1, z1, x2, y2, z2, diffx, diffy, diffz, LOR_ind, step, vcol;
+	float flength, val, x, y, z, lx, ly, lz, xinc, yinc, zinc, Qi;
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	val = 1.0f;
+	step = wim*wim;
+	Qi = 0.0f;
+	
+	if (idx < nx1) {
+		LOR_ind = idx * wsrm;
+		x1 = d_x1[idx];
+		x2 = d_x2[idx];
+		y1 = d_y1[idx];
+		y2 = d_y2[idx];
+		z1 = d_z1[idx];
+		z2 = d_z2[idx];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		zinc = diffz / flength;
+		x = x1 + 0.5f;
+		y = y1 + 0.5f;
+		z = z1 + 0.5f;
+		for (n=0; n<=length; ++n) {
+			d_SRM_vals[LOR_ind + n] = val;
+			vcol = (int)z * step + (int)y * wim + (int)x;
+			d_SRM_cols[LOR_ind + n] = vcol;
+			Qi = Qi + d_im[vcol];
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+		d_SRM_cols[LOR_ind + n] = -1; // eof
+		d_Q[idx] = Qi;
+	}
+
+}
 // kernel to raytrace line in SRM with DDA anti-aliased version 2 pix, SRM is in ELL sparse matrix format 
 __global__ void pet2D_SRM_DDAA_ELL(float* d_SRM_vals, int* d_SRM_cols, int* d_x1, int* d_y1, int* d_x2, int* d_y2, int wsrm, int wim, int nx1) {
 	int length, n, x1, y1, x2, y2, diffx, diffy, LOR_ind, ind, ind2, xint, yint;
@@ -158,6 +275,11 @@ __global__ void pet2D_QF_init(float* d_Q, float* d_F, int nq, int nf) {
 	if (idx < nq) {d_Q[idx] = 0.0f;}
 	if (idx < nf) {d_F[idx] = 0.0f;}
 }
+// init Q to zeros
+__global__ void pet2D_Q_init(float* d_Q, int nq) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	if (idx < nq) {d_Q[idx] = 0.0f;}
+}
 // Compute Q vector by SRM * IM (ELL sparse matrix format)
 __global__ void pet2D_ell_spmv(float* d_SRM_vals, int* d_SRM_cols, float* d_Q, float* d_im,  int niv, int njv) {
 	int j, ind, vcol;
@@ -180,11 +302,14 @@ __global__ void pet2D_ell_spmv(float* d_SRM_vals, int* d_SRM_cols, float* d_Q, f
 __global__ void pet2D_ell_F(float* d_SRM_vals, int* d_SRM_cols, float* d_F, float* d_Q, int niv, int njv) {
 	int i, ind, vcol;
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	float Qi;
 	if (idx < njv) {
 		for (i=0; i < niv; ++i) {
+			Qi = d_Q[i];
+			if (Qi==0.0f) {continue;}
 			ind = i * njv + idx;
 			vcol = d_SRM_cols[ind];
-			if (vcol != -1) {d_F[vcol] +=(d_SRM_vals[ind] / d_Q[i]);}
+			if (vcol != -1) {d_F[vcol] += (d_SRM_vals[ind] / Qi);}
 			__syncthreads();
 		}
 	}
@@ -541,7 +666,7 @@ void kernel_pet2D_LM_EMML_DDA_ELL_wrap_cuda(int* x1, int nx1, int* y1, int ny1, 
 	
 }
 
-// Compute the first image in lLM 2D-OSEM algorithm (from x, y build SRM, then compute IM)
+// Compute the first image in LM 2D-OSEM algorithm (from x, y build SRM, then compute IM)
 void kernel_pet2D_IM_SRM_DDA_ELL_wrap_cuda(int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* im, int nim, int wsrm, int wim) {
 	// select a GPU
 	cudaSetDevice(0);
@@ -697,4 +822,173 @@ void kernel_pet2D_IM_SRM_DDA_ELL_iter_wrap_cuda(int* x1, int nx1, int* y1, int n
 	cudaFree(d_y1);
 	cudaFree(d_x2);
 	cudaFree(d_y2);
+}
+
+// Compute the first image in LM 3D-OSEM algorithm (from x, y build SRM, then compute IM)
+void kernel_pet3D_IM_SRM_DDA_ELL_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
+										   unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+										   float* im, int nim, int wsrm, int wim) {
+	// select a GPU
+	cudaSetDevice(0);
+	// vars
+	int block_size, grid_size;
+	dim3 threads, grid;
+	// allocate device memory
+	int size_SRM = nx1 * wsrm;
+	unsigned int mem_size_iSRM = size_SRM * sizeof(int);
+	unsigned int mem_size_fSRM = size_SRM * sizeof(float);
+	unsigned int mem_size_im = nim * sizeof(float);
+	unsigned int mem_size_point = nx1 * sizeof(unsigned short int);
+	float* d_SRM_vals;
+	int* d_SRM_cols;
+	float* d_im;
+	unsigned short int* d_x1;
+	unsigned short int* d_x2;
+	unsigned short int* d_y1;
+	unsigned short int* d_y2;
+	unsigned short int* d_z1;
+	unsigned short int* d_z2;
+	cudaMalloc((void**) &d_SRM_vals, mem_size_fSRM);
+	cudaMalloc((void**) &d_SRM_cols, mem_size_iSRM);
+	cudaMalloc((void**) &d_im, mem_size_im);
+	cudaMalloc((void**) &d_x1, mem_size_point);
+	cudaMalloc((void**) &d_y1, mem_size_point);
+	cudaMalloc((void**) &d_z1, mem_size_point);
+	cudaMalloc((void**) &d_x2, mem_size_point);
+	cudaMalloc((void**) &d_y2, mem_size_point);
+	cudaMalloc((void**) &d_z2, mem_size_point);
+	// copy from host to device
+	cudaMemcpy(d_im, im, mem_size_im, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x1, x1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y1, y1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_z1, z1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x2, x2, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y2, y2, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_z2, z2, mem_size_point, cudaMemcpyHostToDevice);
+	// Init kernel
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size;
+	threads.x = block_size;
+	grid.x = grid_size;
+	pet2D_SRM_ELL_init<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, wsrm, nx1);
+	// DDA kernel
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size; // CODE IS LIMITED TO < 16 Mlines
+	threads.x = block_size;
+	grid.x = grid_size;
+	pet3D_SRM_DDA_ELL<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, d_x1, d_y1, d_z1, d_x2, d_y2, d_z2, wsrm, wim, nx1);
+	// IM kernel
+	block_size = 8;
+	grid_size = (wsrm + block_size - 1) / block_size;
+	threads.x = block_size;
+	grid.x = grid_size;
+	matrix_ell_sumcol<<<grid, threads>>>(d_SRM_vals, nx1, wsrm, d_SRM_cols, d_im);
+	// get back image
+	cudaMemcpy(im, d_im, mem_size_im, cudaMemcpyDeviceToHost);
+	// Free mem
+	cudaFree(d_SRM_vals);
+	cudaFree(d_SRM_cols);
+	cudaFree(d_im);
+	cudaFree(d_x1);
+	cudaFree(d_y1);
+	cudaFree(d_z1);
+	cudaFree(d_x2);
+	cudaFree(d_y2);
+	cudaFree(d_z2);
+}
+
+// Update image for the 3D-LM-OSEM reconstruction (from x, y, IM and S, build SRM in ELL format then return F)
+void kernel_pet3D_IM_SRM_DDA_ELL_iter_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
+												unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+												float* im, int nim, float* F, int nf, int wsrm, int wim){
+
+	// select a GPU
+	cudaSetDevice(0);
+	// vars
+	int block_size, grid_size;
+	dim3 threads, grid;
+	dim3 threads2, grid2;
+	dim3 threads3, grid3;
+	// allocate device memory
+	int size_SRM = nx1 * wsrm;
+	unsigned int mem_size_iSRM = size_SRM * sizeof(int);
+	unsigned int mem_size_fSRM = size_SRM * sizeof(float);
+	unsigned int mem_size_im = nim * sizeof(float);
+	unsigned int mem_size_Q = nx1 * sizeof(float);
+	unsigned int mem_size_F = nim * sizeof(float);
+	unsigned int mem_size_point = nx1 * sizeof(unsigned short int);
+	float* d_SRM_vals;
+	int* d_SRM_cols;
+	float* d_im;
+	float* d_Q;
+	float* d_F;
+	unsigned short int* d_x1;
+	unsigned short int* d_x2;
+	unsigned short int* d_y1;
+	unsigned short int* d_y2;
+	unsigned short int* d_z1;
+	unsigned short int* d_z2;
+	cudaMalloc((void**) &d_SRM_vals, mem_size_fSRM);
+	cudaMalloc((void**) &d_SRM_cols, mem_size_iSRM);
+	cudaMalloc((void**) &d_im, mem_size_im);
+	cudaMalloc((void**) &d_Q, mem_size_Q);
+	cudaMalloc((void**) &d_F, mem_size_F);
+	cudaMalloc((void**) &d_x1, mem_size_point);
+	cudaMalloc((void**) &d_y1, mem_size_point);
+	cudaMalloc((void**) &d_z1, mem_size_point);
+	cudaMalloc((void**) &d_x2, mem_size_point);
+	cudaMalloc((void**) &d_y2, mem_size_point);
+	cudaMalloc((void**) &d_z2, mem_size_point);
+	// copy from host to device
+	cudaMemcpy(d_im, im, mem_size_im, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_F, F, mem_size_F, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x1, x1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y1, y1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_z1, z1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x2, x2, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y2, y2, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_z2, z2, mem_size_point, cudaMemcpyHostToDevice);
+	// Init kernel
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size; // CODE IS LIMITED TO < 16 Mlines
+	threads.x = block_size;
+	grid.x = grid_size;
+	pet2D_SRM_ELL_init<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, wsrm, nx1);
+	// DDA kernel
+	pet3D_SRM_DDA_ELL_Q<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, d_im, d_Q, d_x1, d_y1, d_z1, d_x2, d_y2, d_z2, wsrm, wim, nx1);
+	/*
+	// init Q to zeros
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size; // CODE IS LIMITED TO < 16 Mlines
+	threads.x = block_size;
+	grid.x = grid_size;
+	pet2D_Q_init<<<grid, threads>>>(d_Q, nx1);
+	// compute Q
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size; // CODE IS LIMITED TO < 16 Mlines
+	threads2.x = block_size;
+	grid2.x = grid_size;
+	pet2D_ell_spmv<<<grid2, threads2>>>(d_SRM_vals, d_SRM_cols, d_Q, d_im, nx1, wsrm);
+	*/
+	// compute f = sum{SRMi / qi} for each i LOR
+	block_size = 8;
+	grid_size = (wsrm + block_size - 1) / block_size;
+	threads3.x = block_size;
+	grid3.x = grid_size;
+	pet2D_ell_F<<<grid3, threads3>>>(d_SRM_vals, d_SRM_cols, d_F, d_Q, nx1, wsrm);
+	// get back F
+	cudaMemcpy(F, d_F, mem_size_F, cudaMemcpyDeviceToHost);
+
+	// Free mem
+	cudaFree(d_SRM_vals);
+	cudaFree(d_SRM_cols);
+	cudaFree(d_im);
+	cudaFree(d_Q);
+	cudaFree(d_F);
+	cudaFree(d_x1);
+	cudaFree(d_y1);
+	cudaFree(d_z1);
+	cudaFree(d_x2);
+	cudaFree(d_y2);
+	cudaFree(d_z2);
 }

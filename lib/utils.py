@@ -564,37 +564,45 @@ def plot_raps(im):
 # ==== List-Mode ============================
 # ===========================================
 
+# Count the number of events in a list-mode data file
+def listmode_events_onfile(basename):
+    pass
+    
+# Open a subset of list-mode data in int format.
+def listmode_open_subset_xyz_int(basename, nstart, nstop):
+    pass
+    
 # Open list-mode pre-compute data set (int format), values are entry-exit point of SRM matrix
 def listmode_open_xyz_int(basename):
     from numpy import fromfile
     
     f  = open(basename + '.x1', 'rb')
-    x1 = fromfile(file=f, dtype='uint8')
+    x1 = fromfile(file=f, dtype='uint16')
     x1 = x1.astype('uint16')
     f.close()
 
     f  = open(basename + '.y1', 'rb')
-    y1 = fromfile(file=f, dtype='uint8')
+    y1 = fromfile(file=f, dtype='uint16')
     y1 = y1.astype('uint16')
     f.close()
     
     f  = open(basename + '.z1', 'rb')
-    z1 = fromfile(file=f, dtype='uint8')
+    z1 = fromfile(file=f, dtype='uint16')
     z1 = z1.astype('uint16')
     f.close()
     
     f  = open(basename + '.x2', 'rb')
-    x2 = fromfile(file=f, dtype='uint8')
+    x2 = fromfile(file=f, dtype='uint16')
     x2 = x2.astype('uint16')
     f.close()
     
     f  = open(basename + '.y2', 'rb')
-    y2 = fromfile(file=f, dtype='uint8')
+    y2 = fromfile(file=f, dtype='uint16')
     y2 = y2.astype('uint16')
     f.close()
     
     f  = open(basename + '.z2', 'rb')
-    z2 = fromfile(file=f, dtype='uint8')
+    z2 = fromfile(file=f, dtype='uint16')
     z2 = z2.astype('uint16')
     f.close()
 

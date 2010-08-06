@@ -2,9 +2,47 @@
 #include <stdio.h>
 #include <cublas.h>
 #include <sys/time.h>
+#include <math_constants.h>
 
 // textures
 texture<float, 1, cudaReadModeElementType> tex1;
+
+// DEV
+__global__ void dev_draw(float* d_im, unsigned short int* d_x1, unsigned short int* d_y1,
+						 unsigned short int* d_z1, unsigned short int* d_x2, unsigned short int* d_y2,
+						 unsigned short int* d_z2, int wim, int nx1, int nim) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	int idy = blockIdx.y * blockDim.y + threadIdx.y;
+	//int idz = blockIdx.z * blockDim.z + threadIdx.z;
+	int x1, y1, z1, x2, y2, z2, n, dx, dy, dz, max;
+	//max = idx*idy*idz;
+	float d, x, y, z;
+	d_im[idy] = idy;
+	/*
+	if (max < nim) {
+		d_im[idx] = idx;
+		
+		for (n=0; n<nx1; ++n) {
+			x1 = d_x1[n];
+			y1 = d_y1[n];
+			z1 = d_z1[n];
+			x2 = d_x2[n];
+			y2 = d_y2[n];
+			z2 = d_z2[n];
+			dx = x2-x1;
+			dy = y2-y1;
+			dz = z2-z1;
+			d  = ((idx-x1)*dx + (idy-y1)*dy + (idz-z1)*dz) / sqrtf(dx*dx+dy*dy+dz*dz);
+			x  = (float)x1 + d*dx;
+			y  = (float)y1 + d*dy;
+			z  = (float)z1 + d*dz;
+			d  = sqrtf((idx-x)*(idx-x)+(idy-y)*(idy-y)+(idz-z)*(idz-z));
+			d_im[idz*wim*wim + idy*wim + idx] = d;
+			//if (d < 10.0f) {d_im[idz*wim*wim + idy*wim + idx] = 1;}
+		}
+		
+	} */
+}
 
 // kernel to update image in pet2D EMML algorithm
 __global__ void pet2D_im_update(float* im, float* S, float* F, int npix) {
@@ -827,9 +865,9 @@ void kernel_pet2D_IM_SRM_DDA_ELL_iter_wrap_cuda(int* x1, int nx1, int* y1, int n
 // Compute the first image in LM 3D-OSEM algorithm (from x, y build SRM, then compute IM)
 void kernel_pet3D_IM_SRM_DDA_ELL_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
 										   unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-										   float* im, int nim, int wsrm, int wim) {
+										   float* im, int nim, int wsrm, int wim, int ID) {
 	// select a GPU
-	cudaSetDevice(0);
+	if (ID != -1) {cudaSetDevice(ID);}
 	// vars
 	int block_size, grid_size;
 	dim3 threads, grid;
@@ -900,10 +938,10 @@ void kernel_pet3D_IM_SRM_DDA_ELL_wrap_cuda(unsigned short int* x1, int nx1, unsi
 // Update image for the 3D-LM-OSEM reconstruction (from x, y, IM and S, build SRM in ELL format then return F)
 void kernel_pet3D_IM_SRM_DDA_ELL_iter_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
 												unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-												float* im, int nim, float* F, int nf, int wsrm, int wim){
+												float* im, int nim, float* F, int nf, int wsrm, int wim, int ID){
 
 	// select a GPU
-	cudaSetDevice(0);
+	if (ID != -1){cudaSetDevice(ID);}
 	// vars
 	int block_size, grid_size;
 	dim3 threads, grid;
@@ -985,6 +1023,67 @@ void kernel_pet3D_IM_SRM_DDA_ELL_iter_wrap_cuda(unsigned short int* x1, int nx1,
 	cudaFree(d_im);
 	cudaFree(d_Q);
 	cudaFree(d_F);
+	cudaFree(d_x1);
+	cudaFree(d_y1);
+	cudaFree(d_z1);
+	cudaFree(d_x2);
+	cudaFree(d_y2);
+	cudaFree(d_z2);
+}
+
+/***********************************************
+ * DEV
+ ***********************************************/
+
+// Compute the first image in LM 3D-OSEM algorithm (from x, y build SRM, then compute IM)
+void kernel_pet3D_IM_DEV_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
+										   unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+										   float* im, int nim, int wsrm, int wim, int ID) {
+	// select a GPU
+	if (ID != -1) {cudaSetDevice(ID);}
+	// vars
+	int block_size, grid_size;
+	dim3 threads, grid;
+	// allocate device memory
+	unsigned int mem_size_im = nim * sizeof(float);
+	unsigned int mem_size_point = nx1 * sizeof(unsigned short int);
+	float* d_im;
+	unsigned short int* d_x1;
+	unsigned short int* d_x2;
+	unsigned short int* d_y1;
+	unsigned short int* d_y2;
+	unsigned short int* d_z1;
+	unsigned short int* d_z2;
+	cudaMalloc((void**) &d_im, mem_size_im);
+	cudaMalloc((void**) &d_x1, mem_size_point);
+	cudaMalloc((void**) &d_y1, mem_size_point);
+	cudaMalloc((void**) &d_z1, mem_size_point);
+	cudaMalloc((void**) &d_x2, mem_size_point);
+	cudaMalloc((void**) &d_y2, mem_size_point);
+	cudaMalloc((void**) &d_z2, mem_size_point);
+	// copy from host to device
+	cudaMemcpy(d_im, im, mem_size_im, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x1, x1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y1, y1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_z1, z1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x2, x2, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y2, y2, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_z2, z2, mem_size_point, cudaMemcpyHostToDevice);
+	// IM kernel
+	block_size = 128;
+	//grid_size = (wim + block_size - 1) / block_size;
+	grid_size = (wim + block_size - 1) / block_size;
+	threads.x = block_size;
+	threads.y = block_size;
+	//threads.z = block_size;
+	grid.x = grid_size;
+	grid.y = grid_size;
+	//grid.z = grid_size;
+	dev_draw<<<grid, threads>>>(d_im, d_x1, d_y1, d_z1, d_x2, d_y2, d_z2, wim, nx1, nim);
+	// get back image
+	cudaMemcpy(im, d_im, mem_size_im, cudaMemcpyDeviceToHost);
+	// Free mem
+	cudaFree(d_im);
 	cudaFree(d_x1);
 	cudaFree(d_y1);
 	cudaFree(d_z1);

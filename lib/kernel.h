@@ -96,6 +96,9 @@ void kernel_pet3D_IM_SRM_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, flo
 void kernel_pet3D_IM_SRM_COO_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
 									float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2, float* im, int nim, int wim, int isub);
 void kernel_pet3D_IM_SRM_COO_SIDDON_iter_vec(float* im, int nim, float* F, int nf, int N, int isub);
+void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+											float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
+											float* im, int nim, float* F, int nf, int wim);
 void kernel_pet3D_IM_SRM_COO_SIDDON_iter_mat(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* im, int nim, float* F, int nf, int N, int isub);
 void kernel_pet3D_IM_SRM_ELL_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
 										 float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
@@ -119,10 +122,10 @@ void kernel_pet2D_IM_SRM_DDA_ELL_cuda(int* x1, int nx1, int* y1, int ny1, int* x
 void kernel_pet2D_IM_SRM_DDA_ELL_iter_cuda(int* x1, int nx1, int* y1, int ny1, int* x2, int nx2, int* y2, int ny2, float* S, int ns, float* im, int nim, int wsrm, int wim);
 void kernel_pet3D_IM_SRM_DDA_ELL_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
 									  unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-									  float* im, int nim, int wsrm, int wim);
+									  float* im, int nim, int wsrm, int wim, int ID);
 void kernel_pet3D_IM_SRM_DDA_ELL_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
 										   unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-										   float* im, int nim, float* F, int nf, int wsrm, int wim);
+										   float* im, int nim, float* F, int nf, int wsrm, int wim, int ID);
 // PET 2D  Simulated ring scan
 //void kernel_pet2D_ring_build_SM(float* SRM, int sy, int sx, int x1, int y1, int x2, int y2, int nx, int numlor);
 //void kernel_pet2D_ring_gen_sim_ID(int* RES, int nres, int posx, int posy, float alpha, int radius);
@@ -157,3 +160,12 @@ void kernel_matrix_lp_H(float* mat, int nk, int nj, int ni, float fc, int order)
 
 int kernel_vector_nonzeros(float* mat, int ni);
 
+void kernel_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1, 
+										 unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+										 int n_start, int n_stop, char* basename);
+
+void toto(char* name);
+void kernel_pet3D_IM_DEV_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+							  unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
+							  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+							  float* im, int nim, int wsrm, int wim, int ID);

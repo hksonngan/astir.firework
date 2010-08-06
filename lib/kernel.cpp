@@ -1658,7 +1658,8 @@ void kernel_pet3D_IM_SRM_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z
 		qy = Y1[n];
 		qz = Z1[n];
 		initl = (float)rand() / (float)RAND_MAX;
-		initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		//initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		initl = initl * 0.4 + 0.1;
 		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
 		ty = (py-qy) * initl + qy;
 		tz = (pz-qz) * initl + qz;
@@ -2038,6 +2039,247 @@ void kernel_pet3D_IM_SRM_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, flo
 		
 	} // LORs loop
 	free(SRM);
+	
+}
+
+// Update image online, SRM is build with Siddon's Line Algorithm in COO format, and update with LM-OSEM
+void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+											float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
+											float* im, int nim, float* F, int nf, int wim) {
+	int n, ct;
+	float tx, ty, tz, px, qx, py, qy, pz, qz;
+	int ei, ej, ek, u, v, w, i, j, k, oldi, oldj, oldk;
+	int stepi, stepj, stepk;
+	float divx, divy, divz, runx, runy, runz, oldv, newv, val, valmax;
+	float axstart, aystart, azstart, astart, pq, stepx, stepy, stepz, startl, initl;
+	int wim2 = wim*wim;
+	double Qi;
+	float* vals = NULL;
+	int* cols = NULL;
+
+	// random seed
+	srand(time(NULL));
+	for (n=0; n<nx1; ++n) {
+		float* vals = NULL;
+		int* cols = NULL;
+		Qi = 0.0f;
+		ct = 0;
+		// draw the line
+		px = X2[n];
+		py = Y2[n];
+		pz = Z2[n];
+		qx = X1[n];
+		qy = Y1[n];
+		qz = Z1[n];
+		initl = (float)rand() / (float)RAND_MAX;
+		initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
+		ty = (py-qy) * initl + qy;
+		tz = (pz-qz) * initl + qz;
+		ei = int(tx);
+		ej = int(ty);
+		ek = int(tz);
+		if (qx-tx>0) {
+			u=ei+1;
+			stepi=1;
+		}
+		if (qx-tx<0) {
+			u=ei;
+			stepi=-1;
+		}
+		if (qx-tx==0) {
+			u=ei;
+			stepi=0;
+		}
+		if (qy-ty>0) {
+			v=ej+1;
+			stepj=1;
+		}
+		if (qy-ty<0) {
+			v=ej;
+			stepj=-1;
+		}
+		if (qy-ty==0) {
+			v=ej;
+			stepj=0;
+		}
+		if (qz-tz>0) {
+			w=ek+1;
+			stepk=1;
+		}
+		if (qz-tz<0) {
+			w=ek;
+			stepk=-1;
+		}
+		if (qz-tz==0) {
+			w=ej;
+			stepk=0;
+		}
+		
+		if (qx==px) {divx=1.0;}
+		else {divx = float(qx-px);}
+		if (qy==py) {divy=1.0;}
+		else {divy = float(qy-py);}
+		if (qz==pz) {divz=1.0;}
+		else {divz = float(qz-pz);}
+		axstart = (u-px) / divx;
+		aystart = (v-py) / divy;
+		azstart = (w-pz) / divz;
+		astart = aystart;
+		if (axstart > aystart) {astart = axstart;}
+		if (azstart > astart) {astart = azstart;}
+		pq = sqrt((qx-px)*(qx-px)+(qy-py)*(qy-py)+(qz-pz)*(qz-pz));
+		stepx = fabs(pq / divx);
+		stepy = fabs(pq / divy);
+		stepz = fabs(pq / divz);
+		startl = astart * pq;
+		valmax = stepx;
+		if (stepy < valmax) {valmax = stepy;}
+		if (stepz < valmax) {valmax = stepz;}
+		valmax = valmax + valmax*0.01f;
+
+		// first half-ray
+		runx = axstart * pq;
+		runy = aystart * pq;
+		runz = azstart * pq;
+		i = ei;
+		j = ej;
+		k = ek;
+		if (runx == startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy == startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		if (runz == startl) {
+			k += stepk;
+			runz += stepz;
+		}
+		oldv = startl;
+		oldi = -1;
+		oldj = -1;
+		oldk = -1;
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			if (runz < newv) {newv = runz;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			if (oldi != i || oldj != j || oldk != k) {
+				++ct;
+				vals = (float*)realloc(vals, ct*sizeof(float));
+				cols = (int*)realloc(cols, ct*sizeof(int));
+				vals[ct-1] = val;
+				cols[ct-1] = k * wim2 + j * wim + i;
+				//SRM[k * wim2 + j * wim + i] += val;
+			}
+			oldv = newv;
+			oldi = i;
+			oldj = j;
+			oldk = k;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
+			if (runz == newv) {
+				k += stepk;
+				runz += stepz;
+			}
+		}
+		// second half-ray
+		if (px-tx>0) {stepi=1;}
+		if (px-tx<0) {stepi=-1;}
+		if (py-ty>0) {stepj=1;}
+		if (py-ty<0) {stepj=-1;}
+		if (pz-tz>0) {stepk=1;}
+		if (pz-tz<0) {stepk=-1;}
+		runx = axstart * pq;
+		runy = aystart * pq;
+		runz = azstart * pq;
+		i = ei;
+		j = ej;
+		k = ek;
+		if (runx==startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy==startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		if (runz==startl) {
+			k += stepk;
+			runz += stepz;
+		}
+		++ct;
+		vals = (float*)realloc(vals, ct*sizeof(float));
+		cols = (int*)realloc(cols, ct*sizeof(int));
+		vals[ct-1] = 0.707f;
+		cols[ct-1] = ek * wim2 + ej * wim + ei;
+		//SRM[ek * wim2 + ej * wim + ei] += 0.707f; //val;
+		oldv = startl;
+		oldi = -1;
+		oldj = -1;
+		oldk = -1;
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			if (runz < newv) {newv = runz;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			if (oldi != i || oldj != j || oldk != k) {
+				++ct;
+				vals = (float*)realloc(vals, ct*sizeof(float));
+				cols = (int*)realloc(cols, ct*sizeof(int));
+				vals[ct-1] = val;
+				cols[ct-1] = k * wim2 + j * wim + i;
+				//SRM[k * wim2 + j * wim + i] += val;
+			}
+			oldv = newv;
+			oldi = i;
+			oldj = j;
+			oldk = k;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
+			if (runz == newv) {
+				k += stepk;
+				runz += stepz;
+			}
+		}
+		// first compute Qi
+		for (i=0; i<ct; ++i) {Qi += (vals[i] * im[cols[i]]);}
+		//for (i=0; i<nim; ++i) {Qi += (SRM[i] * im[i]);}
+		if (Qi == 0.0f) {continue;}
+		// accumulate to F
+		for(i=0; i<ct; ++i) {
+			if (im[cols[i]] != 0.0f) {
+				F[cols[i]] += (vals[i] / Qi);
+			}
+
+		}
+		/*
+		for (i=0; i<nim; ++i) {
+			if (im[i] != 0.0f) {
+				F[i] += (SRM[i] / Qi);
+			}
+		}
+		*/
+		free(vals);
+		free(cols);
+		
+	} // LORs loop
 	
 }
 
@@ -4309,15 +4551,15 @@ void kernel_pet2D_IM_SRM_DDA_ELL_iter_cuda(int* x1, int nx1, int* y1, int ny1, i
 // Compute first image in 3D-LM-OSEM reconstruction (from IM, x, y build SRM in ELL format then compute IM+=IM)
 void kernel_pet3D_IM_SRM_DDA_ELL_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
 									  unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-									  float* im, int nim, int wsrm, int wim) {
-	kernel_pet3D_IM_SRM_DDA_ELL_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, wsrm, wim);
+									  float* im, int nim, int wsrm, int wim, int ID) {
+	kernel_pet3D_IM_SRM_DDA_ELL_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, wsrm, wim, ID);
 }
 
 // Update image for the 3D-LM-OSEM reconstruction (from x, y, IM and S, build SRM in ELL format then return F)
 void kernel_pet3D_IM_SRM_DDA_ELL_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
 										   unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-										   float* im, int nim, float* F, int nf, int wsrm, int wim) {
-	kernel_pet3D_IM_SRM_DDA_ELL_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, F, nf, wsrm, wim);
+										   float* im, int nim, float* F, int nf, int wsrm, int wim, int ID) {
+	kernel_pet3D_IM_SRM_DDA_ELL_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, F, nf, wsrm, wim, ID);
 }
 
 
@@ -4593,4 +4835,89 @@ void kernel_matrix_lp_H(float* mat, int nk, int nj, int ni, float fc, int order)
 		}
 	}
 
+}
+
+// Read a subset of list-mode data set.
+void kernel_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1, 
+										 unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+										 int n_start, int n_stop, char* basename) {
+
+	// init file
+	FILE * pfile_x1;
+	FILE * pfile_y1;
+	FILE * pfile_z1;
+	FILE * pfile_x2;
+	FILE * pfile_y2;
+	FILE * pfile_z2;
+	char namex1 [100];
+	char namey1 [100];
+	char namez1 [100];
+	char namex2 [100];
+	char namey2 [100];
+	char namez2 [100];
+	sprintf(namex1, "%s.x1", basename);
+	sprintf(namey1, "%s.y1", basename);
+	sprintf(namez1, "%s.z1", basename);
+	sprintf(namex2, "%s.x2", basename);
+	sprintf(namey2, "%s.y2", basename);
+	sprintf(namez2, "%s.z2", basename);
+	pfile_x1 = fopen(namex1, "rb");
+	pfile_y1 = fopen(namey1, "rb");
+	pfile_z1 = fopen(namez1, "rb");
+	pfile_x2 = fopen(namex2, "rb");
+	pfile_y2 = fopen(namey2, "rb");
+	pfile_z2 = fopen(namez2, "rb");
+	// position file
+	long int pos = n_start * sizeof(unsigned short int);
+	fseek(pfile_x1, pos, SEEK_SET);
+	fseek(pfile_y1, pos, SEEK_SET);
+	fseek(pfile_z1, pos, SEEK_SET);
+	fseek(pfile_x2, pos, SEEK_SET);
+	fseek(pfile_y2, pos, SEEK_SET);
+	fseek(pfile_z2, pos, SEEK_SET);
+
+	// read data
+	int i;
+	unsigned short int xi1, yi1, zi1, xi2, yi2, zi2;
+	int N = n_stop - n_start;
+	for (i=0; i<N; ++i) {
+		fread(&xi1, 1, sizeof(unsigned short int), pfile_x1);
+		fread(&yi1, 1, sizeof(unsigned short int), pfile_y1);
+		fread(&zi1, 1, sizeof(unsigned short int), pfile_z1);
+		fread(&xi2, 1, sizeof(unsigned short int), pfile_x2);
+		fread(&yi2, 1, sizeof(unsigned short int), pfile_y2);
+		fread(&zi2, 1, sizeof(unsigned short int), pfile_z2);
+		x1[i] = xi1;
+		y1[i] = yi1;
+		z1[i] = zi1;
+		x2[i] = xi2;
+		y2[i] = yi2;
+		z2[i] = zi2;
+	}
+	// close files
+	fclose(pfile_x1);
+	fclose(pfile_y1);
+	fclose(pfile_z1);
+	fclose(pfile_x2);
+	fclose(pfile_y2);
+	fclose(pfile_z2);
+
+}
+
+/**************************************************************
+ * Utils
+ **************************************************************/
+
+// TO TEST
+void toto(char* name) {
+	printf("%s\n", name);
+}
+
+
+
+void kernel_pet3D_IM_DEV_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+							  unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
+							  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+							  float* im, int nim, int wsrm, int wim, int ID) {
+kernel_pet3D_IM_DEV_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, wsrm, wim, ID);
 }

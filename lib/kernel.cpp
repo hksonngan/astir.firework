@@ -4837,6 +4837,31 @@ void kernel_matrix_lp_H(float* mat, int nk, int nj, int ni, float fc, int order)
 
 }
 
+// Quich Gaussian filter on volume
+void kernel_volume_gaussian_filter_3x3(float* mat, int nk, int nj, int ni) {
+	float kernel[] = {0.3f, 1.0f, 0.3f};
+	float norm = 1.6f;
+	float sum;
+	int i, j, k, indi, indk, step;
+	float* res = (float*)calloc(nk*nj*ni, sizeof(float));
+	int step = ni*nj;
+	// first on x
+	for (k=0; k<nk; ++k) {
+		indk = k*step;
+		for (i=0; i<ni; ++i) {
+			indi = indk + i*nj;
+			for (j=1; j<(nj-1); ++j) {
+				sum = 0.0f;
+				sum += (mat[indi] * kernel[0]);
+				sum += (mat[indi+j] * kernel[1]);
+				sum += (mat[indi+j+1] * kernel[2]);
+				res[indi+j] = sum;
+			}
+		}
+	}
+	
+}
+
 // Read a subset of list-mode data set.
 void kernel_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1, 
 										 unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
@@ -4918,6 +4943,14 @@ void toto(char* name) {
 void kernel_pet3D_IM_DEV_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
 							  unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
 							  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-							  float* im, int nim, int wsrm, int wim, int ID) {
-kernel_pet3D_IM_DEV_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, wsrm, wim, ID);
+							  int* im, int nim, int wsrm, int wim, int ID) {
+	kernel_pet3D_IM_DEV_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, wsrm, wim, ID);
+}
+
+void kernel_pet3D_IM_SRM_DDA_ELL_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+											  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
+											  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+											  float* im, int nim, float* F, int nf, int wsrm, int wim, int ID) {
+	kernel_pet3D_IM_SRM_DDA_ELL_ON_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, F, nf, wsrm, wim, ID);
+
 }

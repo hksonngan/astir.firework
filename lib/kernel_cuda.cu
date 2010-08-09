@@ -6,42 +6,85 @@
 
 // textures
 texture<float, 1, cudaReadModeElementType> tex1;
+texture<float, 1, cudaReadModeElementType> tex_im;
+texture<unsigned short, 1, cudaReadModeElementType> tex_x1;
+texture<unsigned short, 1, cudaReadModeElementType> tex_y1;
+texture<unsigned short, 1, cudaReadModeElementType> tex_z1;
+texture<unsigned short, 1, cudaReadModeElementType> tex_x2;
+texture<unsigned short, 1, cudaReadModeElementType> tex_y2;
+texture<unsigned short, 1, cudaReadModeElementType> tex_z2;
 
-// DEV
+/*
+// DEV draw one pixel per thread, if the thread is alon the line. Too slow...
 __global__ void dev_draw(float* d_im, unsigned short int* d_x1, unsigned short int* d_y1,
 						 unsigned short int* d_z1, unsigned short int* d_x2, unsigned short int* d_y2,
 						 unsigned short int* d_z2, int wim, int nx1, int nim) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
-	int idy = blockIdx.y * blockDim.y + threadIdx.y;
-	//int idz = blockIdx.z * blockDim.z + threadIdx.z;
-	int x1, y1, z1, x2, y2, z2, n, dx, dy, dz, max;
-	//max = idx*idy*idz;
-	float d, x, y, z;
-	d_im[idy] = idy;
-	/*
-	if (max < nim) {
-		d_im[idx] = idx;
-		
+	int x1, y1, z1, x2, y2, z2, x, y, z, n, step, color;
+	//unsigned short int toto;
+	float dx, dy, dz, mag, u, xt, yt, zt, d;
+	step = wim*wim;
+	if (idx < nim) {
+		//color = d_im[idx];
+		color = 0;
 		for (n=0; n<nx1; ++n) {
-			x1 = d_x1[n];
-			y1 = d_y1[n];
-			z1 = d_z1[n];
-			x2 = d_x2[n];
-			y2 = d_y2[n];
-			z2 = d_z2[n];
+			
+			z = idx / step;
+			x = (idx - (z * step));
+			y = x / wim;
+			x = (x - (y * wim));
+			//x1 = d_x1[n];
+			//y1 = d_y1[n];
+			//z1 = d_z1[n];
+			//x1 = tex1Dfetch(tex_x1, n);
+			//y1 = tex1Dfetch(tex_y1, n);
+			//z1 = tex1Dfetch(tex_z1, n);
+			//x2 = d_x2[n];
+			//y2 = d_y2[n];
+			//z2 = d_z2[n];
+			x2 = 20;
+			x1 = 10;
+			y1 = 10;
+			y2 = 10;
+			z1 = 20;
+			z2 = 10;
 			dx = x2-x1;
 			dy = y2-y1;
 			dz = z2-z1;
-			d  = ((idx-x1)*dx + (idy-y1)*dy + (idz-z1)*dz) / sqrtf(dx*dx+dy*dy+dz*dz);
-			x  = (float)x1 + d*dx;
-			y  = (float)y1 + d*dy;
-			z  = (float)z1 + d*dz;
-			d  = sqrtf((idx-x)*(idx-x)+(idy-y)*(idy-y)+(idz-z)*(idz-z));
-			d_im[idz*wim*wim + idy*wim + idx] = d;
-			//if (d < 10.0f) {d_im[idz*wim*wim + idy*wim + idx] = 1;}
-		}
+			mag = __powf(dx*dx + dy*dy + dz*dz, 0.5);
+			u = ((x-x1)*dx + (y-y1)*dy + (z-z1)*dz) / (mag*mag);
+			xt = x1 + u*dx;
+			yt = y1 + u*dy;
+			zt = z1 + u*dz;
+			d = __powf((x-xt)*(x-xt) + (y-yt)*(y-yt) + (z-zt)*(z-zt), 0.5);
+			//d_im[idx] = d;
+			if (d < .707f) {color++;}
+			//d = d + 0.5f;
+			//d = int(1 / d);
+			//color = d;
+			//d = 0.5f;
+			//color += (x1 + y1 + z1);
+			//if (x < 0.707f) {color++;}
+			//color += d;
+			//__syncthreads();
+			}
+		d_im[idx] = color;
 		
-	} */
+	}
+}
+*/
+
+__device__ inline void atomicFloatAdd(float* address, float val) {
+	int i_val = __float_as_int(val);
+	int tmp0 = 0;
+	int tmp1;
+
+	while( (tmp1 = atomicCAS((int *)address, tmp0, i_val)) != tmp0)
+	{
+		tmp0 = tmp1;
+		i_val = __float_as_int(val + __int_as_float(tmp1));
+	}
+
 }
 
 // kernel to update image in pet2D EMML algorithm
@@ -144,24 +187,23 @@ __global__ void pet3D_IM_SRM_DDA_DEV(unsigned short int* d_x1, unsigned short in
 
 
 // kernel to raytrace 3D line in SRM with DDA algorithm and ELL sparse matrix format 
-__global__ void pet3D_SRM_DDA_ELL(float* d_SRM_vals, int* d_SRM_cols,
-								  unsigned short int* d_x1, unsigned short int* d_y1, unsigned short int* d_z1,
-								  unsigned short int* d_x2, unsigned short int* d_y2, unsigned short int* d_z2,
-								  int wsrm, int wim, int nx1) {
-	int length, n, x1, y1, z1, x2, y2, z2, diffx, diffy, diffz, LOR_ind, step;
+__global__ void pet3D_SRM_DDA_ELL(float* d_SRM_vals, int* d_SRM_cols, int wsrm, int wim, int nx1) {
+	int length, n, diffx, diffy, diffz, LOR_ind, step;
 	float flength, val, x, y, z, lx, ly, lz, xinc, yinc, zinc;
+	unsigned short int x1, y1, z1, x2, y2, z2;
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	val = 1.0f;
 	step = wim*wim;
 	
 	if (idx < nx1) {
 		LOR_ind = idx * wsrm;
-		x1 = d_x1[idx];
-		x2 = d_x2[idx];
-		y1 = d_y1[idx];
-		y2 = d_y2[idx];
-		z1 = d_z1[idx];
-		z2 = d_z2[idx];
+		x1 = tex1Dfetch(tex_x1, idx);
+		y1 = tex1Dfetch(tex_y1, idx);
+		z1 = tex1Dfetch(tex_z1, idx);
+		x2 = tex1Dfetch(tex_x2, idx);
+		y2 = tex1Dfetch(tex_y2, idx);
+		z2 = tex1Dfetch(tex_z2, idx);
+
 		diffx = x2-x1;
 		diffy = y2-y1;
 		diffz = z2-z1;
@@ -186,6 +228,103 @@ __global__ void pet3D_SRM_DDA_ELL(float* d_SRM_vals, int* d_SRM_cols,
 			z = z + zinc;
 		}
 		d_SRM_cols[LOR_ind + n] = -1; // eof
+	}
+
+}
+// kernel to raytrace 3D line in SRM with DDA algorithm on-line
+__global__ void pet3D_SRM_DDA_ON(int* d_im, int wim, int nx1, int nim) {
+
+	int length, n, diffx, diffy, diffz, step;
+	float flength, x, y, z, lx, ly, lz, xinc, yinc, zinc;
+	unsigned short int x1, y1, z1, x2, y2, z2;
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	step = wim*wim;
+	
+	if (idx < nx1) {
+		x1 = tex1Dfetch(tex_x1, idx);
+		y1 = tex1Dfetch(tex_y1, idx);
+		z1 = tex1Dfetch(tex_z1, idx);
+		x2 = tex1Dfetch(tex_x2, idx);
+		y2 = tex1Dfetch(tex_y2, idx);
+		z2 = tex1Dfetch(tex_z2, idx);
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		zinc = diffz / flength;
+		x = x1 + 0.5f;
+		y = y1 + 0.5f;
+		z = z1 + 0.5f;
+		for (n=0; n<=length; ++n) {
+			atomicAdd(&d_im[(int)z * step + (int)y * wim + (int)x], 1);
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+	}
+
+}
+// kernel to raytrace 3D line in SRM with DDA algorithm and compute F on-line
+__global__ void pet3D_SRM_DDA_F_ON(unsigned int* d_F, int wim, int nx1, int nim, float scale) {
+
+	int length, n, diffx, diffy, diffz, step;
+	float flength, x, y, z, lx, ly, lz, xinc, yinc, zinc, Qi;
+	unsigned short int x1, y1, z1, x2, y2, z2;
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	step = wim*wim;
+	
+	if (idx < nx1) {
+		Qi = 0.0f;
+		x1 = tex1Dfetch(tex_x1, idx);
+		y1 = tex1Dfetch(tex_y1, idx);
+		z1 = tex1Dfetch(tex_z1, idx);
+		x2 = tex1Dfetch(tex_x2, idx);
+		y2 = tex1Dfetch(tex_y2, idx);
+		z2 = tex1Dfetch(tex_z2, idx);
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		zinc = diffz / flength;
+		x = x1 + 0.5f;
+		y = y1 + 0.5f;
+		z = z1 + 0.5f;
+		for (n=0; n<=length; ++n) {
+			Qi = Qi + tex1Dfetch(tex_im, (int)z * step + (int)y * wim + (int)x);
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+
+		// compute F
+		if (Qi==0.0f) {return;}
+		Qi = 1 / Qi;
+		x = x1 + 0.5f;
+		y = y1 + 0.5f;
+		z = z1 + 0.5f;
+		for (n=0; n<=length; ++n) {
+			//atomicFloatAdd(&d_F[(int)z * step + (int)y * wim + (int)x], Qi);
+			atomicAdd(&d_F[(int)z * step + (int)y * wim + (int)x], (unsigned int)(Qi*scale));
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
 	}
 
 }
@@ -903,6 +1042,13 @@ void kernel_pet3D_IM_SRM_DDA_ELL_wrap_cuda(unsigned short int* x1, int nx1, unsi
 	cudaMemcpy(d_x2, x2, mem_size_point, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_y2, y2, mem_size_point, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_z2, z2, mem_size_point, cudaMemcpyHostToDevice);
+	// Init textures
+	cudaBindTexture(NULL, tex_x1, d_x1, mem_size_point);
+	cudaBindTexture(NULL, tex_y1, d_y1, mem_size_point);
+	cudaBindTexture(NULL, tex_z1, d_z1, mem_size_point);
+	cudaBindTexture(NULL, tex_x2, d_x2, mem_size_point);
+	cudaBindTexture(NULL, tex_y2, d_y2, mem_size_point);
+	cudaBindTexture(NULL, tex_z2, d_z2, mem_size_point);
 	// Init kernel
 	block_size = 256;
 	grid_size = (nx1 + block_size - 1) / block_size;
@@ -914,7 +1060,7 @@ void kernel_pet3D_IM_SRM_DDA_ELL_wrap_cuda(unsigned short int* x1, int nx1, unsi
 	grid_size = (nx1 + block_size - 1) / block_size; // CODE IS LIMITED TO < 16 Mlines
 	threads.x = block_size;
 	grid.x = grid_size;
-	pet3D_SRM_DDA_ELL<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, d_x1, d_y1, d_z1, d_x2, d_y2, d_z2, wsrm, wim, nx1);
+	pet3D_SRM_DDA_ELL<<<grid, threads>>>(d_SRM_vals, d_SRM_cols, wsrm, wim, nx1);
 	// IM kernel
 	block_size = 8;
 	grid_size = (wsrm + block_size - 1) / block_size;
@@ -1038,16 +1184,16 @@ void kernel_pet3D_IM_SRM_DDA_ELL_iter_wrap_cuda(unsigned short int* x1, int nx1,
 // Compute the first image in LM 3D-OSEM algorithm (from x, y build SRM, then compute IM)
 void kernel_pet3D_IM_DEV_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
 										   unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-										   float* im, int nim, int wsrm, int wim, int ID) {
+										   int* im, int nim, int wsrm, int wim, int ID) {
 	// select a GPU
 	if (ID != -1) {cudaSetDevice(ID);}
 	// vars
 	int block_size, grid_size;
 	dim3 threads, grid;
 	// allocate device memory
-	unsigned int mem_size_im = nim * sizeof(float);
+	unsigned int mem_size_im = nim * sizeof(int);
 	unsigned int mem_size_point = nx1 * sizeof(unsigned short int);
-	float* d_im;
+	int* d_im;
 	unsigned short int* d_x1;
 	unsigned short int* d_x2;
 	unsigned short int* d_y1;
@@ -1069,21 +1215,95 @@ void kernel_pet3D_IM_DEV_wrap_cuda(unsigned short int* x1, int nx1, unsigned sho
 	cudaMemcpy(d_x2, x2, mem_size_point, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_y2, y2, mem_size_point, cudaMemcpyHostToDevice);
 	cudaMemcpy(d_z2, z2, mem_size_point, cudaMemcpyHostToDevice);
+	// texture
+	cudaBindTexture(NULL, tex_x1, d_x1, mem_size_point);
+	cudaBindTexture(NULL, tex_y1, d_y1, mem_size_point);
+	cudaBindTexture(NULL, tex_z1, d_z1, mem_size_point);
+	cudaBindTexture(NULL, tex_x2, d_x2, mem_size_point);
+	cudaBindTexture(NULL, tex_y2, d_y2, mem_size_point);
+	cudaBindTexture(NULL, tex_z2, d_z2, mem_size_point);
 	// IM kernel
-	block_size = 128;
-	//grid_size = (wim + block_size - 1) / block_size;
-	grid_size = (wim + block_size - 1) / block_size;
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size; // CODE IS LIMITED TO < 16 Mlines
 	threads.x = block_size;
-	threads.y = block_size;
-	//threads.z = block_size;
 	grid.x = grid_size;
-	grid.y = grid_size;
-	//grid.z = grid_size;
-	dev_draw<<<grid, threads>>>(d_im, d_x1, d_y1, d_z1, d_x2, d_y2, d_z2, wim, nx1, nim);
+	pet3D_SRM_DDA_ON<<<grid, threads>>>(d_im, wim, nx1, nim);
 	// get back image
 	cudaMemcpy(im, d_im, mem_size_im, cudaMemcpyDeviceToHost);
 	// Free mem
 	cudaFree(d_im);
+	cudaFree(d_x1);
+	cudaFree(d_y1);
+	cudaFree(d_z1);
+	cudaFree(d_x2);
+	cudaFree(d_y2);
+	cudaFree(d_z2);
+}
+
+// DEV
+void kernel_pet3D_IM_SRM_DDA_ELL_ON_iter_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
+												unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+												float* im, int nim, float* F, int nf, int wsrm, int wim, int ID){
+
+	// select a GPU
+	if (ID != -1){cudaSetDevice(ID);}
+	// vars
+	int block_size, grid_size, i;
+	dim3 threads, grid;
+	// Need to change
+	int* Fi = (int*)calloc(nim, sizeof(int));
+	// allocate device memory
+	unsigned int mem_size_im = nim * sizeof(float);
+	unsigned int mem_size_F = nim * sizeof(unsigned int);
+	unsigned int mem_size_point = nx1 * sizeof(unsigned short int);
+	float* d_im;
+	unsigned int* d_F;
+	unsigned short int* d_x1;
+	unsigned short int* d_x2;
+	unsigned short int* d_y1;
+	unsigned short int* d_y2;
+	unsigned short int* d_z1;
+	unsigned short int* d_z2;
+	cudaMalloc((void**) &d_im, mem_size_im);
+	cudaMalloc((void**) &d_F, mem_size_F);
+	cudaMalloc((void**) &d_x1, mem_size_point);
+	cudaMalloc((void**) &d_y1, mem_size_point);
+	cudaMalloc((void**) &d_z1, mem_size_point);
+	cudaMalloc((void**) &d_x2, mem_size_point);
+	cudaMalloc((void**) &d_y2, mem_size_point);
+	cudaMalloc((void**) &d_z2, mem_size_point);
+	// copy from host to device
+	cudaMemcpy(d_im, im, mem_size_im, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_F, Fi, mem_size_F, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x1, x1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y1, y1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_z1, z1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x2, x2, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y2, y2, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_z2, z2, mem_size_point, cudaMemcpyHostToDevice);
+	// prepare texture
+	cudaBindTexture(NULL, tex_im, d_im, mem_size_im);
+	cudaBindTexture(NULL, tex_x1, d_x1, mem_size_point);
+	cudaBindTexture(NULL, tex_y1, d_y1, mem_size_point);
+	cudaBindTexture(NULL, tex_z1, d_z1, mem_size_point);
+	cudaBindTexture(NULL, tex_x2, d_x2, mem_size_point);
+	cudaBindTexture(NULL, tex_y2, d_y2, mem_size_point);
+	cudaBindTexture(NULL, tex_z2, d_z2, mem_size_point);
+	// float to int scale
+	float scale = 4000.0f;
+	// kernel
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size; // CODE IS LIMITED TO < 16e6 lines
+	threads.x = block_size;
+	grid.x = grid_size;
+	pet3D_SRM_DDA_F_ON<<<grid, threads>>>(d_F, wim, nx1, nim, scale);
+	// get back F and convert
+	cudaMemcpy(Fi, d_F, nim*sizeof(float), cudaMemcpyDeviceToHost);
+	for (i=0; i<nim; ++i) {F[i] = (float)Fi[i] / scale;}
+	// Free mem
+	free(Fi);
+	cudaFree(d_im);
+	cudaFree(d_F);
 	cudaFree(d_x1);
 	cudaFree(d_y1);
 	cudaFree(d_z1);

@@ -35,7 +35,7 @@ kernel_cuda.so : kernel_cuda.o
 	nvcc -o kernel_cuda.so -shared kernel_cuda.o -lcublas
 
 kernel_cuda.o : kernel_cuda.cu
-	nvcc -c kernel_cuda.cu --compiler-options '-fPIC' #-arch compute_11
+	nvcc -c kernel_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11
 
 clean :
 	rm *.o *.so *_wrap.c *.pyc kernel.py

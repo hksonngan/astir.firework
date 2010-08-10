@@ -71,7 +71,7 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		yi = tsc;
 		//printf("%f %f\n", zi, xi);
 		// rotation accoring ID detector
-		a = (float)id_detector1[n] * (-twopi / (float)nd);
+		a = (float)id_detector1[n] * (-twopi / (float)nd) + pi / 2.0f;
 		cosa = cos(a);
 		sina = sin(a);
 		newx = xi*cosa - yi*sina;
@@ -95,7 +95,7 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		yi = tsc;
 		//printf("%f %f\n", zi, xi);
 		// rotation accoring ID detector
-		a = (float)id_detector2[n] * (-twopi / (float)nd);
+		a = (float)id_detector2[n] * (-twopi / (float)nd) + pi / 2.0f;
 		cosa = cos(a);
 		sina = sin(a);
 		newx = xi*cosa - yi*sina;
@@ -114,6 +114,31 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 }
 #undef pi
 #undef twopi
+
+// build the list of all LOR in order to compute S matrix
+void kernel_allegro_build_all_LOR(unsigned short int* idc1, int n1, unsigned short int* idd1, int n2,
+								  unsigned short int* idc2, int n3, unsigned short int* idd2, int n4) {
+	int idmax = 22*29;
+	int ndete = 28;
+	int N = idmax*ndete;
+	int Ntot = (N*N - N) / 2;
+	int i1, i2;
+	unsigned int dc1, dd1, dc2, dd2;
+	int ct=0;
+	for (i1=0; i1<(N-1); ++i1) {
+		dd1 = i1 / idmax;
+		dc1 = i1 % idmax;
+		for (i2=i1+1; i2<N; ++i2) {
+			dd2 = i2 / idmax;
+			dc2 = i2 % idmax;
+			idc1[ct] = dc1;
+			idd1[ct] = dd1;
+			idc2[ct] = dc2;
+			idd2[ct] = dd2;
+			++ct;
+		}
+	}
+}
 
 // SRM Raytracing (transversal algorithm), Compute entry and exit point on SRM of the ray
 void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* qx, int nqx, float* qy, int nqy, int b, int srmsize, int* enable, int nenable) {
@@ -1230,8 +1255,8 @@ void kernel_pet2D_SRM_WLA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1,
 
 // SRM Raycasting, Compute ray intersection with the 3D SRM
 void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
-								float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
-								int* enable, int nenable, int border, int srmsize) {
+								 float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+								 int* enable, int nenable, int border, int ROIxy, int ROIz) {
 	// Smith's algorithm ray-box AABB intersection
 	int i, chk1, chk2;
 	float xd, yd, zd, xmin, ymin, zmin, xmax, ymax, zmax;
@@ -1239,11 +1264,11 @@ void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* 
 	float xi1, yi1, zi1, xp1, yp1, zp1, xp2, yp2, zp2;
 	// define box and ray direction
 	xmin = float(border);
-	xmax = float(border + srmsize);
+	xmax = float(border + ROIxy);
 	ymin = float(border);
-	ymax = float(border + srmsize);
-	zmin = float(border);
-	zmax = float(border + srmsize);
+	ymax = float(border + ROIxy);
+	zmin = 0.0f;
+	zmax = float(ROIz);
 	for (i=0; i<nx1; ++i) {
 		xi1 = x1[i];
 		yi1 = y1[i];
@@ -1303,10 +1328,10 @@ void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* 
 				if (zp1 >= zmin && zp1 <= zmax) {
 					xp1 -= border;
 					yp1 -= border;
-					zp1 -= border;
-					if (int(xp1) == srmsize) {xp1 = srmsize-1.0f;}
-					if (int(yp1) == srmsize) {yp1 = srmsize-1.0f;}
-					if (int(zp1) == srmsize) {zp1 = srmsize-1.0f;}
+					//zp1 -= border;
+					if (int(xp1) == ROIxy) {xp1 = ROIxy-1.0f;}
+					if (int(yp1) == ROIxy) {yp1 = ROIxy-1.0f;}
+					if (int(zp1) == ROIz) {zp1 = ROIz-1.0f;}
 					x1[i] = xp1;
 					y1[i] = yp1;
 					z1[i] = zp1;
@@ -1320,10 +1345,10 @@ void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* 
 				if (zp2 >= zmin && zp2 <= zmax) {
 					xp2 -= border;
 					yp2 -= border;
-					zp2 -= border;
-					if (int(xp2) == srmsize) {xp2 = srmsize-1.0f;}
-					if (int(yp2) == srmsize) {yp2 = srmsize-1.0f;}
-					if (int(zp2) == srmsize) {zp2 = srmsize-1.0f;}
+					//zp2 -= border;
+					if (int(xp2) == ROIxy) {xp2 = ROIxy-1.0f;}
+					if (int(yp2) == ROIxy) {yp2 = ROIxy-1.0f;}
+					if (int(zp2) == ROIz) {zp2 = ROIz-1.0f;}
 					x2[i] = xp2;
 					y2[i] = yp2;
 					z2[i] = zp2;
@@ -2299,19 +2324,15 @@ void kernel_pet3D_IM_SRM_COO_SIDDON(float* X1, int nx1, float* Y1, int ny1, floa
 	FILE * pfile_vals;
 	FILE * pfile_rows;
 	FILE * pfile_cols;
-	//FILE * pfile_cts;
 	char namevals [20];
 	char namecols [20];
 	char namerows [20];
-	//char namects [20];
 	sprintf(namevals, "SRMvals_%i.coo", isub);
 	sprintf(namecols, "SRMcols_%i.coo", isub);
 	sprintf(namerows, "SRMrows_%i.coo", isub);
-	//sprintf(namects, "SRMcts_%i.coo", isub);
 	pfile_vals = fopen(namevals, "wb");
 	pfile_cols = fopen(namecols, "wb");
 	pfile_rows = fopen(namerows, "wb");
-	//pfile_cts = fopen(namects, "wb");
 
 	// random seed
 	srand(time(NULL));
@@ -2513,13 +2534,11 @@ void kernel_pet3D_IM_SRM_COO_SIDDON(float* X1, int nx1, float* Y1, int ny1, floa
 				runz += stepz;
 			}
 		}
-		//fwrite(&ct, sizeof(int), 1, pfile_cts);
 	}
 	// close files
 	fclose(pfile_vals);
 	fclose(pfile_cols);
 	fclose(pfile_rows);
-	//fclose(pfile_cts);
 }
 
 // Update image online, SRM is read from the hard-drive and update with LM-OSEM
@@ -4838,12 +4857,12 @@ void kernel_matrix_lp_H(float* mat, int nk, int nj, int ni, float fc, int order)
 }
 
 // Quich Gaussian filter on volume
-void kernel_volume_gaussian_filter_3x3(float* mat, int nk, int nj, int ni) {
+void kernel_flatvolume_gaussian_filter_3x3x3(float* mat, int nmat, int nk, int nj, int ni) {
 	float kernel[] = {0.3f, 1.0f, 0.3f};
 	float norm = 1.6f;
 	float sum;
-	int i, j, k, indi, indk, step;
-	float* res = (float*)calloc(nk*nj*ni, sizeof(float));
+	int i, j, k, indi, indk;
+	float* res = (float*)calloc(nmat, sizeof(float));
 	int step = ni*nj;
 	// first on x
 	for (k=0; k<nk; ++k) {
@@ -4852,14 +4871,43 @@ void kernel_volume_gaussian_filter_3x3(float* mat, int nk, int nj, int ni) {
 			indi = indk + i*nj;
 			for (j=1; j<(nj-1); ++j) {
 				sum = 0.0f;
-				sum += (mat[indi] * kernel[0]);
+				sum += (mat[indi+j-1] * kernel[0]);
 				sum += (mat[indi+j] * kernel[1]);
 				sum += (mat[indi+j+1] * kernel[2]);
 				res[indi+j] = sum;
 			}
 		}
 	}
-	
+	// then on y
+	for (k=0; k<nk; ++k) {
+		indk = k*step;
+		for (j=0; i<nj; ++j) {
+			for (i=1; i<(ni-1); ++i) {
+				sum = 0.0f;
+				sum += (mat[indk+(i-1)*nj+j] * kernel[0]);
+				sum += (mat[indk+i*nj+j] * kernel[1]);
+				sum += (mat[indk+(i+1)*nj+j] * kernel[2]);
+				res[indk+i*nj+j] = sum;
+			}
+		}
+	}
+	// at the end on z
+	for (i=0; i<ni; ++i) {
+		indi = i*nj;
+		for (j=0; j<nj; ++j) {
+			indk = indi+j;
+			for (k=1; k<(nk-1); ++k) {
+				sum = 0.0f;
+				sum += (mat[(k-1)*step+indk] * kernel[0]);
+				sum += (mat[k*step+indk] * kernel[1]);
+				sum += (mat[(k+1)*step+indk] * kernel[2]);
+				res[k*step+indk] = sum;
+			}
+		}
+	}
+	// swap result
+	memcpy(mat, res, nmat*sizeof(float));
+	free(res);
 }
 
 // Read a subset of list-mode data set.
@@ -4929,6 +4977,36 @@ void kernel_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsign
 
 }
 
+// Read a subset of list-mode data set (Id of crystals and detectors).
+void kernel_listmode_open_subset_ID_int(int* idc1, int n1, int* idd1, int n2, int* idc2, int n3, int* idd2, int n4,
+										int n_start, int n_stop, char* name) {
+
+	// init file
+	FILE * pfile;
+	pfile = fopen(name, "rb");
+	// position file
+	long int pos = 4 * n_start * sizeof(int);
+	fseek(pfile, pos, SEEK_SET);
+	// read data
+	int i;
+	int c1, c2, d1, d2;
+	int N = n_stop - n_start;
+	for (i=0; i<N; ++i) {
+		fread(&c1, 1, sizeof(int), pfile);
+		fread(&d1, 1, sizeof(int), pfile);
+		fread(&c2, 1, sizeof(int), pfile);
+		fread(&d2, 1, sizeof(int), pfile);
+		idc1[i] = c1;
+		idd1[i] = d1;
+		idc2[i] = c2;
+		idd2[i] = d2;
+	}
+	// close files
+	fclose(pfile);
+
+}
+
+
 /**************************************************************
  * Utils
  **************************************************************/
@@ -4943,14 +5021,13 @@ void toto(char* name) {
 void kernel_pet3D_IM_DEV_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
 							  unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
 							  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-							  int* im, int nim, int wsrm, int wim, int ID) {
-	kernel_pet3D_IM_DEV_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, wsrm, wim, ID);
+							  int* im, int nim, int wim, int ID) {
+	kernel_pet3D_IM_DEV_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, wim, ID);
 }
 
-void kernel_pet3D_IM_SRM_DDA_ELL_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
-											  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
-											  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-											  float* im, int nim, float* F, int nf, int wsrm, int wim, int ID) {
-	kernel_pet3D_IM_SRM_DDA_ELL_ON_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, F, nf, wsrm, wim, ID);
-
+void kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+										  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
+										  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+										  float* im, int nim, float* F, int nf, int wim, int ID) {
+	kernel_pet3D_IM_SRM_DDA_ON_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, F, nf, wim, ID);
 }

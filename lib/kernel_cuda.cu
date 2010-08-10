@@ -1182,9 +1182,10 @@ void kernel_pet3D_IM_SRM_DDA_ELL_iter_wrap_cuda(unsigned short int* x1, int nx1,
  ***********************************************/
 
 // Compute the first image in LM 3D-OSEM algorithm (from x, y build SRM, then compute IM)
-void kernel_pet3D_IM_DEV_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
-										   unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-										   int* im, int nim, int wsrm, int wim, int ID) {
+void kernel_pet3D_IM_DEV_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+								   unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
+								   unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+								   int* im, int nim, int wim, int ID) {
 	// select a GPU
 	if (ID != -1) {cudaSetDevice(ID);}
 	// vars
@@ -1241,9 +1242,10 @@ void kernel_pet3D_IM_DEV_wrap_cuda(unsigned short int* x1, int nx1, unsigned sho
 }
 
 // DEV
-void kernel_pet3D_IM_SRM_DDA_ELL_ON_iter_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1,
-												unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-												float* im, int nim, float* F, int nf, int wsrm, int wim, int ID){
+void kernel_pet3D_IM_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+											   unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
+											   unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+											   float* im, int nim, float* F, int nf, int wim, int ID){
 
 	// select a GPU
 	if (ID != -1){cudaSetDevice(ID);}

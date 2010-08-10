@@ -61,14 +61,17 @@ void kernel_pet2D_SRM_BLA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1,
 void kernel_pet2D_SRM_SIDDON(float* SRM, int wy, int wx, float* X1, int nx1, float* Y1, int ny1, float* X2, int nx2, float* Y2, int ny2, int matsize);
 void kernel_pet2D_SRM_ELL_SIDDON(float* SRMvals, int niv, int njv, int* SRMcols, int nic, int njc, float* X1, int nx1, float* Y1, int ny1, float* X2, int nx2, float* Y2, int ny2, int matsize);
 void kernel_pet2D_SRM_WLA(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int wim);
+
 void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int nidd1,
 							float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
 							int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
 							float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
 							float respix, int sizespacexy, int sizespacez);
+void kernel_allegro_build_all_LOR(unsigned short int* idc1, int n1, unsigned short int* idd1, int n2,
+								  unsigned short int* idc2, int n3, unsigned short int* idd2, int n4);
 void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
 								float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
-								 int* enable, int nenable, int border, int srmsize);
+								 int* enable, int nenable, int border, int ROIxy, int ROIz);
 void kernel_pet3D_SRM_clean_LOR_int(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
 									float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
 									int* xi1, int nxi1, int* yi1, int nyi1, int* zi1, int nzi1,
@@ -158,18 +161,24 @@ void kernel_matrix_nonzeros_rows(float* mat, int ni, int nj, int* rows, int nrow
 void kernel_matrix_sumcol(float* mat, int ni, int nj, float* im, int npix);
 void kernel_matrix_lp_H(float* mat, int nk, int nj, int ni, float fc, int order);
 
+void kernel_flatvolume_gaussian_filter_3x3x3(float* mat, int nmat, int nk, int nj, int ni);
+
 int kernel_vector_nonzeros(float* mat, int ni);
 
-void kernel_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1, 
-										 unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+void kernel_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+										 unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
+										 unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
 										 int n_start, int n_stop, char* basename);
+
+void kernel_listmode_open_subset_ID_int(int* idc1, int n1, int* idd1, int n2, int* idc2, int n3, int* idd2, int n4,
+										int n_start, int n_stop, char* name);
 
 void toto(char* name);
 void kernel_pet3D_IM_DEV_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
 							  unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
 							  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-							  int* im, int nim, int wsrm, int wim, int ID);
-void kernel_pet3D_IM_SRM_DDA_ELL_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
-											  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
-											  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-											  float* im, int nim, float* F, int nf, int wsrm, int wim, int ID);
+							  int* im, int nim, int wim, int ID);
+void kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+										  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
+										  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+										  float* im, int nim, float* F, int nf, int wim, int ID);

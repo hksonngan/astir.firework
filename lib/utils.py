@@ -366,7 +366,7 @@ def image_bp_filter(im, fl, fh, order):
 # ===========================================
 
 # open a raw volume (datatype = 'uint8', 'uint16', etc.)
-def volume_open(name, nx, ny, nz, datatype):
+def volume_open(name, nz, ny, nx, datatype):
     import numpy
     
     data = open(name, 'rb').read()
@@ -516,6 +516,23 @@ def volume_mask_box(wb, hb, db, w, h, d):
 
     return vol
 
+# pack a non-isovolume to a cube
+def volume_pack_cube(vol):
+    from numpy import zeros
+    oz, oy, ox = vol.shape
+    c = max(oz, oy, ox)
+    padx = (c-ox) // 2
+    pady = (c-oy) // 2
+    padz = (c-oz) // 2
+    newvol = zeros((c, c, c), 'float32')
+    for z in xrange(oz):
+        for y in xrange(oy):
+            for x in xrange(ox):
+                newvol[z+padz, y+pady, x+padx] = vol[z, y, x]
+
+    return newvol
+
+
 # ==== Misc =================================
 # ===========================================
 
@@ -564,14 +581,6 @@ def plot_raps(im):
 # ==== List-Mode ============================
 # ===========================================
 
-# Count the number of events in a list-mode data file
-def listmode_events_onfile(basename):
-    pass
-    
-# Open a subset of list-mode data in int format.
-def listmode_open_subset_xyz_int(basename, nstart, nstop):
-    pass
-    
 # Open list-mode pre-compute data set (int format), values are entry-exit point of SRM matrix
 def listmode_open_xyz_int(basename):
     from numpy import fromfile
@@ -680,7 +689,8 @@ def listmode_open_SM(filename):
     del data
     '''
     f  = open(filename, 'rb')
-    SM = fromfile(file=f, dtype='float32') 
+    SM = fromfile(file=f, dtype='int32')
+    SM = SM.astype('float32')
 
     return SM
 

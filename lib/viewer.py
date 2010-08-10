@@ -59,6 +59,7 @@ def volume_show(vol):
     from numpy             import array, arange, zeros, flipud, take, sqrt
     from sys               import exit
     from kernel            import kernel_draw_voxels, kernel_draw_voxels_edge
+    from utils             import volume_pack_cube
 
     global rotx, roty, rotz, scale
     global xmouse, ymouse, lmouse, rmouse
@@ -67,7 +68,12 @@ def volume_show(vol):
     global flag_trans, flag_edge, flag_color
     global gamma, thres
 
-    wz, wy, wx       = vol.shape
+    wz, wy, wx = vol.shape
+    vol        = vol / vol.max()
+    if not wx == wy == wz:
+        # must be put in a cube
+        vol = volume_pack_cube(vol)
+        wz, wy, wx = vol.shape
     cz, cy, cx       = wz//2, wy//2, wx//2
     w, h             = 800, 500
     scale            = 3.0

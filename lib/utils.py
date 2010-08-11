@@ -47,6 +47,68 @@ def image_write(im, name):
     pilImage = Image.frombuffer('L', (nx, ny), slice, 'raw', 'L', 0, 1)
     pilImage.save(name)
 
+# export image with map color
+def image_write_mapcolor(im, name, color='jet'):
+    from numpy import array, zeros, take, ones
+    from PIL   import Image
+    ny, nx = im.shape
+    npix   = ny * nx
+    map    = im.copy()
+    map    = map.astype('float32')
+    map   /= map.max()
+    map   *= 255
+    map    = map.astype('uint8')
+    map    = map.reshape(npix)
+
+    lutr   = zeros((256), 'uint8')
+    lutg   = zeros((256), 'uint8')
+    lutb   = zeros((256), 'uint8')
+    if color == 'jet':
+        up  = array(range(0, 255,  3), 'uint8')
+        dw  = array(range(255, 0, -3), 'uint8')
+        stp = 85
+        lutr[stp:2*stp]   = up
+        lutr[2*stp:]      = 255
+        lutg[0:stp]       = up
+        lutg[stp:2*stp]   = 255
+        lutg[2*stp:3*stp] = dw
+        lutb[0:stp]       = 255
+        lutb[stp:2*stp]   = dw
+    elif color == 'hot':
+        up  = array(range(0, 255,  3), 'uint8')
+        stp = 85
+        lutr[0:stp]       = up
+        lutr[stp:]        = 255
+        lutg[stp:2*stp]   = up
+        lutg[2*stp:]      = 255
+        lutb[2*stp:3*stp] = up
+        lutb[3*stp:]      = 255
+    else: # hsv kind default
+        up  = array(range(0, 255,  5), 'uint8')
+        dw  = array(range(255, 0, -5), 'uint8')
+        stp = 51
+        lutr[0:stp]       = dw
+        lutr[3*stp:4*stp] = up
+        lutr[4*stp:]      = 255
+        lutg[0:2*stp]     = 255
+        lutg[2*stp:3*stp] = dw
+        lutb[stp:2*stp]   = up
+        lutb[2*stp:4*stp] = 255
+        lutb[4*stp:5*stp] = dw
+        
+    matr  = take(lutr, map)
+    matg  = take(lutg, map)
+    matb  = take(lutb, map)
+    mata  = ones((npix), 'uint8') * 255
+    newim = zeros((npix*4), 'uint8')
+    newim[0:4*npix:4] = matr
+    newim[1:4*npix:4] = matg
+    newim[2:4*npix:4] = matb
+    newim[3:4*npix:4] = mata
+
+    pilImage = Image.frombuffer('RGBA', (nx, ny), newim, 'raw', 'RGBA', 0, 1)
+    pilImage.save(name)
+
 # get the 1D projection of an image
 def image_1D_projection(im, axe = 'x'):
     if   axe == 'x': return im.sum(axis = 1)
@@ -365,13 +427,19 @@ def image_bp_filter(im, fl, fh, order):
 # ==== Volume ===============================
 # ===========================================
 
+# write a raw volume (bin)
+def volume_write(vol, name):
+    nz, ny, nx = vol.shape
+    vol        = vol.reshape((nz*ny*nx))
+    vol.tofile(name)
+
 # open a raw volume (datatype = 'uint8', 'uint16', etc.)
 def volume_open(name, nz, ny, nx, datatype):
     import numpy
     
     data = open(name, 'rb').read()
     vol  = numpy.fromstring(data, datatype)
-    vol  = vol.astype('float32')
+    #vol  = vol.astype('float32')
     '''
     if   datatype == 'uint8':  val /= 255.0
     elif datatype == 'uint16': val /= 65535.0
@@ -387,6 +455,14 @@ def volume_slice(vol, pos=0, axe='z'):
     if   axe == 'z': return vol[pos]
     elif axe == 'x': return vol[:, :, pos]
     elif axe == 'y': return vol[:, pos, :]
+
+# get the projection from a volume
+def volume_projection(vol, axe='z'):
+    if   axe == 'z': axis = 0
+    elif axe == 'y': axis = 1
+    elif axe == 'x': axis = 2
+    
+    return vol.sum(axis=axis)
 
 # export volume as multipage tiff file (unfortunately in separate file)
 def volume_export_tiff(vol, name):
@@ -426,22 +502,46 @@ def volume_miip(vol, axe='z'):
     return vol.min(axis=axis)
 
 # Display volume as a mosaic
-def volume_mosaic(vol):
+def volume_mosaic(vol, axe='z'):
     from numpy import zeros
     
     z, y, x = vol.shape
-    wi  = int(z**0.5 + 0.5)
-    hi  = int(z / wi + 0.5)
-    ct  = 0
-    mos = zeros((hi * y, wi * x), 'float32')
-    zi  = 0
-    for i in xrange(hi):
-        for j in xrange(wi):
-            im  = volume_slice(vol, zi, 'z')
-            mos[i*y:(i+1)*y, j*x:(j+1)*x] = im
-            zi += 1
+    if axe == 'z':
+        wi  = int(z**0.5 + 0.5)
+        hi  = int(z / wi + 0.5)
+        mos = zeros((hi * y, wi * x), 'float32')
+        zi  = 0
+        for i in xrange(hi):
+            for j in xrange(wi):
+                im  = volume_slice(vol, zi, 'z')
+                mos[i*y:(i+1)*y, j*x:(j+1)*x] = im
+                zi += 1
+                if zi >= z: break
             if zi >= z: break
-        if zi >= z: break
+    elif axe == 'x':
+        wi  = int(x**0.5 + 0.5)
+        hi  = int(x / wi + 0.5)
+        mos = zeros((hi * z, wi * y), 'float32')
+        xi  = 0
+        for i in xrange(hi):
+            for j in xrange(wi):
+                im = volume_slice(vol, xi, 'x')
+                mos[i*z:(i+1)*z, j*y:(j+1)*y] = im
+                xi += 1
+                if xi >= x: break
+            if xi >= x: break
+    else:
+        wi  = int(y**0.5 + 0.5)
+        hi  = int(y / wi + 0.5)
+        mos = zeros((hi * z, wi * x), 'float32')
+        yi  = 0
+        for i in xrange(hi):
+            for j in xrange(wi):
+                im = volume_slice(vol, yi, 'y')
+                mos[i*z:(i+1)*z, j*x:(j+1)*x] = im
+                yi += 1
+                if yi >= y: break
+            if yi >= y: break
 
     return mos
 
@@ -520,11 +620,12 @@ def volume_mask_box(wb, hb, db, w, h, d):
 def volume_pack_cube(vol):
     from numpy import zeros
     oz, oy, ox = vol.shape
+    type       = vol.dtype
     c = max(oz, oy, ox)
     padx = (c-ox) // 2
     pady = (c-oy) // 2
     padz = (c-oz) // 2
-    newvol = zeros((c, c, c), 'float32')
+    newvol = zeros((c, c, c), type)
     for z in xrange(oz):
         for y in xrange(oy):
             for x in xrange(ox):
@@ -532,6 +633,21 @@ def volume_pack_cube(vol):
 
     return newvol
 
+# pack a volume inside a new one at the center position
+def volume_pack_center(vol, newz, newy, newx):
+    from numpy import zeros
+    oz, oy, ox = vol.shape
+    type       = vol.dtype
+    padx = (newx-ox) // 2
+    pady = (newy-oy) // 2
+    padz = (newz-oz) // 2
+    newvol = zeros((newz, newy, newx), type)
+    for z in xrange(oz):
+        for y in xrange(oy):
+            for x in xrange(ox):
+                newvol[z+padz, y+pady, x+padx] = vol[z, y, x]
+
+    return newvol
 
 # ==== Misc =================================
 # ===========================================

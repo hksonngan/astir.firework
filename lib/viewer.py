@@ -24,7 +24,7 @@ def image_show(mat):
     h, w = mat.shape
     fig  = plt.figure()
     ax   = fig.add_subplot(111)
-    cax  = ax.imshow(mat, interpolation='nearest', cmap='hot')
+    cax  = ax.imshow(mat, interpolation='nearest', cmap='jet')
     ax.set_title('Viewer - FIREwork : %i x %i' % (w, h))
     min  = mat.min()
     max  = mat.max()

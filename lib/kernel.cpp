@@ -71,7 +71,7 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		yi = tsc;
 		//printf("%f %f\n", zi, xi);
 		// rotation accoring ID detector
-		a = (float)id_detector1[n] * (-twopi / (float)nd) + pi / 2.0f;
+		a = (float)id_detector1[n] * (-twopi / (float)nd) - pi / 2.0f;
 		cosa = cos(a);
 		sina = sin(a);
 		newx = xi*cosa - yi*sina;
@@ -95,7 +95,7 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		yi = tsc;
 		//printf("%f %f\n", zi, xi);
 		// rotation accoring ID detector
-		a = (float)id_detector2[n] * (-twopi / (float)nd) + pi / 2.0f;
+		a = (float)id_detector2[n] * (-twopi / (float)nd) - pi / 2.0f;
 		cosa = cos(a);
 		sina = sin(a);
 		newx = xi*cosa - yi*sina;
@@ -4858,16 +4858,15 @@ void kernel_matrix_lp_H(float* mat, int nk, int nj, int ni, float fc, int order)
 
 // Quich Gaussian filter on volume
 void kernel_flatvolume_gaussian_filter_3x3x3(float* mat, int nmat, int nk, int nj, int ni) {
-	float kernel[] = {0.3f, 1.0f, 0.3f};
-	float norm = 1.6f;
+	float kernel[] = {4.0f/14.0f, 6.0f/14.0f, 4.0f/14.0f};
 	float sum;
 	int i, j, k, indi, indk;
 	float* res = (float*)calloc(nmat, sizeof(float));
 	int step = ni*nj;
 	// first on x
-	for (k=0; k<nk; ++k) {
+	for (k=1; k<(nk-1); ++k) {
 		indk = k*step;
-		for (i=0; i<ni; ++i) {
+		for (i=1; i<(ni-1); ++i) {
 			indi = indk + i*nj;
 			for (j=1; j<(nj-1); ++j) {
 				sum = 0.0f;
@@ -4879,9 +4878,9 @@ void kernel_flatvolume_gaussian_filter_3x3x3(float* mat, int nmat, int nk, int n
 		}
 	}
 	// then on y
-	for (k=0; k<nk; ++k) {
+	for (k=1; k<(nk-1); ++k) {
 		indk = k*step;
-		for (j=0; i<nj; ++j) {
+		for (j=1; i<(nj-1); ++j) {
 			for (i=1; i<(ni-1); ++i) {
 				sum = 0.0f;
 				sum += (mat[indk+(i-1)*nj+j] * kernel[0]);
@@ -4892,9 +4891,9 @@ void kernel_flatvolume_gaussian_filter_3x3x3(float* mat, int nmat, int nk, int n
 		}
 	}
 	// at the end on z
-	for (i=0; i<ni; ++i) {
+	for (i=1; i<(ni-1); ++i) {
 		indi = i*nj;
-		for (j=0; j<nj; ++j) {
+		for (j=1; j<(nj-1); ++j) {
 			indk = indi+j;
 			for (k=1; k<(nk-1); ++k) {
 				sum = 0.0f;
@@ -5030,4 +5029,11 @@ void kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsig
 										  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
 										  float* im, int nim, float* F, int nf, int wim, int ID) {
 	kernel_pet3D_IM_SRM_DDA_ON_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, F, nf, wim, ID);
+}
+
+void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+											  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
+											  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+											  float* im, int nim, float* F, int nf, float* mumap, int nmu, int wim, int ID) {
+	kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, F, nf, mumap, nmu, wim, ID);
 }

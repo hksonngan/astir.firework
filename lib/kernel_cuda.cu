@@ -7,6 +7,7 @@
 // textures
 texture<float, 1, cudaReadModeElementType> tex1;
 texture<float, 1, cudaReadModeElementType> tex_im;
+texture<float, 1, cudaReadModeElementType> tex_mumap;
 texture<unsigned short, 1, cudaReadModeElementType> tex_x1;
 texture<unsigned short, 1, cudaReadModeElementType> tex_y1;
 texture<unsigned short, 1, cudaReadModeElementType> tex_z1;
@@ -314,6 +315,66 @@ __global__ void pet3D_SRM_DDA_F_ON(unsigned int* d_F, int wim, int nx1, int nim,
 
 		// compute F
 		if (Qi==0.0f) {return;}
+		Qi = 1 / Qi;
+		x = x1 + 0.5f;
+		y = y1 + 0.5f;
+		z = z1 + 0.5f;
+		for (n=0; n<=length; ++n) {
+			//atomicFloatAdd(&d_F[(int)z * step + (int)y * wim + (int)x], Qi);
+			atomicAdd(&d_F[(int)z * step + (int)y * wim + (int)x], (unsigned int)(Qi*scale));
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+	}
+
+}
+// Same as pet3D_SRM_DDA_F_ON with attenuation correction
+__global__ void pet3D_SRM_DDA_F_ATT_ON(unsigned int* d_F, int wim, int nx1, int nim, float scale) {
+
+	int length, n, diffx, diffy, diffz, step, ind;
+	float flength, x, y, z, lx, ly, lz, xinc, yinc, zinc, Qi, Ai;
+	unsigned short int x1, y1, z1, x2, y2, z2;
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	step = wim*wim;
+	
+	if (idx < nx1) {
+		Qi = 0.0f;
+		Ai = 0.0f;
+		x1 = tex1Dfetch(tex_x1, idx);
+		y1 = tex1Dfetch(tex_y1, idx);
+		z1 = tex1Dfetch(tex_z1, idx);
+		x2 = tex1Dfetch(tex_x2, idx);
+		y2 = tex1Dfetch(tex_y2, idx);
+		z2 = tex1Dfetch(tex_z2, idx);
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		zinc = diffz / flength;
+		x = x1 + 0.5f;
+		y = y1 + 0.5f;
+		z = z1 + 0.5f;
+		for (n=0; n<=length; ++n) {
+			ind = (int)z * step + (int)y * wim + (int)x;
+			Qi = Qi + tex1Dfetch(tex_im, ind);
+			Ai = Ai - tex1Dfetch(tex_mumap, ind);
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+		// compute F
+		if (Qi==0.0f) {return;}
+		if (Ai < -5.0f) {Ai = -5.0f;}
+		Qi = Qi * __expf(Ai);
 		Qi = 1 / Qi;
 		x = x1 + 0.5f;
 		y = y1 + 0.5f;
@@ -1178,7 +1239,7 @@ void kernel_pet3D_IM_SRM_DDA_ELL_iter_wrap_cuda(unsigned short int* x1, int nx1,
 }
 
 /***********************************************
- * DEV
+ * USED
  ***********************************************/
 
 // Compute the first image in LM 3D-OSEM algorithm (from x, y build SRM, then compute IM)
@@ -1241,7 +1302,7 @@ void kernel_pet3D_IM_DEV_wrap_cuda(unsigned short int* x1, int nx1, unsigned sho
 	cudaFree(d_z2);
 }
 
-// DEV
+// Compute update in LM 3D-OSEM algorithm on-line with DDA line drawing
 void kernel_pet3D_IM_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
 											   unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
 											   unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
@@ -1305,6 +1366,85 @@ void kernel_pet3D_IM_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int nx1, 
 	// Free mem
 	free(Fi);
 	cudaFree(d_im);
+	cudaFree(d_F);
+	cudaFree(d_x1);
+	cudaFree(d_y1);
+	cudaFree(d_z1);
+	cudaFree(d_x2);
+	cudaFree(d_y2);
+	cudaFree(d_z2);
+}
+
+// DEV Compute update in LM 3D-OSEM algorithm on-line with DDA line drawing and attenuation
+void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+												   unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
+												   unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+												   float* im, int nim, float* F, int nf, float* mumap, int nmu, int wim, int ID){
+
+	// select a GPU
+	if (ID != -1){cudaSetDevice(ID);}
+	// vars
+	int block_size, grid_size, i;
+	dim3 threads, grid;
+	// Need to change
+	int* Fi = (int*)calloc(nim, sizeof(int));
+	// allocate device memory
+	unsigned int mem_size_im = nim * sizeof(float);
+	unsigned int mem_size_F = nim * sizeof(unsigned int);
+	unsigned int mem_size_point = nx1 * sizeof(unsigned short int);
+	float* d_im;
+	float* d_mumap;
+	unsigned int* d_F;
+	unsigned short int* d_x1;
+	unsigned short int* d_x2;
+	unsigned short int* d_y1;
+	unsigned short int* d_y2;
+	unsigned short int* d_z1;
+	unsigned short int* d_z2;
+	cudaMalloc((void**) &d_im, mem_size_im);
+	cudaMalloc((void**) &d_mumap, mem_size_im);
+	cudaMalloc((void**) &d_F, mem_size_F);
+	cudaMalloc((void**) &d_x1, mem_size_point);
+	cudaMalloc((void**) &d_y1, mem_size_point);
+	cudaMalloc((void**) &d_z1, mem_size_point);
+	cudaMalloc((void**) &d_x2, mem_size_point);
+	cudaMalloc((void**) &d_y2, mem_size_point);
+	cudaMalloc((void**) &d_z2, mem_size_point);
+	// copy from host to device
+	cudaMemcpy(d_im, im, mem_size_im, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_mumap, mumap, mem_size_im, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_F, Fi, mem_size_F, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x1, x1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y1, y1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_z1, z1, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_x2, x2, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_y2, y2, mem_size_point, cudaMemcpyHostToDevice);
+	cudaMemcpy(d_z2, z2, mem_size_point, cudaMemcpyHostToDevice);
+	// prepare texture
+	cudaBindTexture(NULL, tex_im, d_im, mem_size_im);
+	cudaBindTexture(NULL, tex_mumap, d_mumap, mem_size_im);
+	cudaBindTexture(NULL, tex_x1, d_x1, mem_size_point);
+	cudaBindTexture(NULL, tex_y1, d_y1, mem_size_point);
+	cudaBindTexture(NULL, tex_z1, d_z1, mem_size_point);
+	cudaBindTexture(NULL, tex_x2, d_x2, mem_size_point);
+	cudaBindTexture(NULL, tex_y2, d_y2, mem_size_point);
+	cudaBindTexture(NULL, tex_z2, d_z2, mem_size_point);
+	// float to int scale
+	float scale = 4000.0f;
+	// kernel
+	block_size = 256;
+	grid_size = (nx1 + block_size - 1) / block_size; // CODE IS LIMITED TO < 16e6 lines
+	threads.x = block_size;
+	grid.x = grid_size;
+	//pet3D_SRM_DDA_F_ON<<<grid, threads>>>(d_F, wim, nx1, nim, scale);
+	pet3D_SRM_DDA_F_ATT_ON<<<grid, threads>>>(d_F, wim, nx1, nim, scale);
+	// get back F and convert
+	cudaMemcpy(Fi, d_F, nim*sizeof(float), cudaMemcpyDeviceToHost);
+	for (i=0; i<nim; ++i) {F[i] = (float)Fi[i] / scale;}
+	// Free mem
+	free(Fi);
+	cudaFree(d_im);
+	cudaFree(d_mumap);
 	cudaFree(d_F);
 	cudaFree(d_x1);
 	cudaFree(d_y1);

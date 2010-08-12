@@ -34,6 +34,8 @@ import_array();
 // Volume rendering
 void kernel_draw_voxels(int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float gamma, float thres);
 void kernel_draw_voxels_edge(int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float thres);
+void kernel_draw_pixels(float* IN_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY2, int DIM1, int DIM2);
+void kernel_color_image(float* IN_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1);
 
 // 2D Raytracer
 void kernel_draw_2D_line_DDA(float* INPLACE_ARRAY2, int DIM1, int DIM2, int x1, int y1, int x2, int y2, float val);
@@ -73,11 +75,11 @@ void kernel_pet3D_SRM_ELL_DDA(float* INPLACE_ARRAY2, int DIM1, int DIM2, int* IN
 void kernel_pet3D_IM_SRM_DDA(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim);
 void kernel_pet3D_IM_SRM_ELL_DDA_iter(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim, int ndata);
 void kernel_pet3D_IM_SRM_ELL_DDA_iter_vec(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim, int ndata);
-void kernel_pet3D_IM_SRM_SIDDON(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim);
+void kernel_pet3D_IM_SRM_SIDDON(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim, int dim);
 void kernel_pet3D_IM_SRM_SIDDON_iter(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim);
 void kernel_pet3D_IM_SRM_COO_SIDDON(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim, int isub);
 void kernel_pet3D_IM_SRM_COO_SIDDON_iter_vec(float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int N, int isub);
-void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim);
+void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim, int dim);
 void kernel_pet3D_IM_SRM_COO_SIDDON_iter_mat(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int N, int isub);
 void kernel_pet3D_IM_SRM_ELL_SIDDON_iter(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim, int ndata);
 
@@ -142,7 +144,9 @@ void kernel_flatvolume_gaussian_filter_3x3x3(float* INPLACE_ARRAY1, int DIM1, in
 
 int kernel_vector_nonzeros(float* IN_ARRAY1, int DIM1);
 
-void kernel_listmode_open_subset_xyz_int(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, int n_start, int n_stop, char* basename);
+void kernel_listmode_open_subset_xyz_int(unsigned short int* INPLACE_ARRAY1, int DIM1, unsigned short int* INPLACE_ARRAY1, int DIM1, unsigned short int* INPLACE_ARRAY1, int DIM1, unsigned short int* INPLACE_ARRAY1, int DIM1, unsigned short int* INPLACE_ARRAY1, int DIM1, unsigned short int* INPLACE_ARRAY1, int DIM1, int n_start, int n_stop, char* basename);
+
+void kernel_listmode_open_subset_xyz_float(float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int n_start, int n_stop, char* basename);
 
 void kernel_listmode_open_subset_ID_int(int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1,	int n_start, int n_stop, char* name);
 
@@ -155,3 +159,5 @@ void kernel_pet3D_IM_DEV_cuda(unsigned short int* IN_ARRAY1, int DIM1, unsigned 
 void kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim, int ID);
 
 void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, int wim, int ID);
+
+void kernel_mip_volume_rendering(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3, float* INPLACE_ARRAY2, int DIM1, int DIM2, float alpha);

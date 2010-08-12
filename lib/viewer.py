@@ -348,3 +348,231 @@ def volume_show(vol):
     glutMouseFunc(mouse_click)
     glutMotionFunc(mouse_move)
     glutMainLoop()
+
+
+
+# MIP volume rendering by opengl
+def volume_show_mip(vol):
+    from sys    import exit
+    from numpy  import zeros, array
+    from kernel import kernel_draw_pixels, kernel_mip_volume_rendering, kernel_color_image
+    
+    global phi, theta
+    global xmouse, ymouse, lmouse, rmouse
+    global w, h
+    global lutr, lutg, lutb
+    global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, gray
+    global color_flag
+
+    wz, wy, wx  = vol.shape
+    w, h        = 320, 240
+    vol         = vol / vol.max()
+    #vol        *= 255
+    #vol         = vol.astype('uint8')
+    color_flag       = 0
+    lmouse, rmouse   = 0, 0
+    xmouse, ymouse   = 0.0, 0.0
+    phi, theta       = 0.0, 0.0
+    mip              = zeros((h, w), 'float32')
+    mapr             = zeros((h, w), 'float32')
+    mapg             = zeros((h, w), 'float32')
+    mapb             = zeros((h, w), 'float32')
+    
+    def build_map_color():
+        global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, gray
+        global lutr, lutg, lutb
+        
+        jetr = zeros((256), 'float32')
+        jetg = zeros((256), 'float32')
+        jetb = zeros((256), 'float32')
+        hotr = zeros((256), 'float32')
+        hotg = zeros((256), 'float32')
+        hotb = zeros((256), 'float32')
+        hsvr = zeros((256), 'float32')
+        hsvg = zeros((256), 'float32')
+        hsvb = zeros((256), 'float32')
+        gray = zeros((256), 'float32')
+
+        # jet
+        up  = array(range(0, 255,  3), 'float32')
+        dw  = array(range(255, 0, -3), 'float32')
+        stp = 85
+        jetr[stp:2*stp]   = up
+        jetr[2*stp:]      = 255
+        jetg[0:stp]       = up
+        jetg[stp:2*stp]   = 255
+        jetg[2*stp:3*stp] = dw
+        jetb[0:stp]       = 255
+        jetb[stp:2*stp]   = dw
+        jetr /= 255.0
+        jetg /= 255.0
+        jetb /= 255.0
+
+        # hot
+        up  = array(range(0, 255,  3), 'float32')
+        stp = 85
+        hotr[0:stp]       = up
+        hotr[stp:]        = 255
+        hotg[stp:2*stp]   = up
+        hotg[2*stp:]      = 255
+        hotb[2*stp:3*stp] = up
+        hotb[3*stp:]      = 255
+        hotr /= 255.0
+        hotg /= 255.0
+        hotb /= 255.0
+
+        # hsv
+        up  = array(range(0, 255,  5), 'float32')
+        dw  = array(range(255, 0, -5), 'float32')
+        stp = 51
+        hsvr[0:stp]       = dw
+        hsvr[3*stp:4*stp] = up
+        hsvr[4*stp:]      = 255
+        hsvg[0:2*stp]     = 255
+        hsvg[2*stp:3*stp] = dw
+        hsvb[stp:2*stp]   = up
+        hsvb[2*stp:4*stp] = 255
+        hsvb[4*stp:5*stp] = dw
+        hsvr /= 255.0
+        hsvg /= 255.0
+        hsvb /= 255.0
+
+        # gray
+        gray = array(range(256), 'float32')
+        gray /= 255.0
+
+        # default
+        lutr = gray.copy()
+        lutg = gray.copy()
+        lutb = gray.copy()
+
+    def init():
+        glClearColor(0.0, 0.0, 0.0, 0.0)
+        glShadeModel(GL_FLAT)
+
+    def draw_HUD():
+        global phi, theta, color_flag
+        
+        txt = 'Volume %ix%ix%i  phi %6.2f theta %6.2f' % (wz, wy, wx, phi, theta)
+        glRasterPos2i(0, 1)
+        for char in txt: glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, ord(char))
+
+        if   color_flag == 0: txt2 = 'Gray color map'
+        elif color_flag == 1: txt2 = 'Jet color map'
+        elif color_flag == 2: txt2 = 'Hot color map'
+        elif color_flag == 3: txt2 = 'HSV color map'
+        glRasterPos2i(0, h-12)
+        for char in txt2: glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, ord(char))
+
+
+    def display():
+        global phi, theta
+        global lutr, lutg, lutb
+        glClear (GL_COLOR_BUFFER_BIT)
+        glRasterPos2i(0, 0)
+
+        # get mip
+        kernel_mip_volume_rendering(vol, mip, phi)
+        # color map
+        kernel_color_image(mip, mapr, mapg, mapb, lutr, lutg, lutb)
+        # draw
+        kernel_draw_pixels(mapr, mapg, mapb)
+        # draw HUD
+        draw_HUD()
+
+        glutSwapBuffers()        
+        
+    def reshape(neww, newh):
+        glViewport (0, 0, w, h)
+        glMatrixMode (GL_PROJECTION)
+        glLoadIdentity ()
+        gluOrtho2D(0.0, w, 0.0, h)
+        #glMatrixMode (GL_MODELVIEW)
+        #glLoadIdentity()
+
+    def keyboard(key, x, y):
+        global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, gray
+        global lutr, lutg, lutb, color_flag
+        if key == chr(27): sys.exit(0)
+        elif key == 'a':   rotx += .5
+        elif key == 'z':   rotx -= .5
+        elif key == 'q':   roty += .5
+        elif key == 's':   roty -= .5
+        elif key == 'c':
+            color_flag += 1
+            if color_flag > 3: color_flag = 0
+            if color_flag == 0:
+                lutr = gray.copy()
+                lutg = gray.copy()
+                lutb = gray.copy()
+            elif color_flag == 1:
+                lutr = jetr.copy()
+                lutg = jetg.copy()
+                lutb = jetb.copy()
+            elif color_flag == 2:
+                lutr = hotr.copy()
+                lutg = hotg.copy()
+                lutb = hotb.copy()
+            elif color_flag == 3:
+                lutr = hsvr.copy()
+                lutg = hsvg.copy()
+                lutb = hsvb.copy()
+                
+        glutPostRedisplay()
+
+    def mouse_click(button, state, x, y):
+        global lmouse, rmouse, xmouse, ymouse
+
+        if button == GLUT_LEFT_BUTTON:
+            if state == GLUT_DOWN: lmouse = 1
+            elif state == GLUT_UP:
+                lmouse = 0
+                xmouse = 0
+                ymouse = 0
+
+        if button == GLUT_RIGHT_BUTTON:
+            if state == GLUT_DOWN: rmouse = 1
+            elif state == GLUT_UP:
+                rmouse = 0
+                xmouse = 0
+                ymosue = 0
+            
+    def mouse_move(x, y):
+        global xmouse, ymouse, lmouse, rmouse, phi, theta
+        if lmouse:
+            if xmouse == 0 and ymouse == 0:
+                xmouse = x
+                ymouse = y
+                return
+            else:
+                dx      = x - xmouse
+                dy      = y - ymouse
+                xmouse  = x
+                ymouse  = y
+                phi    += dx * 0.025
+                theta  += dy * 0.025
+                glutPostRedisplay()
+
+        if rmouse:
+            if xmouse == 0:
+                xmouse = x
+                return
+            else:
+                dx = x- xmouse
+                xmouse = x
+                #scale += dx * 0.01
+                glutPostRedisplay()
+        
+    glutInit(sys.argv)
+    glutInitDisplayMode (GLUT_DOUBLE | GLUT_RGB)
+    glutInitWindowSize (w, h)
+    glutInitWindowPosition (100, 100)
+    glutCreateWindow ('Viewer - FIREwork')
+    init()
+    build_map_color()
+    glutDisplayFunc(display)
+    glutReshapeFunc(reshape)
+    glutKeyboardFunc(keyboard)
+    glutMouseFunc(mouse_click)
+    glutMotionFunc(mouse_move)
+    glutMainLoop()

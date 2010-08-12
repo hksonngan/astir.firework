@@ -1329,9 +1329,9 @@ void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* 
 					xp1 -= border;
 					yp1 -= border;
 					//zp1 -= border;
-					if (int(xp1) == ROIxy) {xp1 = ROIxy-1.0f;}
-					if (int(yp1) == ROIxy) {yp1 = ROIxy-1.0f;}
-					if (int(zp1) == ROIz) {zp1 = ROIz-1.0f;}
+					if (int(xp1+0.5) == ROIxy) {xp1 = ROIxy-1.0f;}
+					if (int(yp1+0.5) == ROIxy) {yp1 = ROIxy-1.0f;}
+					if (int(zp1+0.5) == ROIz) {zp1 = ROIz-1.0f;}
 					x1[i] = xp1;
 					y1[i] = yp1;
 					z1[i] = zp1;
@@ -1346,9 +1346,9 @@ void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* 
 					xp2 -= border;
 					yp2 -= border;
 					//zp2 -= border;
-					if (int(xp2) == ROIxy) {xp2 = ROIxy-1.0f;}
-					if (int(yp2) == ROIxy) {yp2 = ROIxy-1.0f;}
-					if (int(zp2) == ROIz) {zp2 = ROIz-1.0f;}
+					if (int(xp2+0.5) == ROIxy) {xp2 = ROIxy-1.0f;}
+					if (int(yp2+0.5) == ROIxy) {yp2 = ROIxy-1.0f;}
+					if (int(zp2+0.5) == ROIz) {zp2 = ROIz-1.0f;}
 					x2[i] = xp2;
 					y2[i] = yp2;
 					z2[i] = zp2;
@@ -1664,7 +1664,7 @@ void kernel_pet3D_IM_SRM_ELL_DDA_iter_vec(unsigned short int* X1, int nx1, unsig
 
 // Compute first image ionline by Siddon's Line Algorithm
 void kernel_pet3D_IM_SRM_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
-								float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2, float* im, int nim, int wim) {
+								float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2, float* im, int nim, int wim, int dim) {
 	int n;
 	float tx, ty, tz, px, qx, py, qy, pz, qz;
 	int ei, ej, ek, u, v, w, i, j, k, oldi, oldj, oldk;
@@ -1773,7 +1773,7 @@ void kernel_pet3D_IM_SRM_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z
 		oldi = -1;
 		oldj = -1;
 		oldk = -1;
-		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<dim) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			if (runz < newv) {newv = runz;}
@@ -1827,7 +1827,7 @@ void kernel_pet3D_IM_SRM_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z
 		oldi = -1;
 		oldj = -1;
 		oldk = -1;
-		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<dim) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			if (runz < newv) {newv = runz;}
@@ -1884,7 +1884,8 @@ void kernel_pet3D_IM_SRM_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, flo
 		qy = Y1[n];
 		qz = Z1[n];
 		initl = (float)rand() / (float)RAND_MAX;
-		initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		//initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		initl = initl * 0.4 + 0.1;
 		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
 		ty = (py-qy) * initl + qy;
 		tz = (pz-qz) * initl + qz;
@@ -2070,7 +2071,7 @@ void kernel_pet3D_IM_SRM_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, flo
 // Update image online, SRM is build with Siddon's Line Algorithm in COO format, and update with LM-OSEM
 void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
 											float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
-											float* im, int nim, float* F, int nf, int wim) {
+											float* im, int nim, float* F, int nf, int wim, int dim) {
 	int n, ct;
 	float tx, ty, tz, px, qx, py, qy, pz, qz;
 	int ei, ej, ek, u, v, w, i, j, k, oldi, oldj, oldk;
@@ -2097,7 +2098,8 @@ void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int n
 		qy = Y1[n];
 		qz = Z1[n];
 		initl = (float)rand() / (float)RAND_MAX;
-		initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		//initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		initl = initl * 0.4 + 0.1;
 		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
 		ty = (py-qy) * initl + qy;
 		tz = (pz-qz) * initl + qz;
@@ -2186,7 +2188,7 @@ void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int n
 		oldi = -1;
 		oldj = -1;
 		oldk = -1;
-		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<dim) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			if (runz < newv) {newv = runz;}
@@ -2198,7 +2200,6 @@ void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int n
 				cols = (int*)realloc(cols, ct*sizeof(int));
 				vals[ct-1] = val;
 				cols[ct-1] = k * wim2 + j * wim + i;
-				//SRM[k * wim2 + j * wim + i] += val;
 			}
 			oldv = newv;
 			oldi = i;
@@ -2247,12 +2248,11 @@ void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int n
 		cols = (int*)realloc(cols, ct*sizeof(int));
 		vals[ct-1] = 0.707f;
 		cols[ct-1] = ek * wim2 + ej * wim + ei;
-		//SRM[ek * wim2 + ej * wim + ei] += 0.707f; //val;
 		oldv = startl;
 		oldi = -1;
 		oldj = -1;
 		oldk = -1;
-		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<wim) {
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<dim) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			if (runz < newv) {newv = runz;}
@@ -2264,7 +2264,6 @@ void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int n
 				cols = (int*)realloc(cols, ct*sizeof(int));
 				vals[ct-1] = val;
 				cols[ct-1] = k * wim2 + j * wim + i;
-				//SRM[k * wim2 + j * wim + i] += val;
 			}
 			oldv = newv;
 			oldi = i;
@@ -2285,7 +2284,6 @@ void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int n
 		}
 		// first compute Qi
 		for (i=0; i<ct; ++i) {Qi += (vals[i] * im[cols[i]]);}
-		//for (i=0; i<nim; ++i) {Qi += (SRM[i] * im[i]);}
 		if (Qi == 0.0f) {continue;}
 		// accumulate to F
 		for(i=0; i<ct; ++i) {
@@ -2294,13 +2292,6 @@ void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int n
 			}
 
 		}
-		/*
-		for (i=0; i<nim; ++i) {
-			if (im[i] != 0.0f) {
-				F[i] += (SRM[i] / Qi);
-			}
-		}
-		*/
 		free(vals);
 		free(cols);
 		
@@ -3079,6 +3070,47 @@ void kernel_draw_voxels_edge(int* posxyz, int npos, float* val, int nval, float*
 	}
 	glColor4f(1.0, 1.0, 1.0, 1.0);
 }
+
+// helper to rendering image with OpenGL
+void kernel_draw_pixels(float* mapr, int him, int wim, float* mapg, int himg, int wimg, float* mapb, int himb, int wimb) {
+	int i, j;
+	int npix = him * wim;
+	float val;
+	int ct = 0;
+	glPointSize(1.0f);
+	for (i=0; i<him; ++i) {
+		for (j=0; j<wim; ++j) {
+			//if (val == 0.0f) {continue;}
+			glBegin(GL_POINTS);
+			glColor3f(mapr[ct], mapg[ct], mapb[ct]);
+			glVertex2i(j, i);
+			glEnd();
+			++ct;
+		}
+	}
+	glColor3f(1.0f, 1.0f, 1.0f);
+}
+
+// helper function to colormap image (used in OpenGL MIP rendering)
+void kernel_color_image(float* im, int him, int wim,
+						float* mapr, int him1, int wim1, float* mapg, int him2, int wim2, float* mapb, int him3, int wim3,
+						float* lutr, int him4, float* lutg, int him5, float* lutb, int him6) {
+	float val;
+	int i, j, ind, pos;
+	for (i=0; i<him; ++i) {
+		for (j=0; j<wim; ++j) {
+			pos = i*wim + j;
+			val = im[pos];
+			val *= 255.0;
+			ind = (int)val;
+			mapr[pos] = lutr[ind];
+			mapg[pos] = lutg[ind];
+			mapb[pos] = lutb[ind];
+		}
+	}
+
+}
+
 
 /********************************************************************************
  * GENERAL      line drawing
@@ -4909,7 +4941,7 @@ void kernel_flatvolume_gaussian_filter_3x3x3(float* mat, int nmat, int nk, int n
 	free(res);
 }
 
-// Read a subset of list-mode data set.
+// Read a subset of list-mode data set (int data).
 void kernel_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1, 
 										 unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
 										 int n_start, int n_stop, char* basename) {
@@ -4976,6 +5008,73 @@ void kernel_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsign
 
 }
 
+// Read a subset of list-mode data set (float data).
+void kernel_listmode_open_subset_xyz_float(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1, 
+										   float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+										   int n_start, int n_stop, char* basename) {
+
+	// init file
+	FILE * pfile_x1;
+	FILE * pfile_y1;
+	FILE * pfile_z1;
+	FILE * pfile_x2;
+	FILE * pfile_y2;
+	FILE * pfile_z2;
+	char namex1 [100];
+	char namey1 [100];
+	char namez1 [100];
+	char namex2 [100];
+	char namey2 [100];
+	char namez2 [100];
+	sprintf(namex1, "%s.x1", basename);
+	sprintf(namey1, "%s.y1", basename);
+	sprintf(namez1, "%s.z1", basename);
+	sprintf(namex2, "%s.x2", basename);
+	sprintf(namey2, "%s.y2", basename);
+	sprintf(namez2, "%s.z2", basename);
+	pfile_x1 = fopen(namex1, "rb");
+	pfile_y1 = fopen(namey1, "rb");
+	pfile_z1 = fopen(namez1, "rb");
+	pfile_x2 = fopen(namex2, "rb");
+	pfile_y2 = fopen(namey2, "rb");
+	pfile_z2 = fopen(namez2, "rb");
+	// position file
+	long int pos = n_start * sizeof(float);
+	fseek(pfile_x1, pos, SEEK_SET);
+	fseek(pfile_y1, pos, SEEK_SET);
+	fseek(pfile_z1, pos, SEEK_SET);
+	fseek(pfile_x2, pos, SEEK_SET);
+	fseek(pfile_y2, pos, SEEK_SET);
+	fseek(pfile_z2, pos, SEEK_SET);
+
+	// read data
+	int i;
+	float xf1, yf1, zf1, xf2, yf2, zf2;
+	int N = n_stop - n_start;
+	for (i=0; i<N; ++i) {
+		fread(&xf1, 1, sizeof(float), pfile_x1);
+		fread(&yf1, 1, sizeof(float), pfile_y1);
+		fread(&zf1, 1, sizeof(float), pfile_z1);
+		fread(&xf2, 1, sizeof(float), pfile_x2);
+		fread(&yf2, 1, sizeof(float), pfile_y2);
+		fread(&zf2, 1, sizeof(float), pfile_z2);
+		x1[i] = xf1;
+		y1[i] = yf1;
+		z1[i] = zf1;
+		x2[i] = xf2;
+		y2[i] = yf2;
+		z2[i] = zf2;
+	}
+	// close files
+	fclose(pfile_x1);
+	fclose(pfile_y1);
+	fclose(pfile_z1);
+	fclose(pfile_x2);
+	fclose(pfile_y2);
+	fclose(pfile_z2);
+
+}
+
 // Read a subset of list-mode data set (Id of crystals and detectors).
 void kernel_listmode_open_subset_ID_int(int* idc1, int n1, int* idd1, int n2, int* idc2, int n3, int* idd2, int n4,
 										int n_start, int n_stop, char* name) {
@@ -5004,7 +5103,6 @@ void kernel_listmode_open_subset_ID_int(int* idc1, int n1, int* idd1, int n2, in
 	fclose(pfile);
 
 }
-
 
 /**************************************************************
  * Utils
@@ -5037,3 +5135,170 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, u
 											  float* im, int nim, float* F, int nf, float* mumap, int nmu, int wim, int ID) {
 	kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, F, nf, mumap, nmu, wim, ID);
 }
+
+/**************************************************************
+ * DEVs
+ **************************************************************/
+
+#define pi  3.141592653589
+void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int him, int wim, float alpha) {
+	// first some var
+	float ts = 0.5 * sqrt(nz*nz + nx*nx) + 1;
+	float sizeworld = 2 * wim;
+	float center_world = sizeworld / 2.0;
+	float center_imx = wim / 2.0;
+	float center_imy = him / 2.0;
+	float padx = (sizeworld-nx) / 2.0;
+	float pady = (sizeworld-ny) / 2.0;
+	float padz = (sizeworld-nz) / 2.0;
+	int step = nx*ny;
+	//printf("ts %f size %f center %f imx %f imy %f\n", ts, sizeworld, center_world, center_imx, center_imy);
+	int x, y;
+	float xw, yw, zw, x1, y1, z1, x2, y2, z2;
+	float xd, yd, zd, xmin, ymin, zmin, xmax, ymax, zmax;
+	float tmin, tmax, tymin, tymax, tzmin, tzmax, buf;
+	float xp1, yp1, zp1, xp2, yp2, zp2;
+	int length, lengthy, lengthz, i;
+	float xinc, yinc, zinc, maxval, val;
+
+	for (y=0; y<him; ++y) {
+		for (x=0; x<wim; ++x) {
+			// init image
+			mip[y*wim + x] = 0.0f;
+			// origin centre in the world
+			xw = x - center_imx;
+			yw = y - center_imy;
+			zw = -ts;
+			x1 = xw*cos(alpha) - zw*sin(alpha);
+			y1 = yw;
+			z1 = xw*sin(alpha) + zw*cos(alpha);
+			zw = ts;
+			x2 = xw*cos(alpha) - zw*sin(alpha);
+			y2 = yw;
+			z2 = xw*sin(alpha) + zw*cos(alpha);
+			//printf("%f %f %f\n", x1, y1, z1);
+			//printf("%f %f %f\n", x2, y2, z2);
+			// change origin to raycasting
+			x1 += center_world;
+			y1 += center_world;
+			z1 += center_world;
+			x2 += center_world;
+			y2 += center_world;
+			z2 += center_world;
+			// define box and ray direction
+			xmin = padx;
+			xmax = padx+float(nx);
+			ymin = pady;
+			ymax = pady+float(ny);
+			zmin = padz;
+			zmax = padz+float(nz);
+			// Rayscasting Smith's algorithm ray-box AABB intersection
+			xd = x2 - x1;
+			yd = y2 - y1;
+			zd = z2 - z1;
+			tmin = -1e9f;
+			tmax = 1e9f;
+			// on x
+			if (xd != 0.0f) {
+				tmin = (xmin - x1) / xd;
+				tmax = (xmax - x1) / xd;
+				if (tmin > tmax) {
+					buf = tmin;
+					tmin = tmax;
+					tmax = buf;
+				}
+			}
+			// on y
+			if (yd != 0.0f) {
+				tymin = (ymin - y1) / yd;
+				tymax = (ymax - y1) / yd;
+				if (tymin > tymax) {
+					buf = tymin;
+					tymin = tymax;
+					tymax = buf;
+				}
+				if (tymin > tmin) {tmin = tymin;}
+				if (tymax < tmax) {tmax = tymax;}
+			}
+			// on z
+			if (zd != 0.0f) {
+				tzmin = (zmin - z1) / zd;
+				tzmax = (zmax - z1) / zd;
+				if (tzmin > tzmax) {
+					buf = tzmin;
+					tzmin = tzmax;
+					tzmax = buf;
+				}
+				if (tzmin > tmin) {tmin = tzmin;}
+				if (tzmax < tmax) {tmax = tzmax;}
+			}
+			// compute points
+			xp1 = x1 + xd * tmin;
+			yp1 = y1 + yd * tmin;
+			zp1 = z1 + zd * tmin;
+			xp2 = x1 + xd * tmax;
+			yp2 = y1 + yd * tmax;
+			zp2 = z1 + zd * tmax;
+			//printf("p1 %f %f %f - p2 %f %f %f\n", xp1, yp1, zp1, xp2, yp2, zp2);
+			// check point p1
+			if (xp1 >= xmin && xp1 <= xmax) {
+				if (yp1 >= ymin && yp1 <= ymax) {
+					if (zp1 >= zmin && zp1 <= zmax) {
+						xp1 -= padx;
+						yp1 -= pady;
+						zp1 -= padz;
+						if (int(xp1+0.5) == nx) {xp1 = nx-1.0f;}
+						if (int(yp1+0.5) == ny) {yp1 = ny-1.0f;}
+						if (int(zp1+0.5) == nz) {zp1 = nz-1.0f;}
+					} else {continue;}
+				} else {continue;}
+			} else {continue;}
+			// check point p2
+			if (xp2 >= xmin && xp2 <= xmax) {
+				if (yp2 >= ymin && yp2 <= ymax) {
+					if (zp2 >= zmin && zp2 <= zmax) {
+						xp2 -= padx;
+						yp2 -= pady;
+						zp2 -= padz;
+						if (int(xp2+0.5) == nx) {xp2 = nx-1.0f;}
+						if (int(yp2+0.5) == ny) {yp2 = ny-1.0f;}
+						if (int(zp2+0.5) == nz) {zp2 = nz-1.0f;}
+					} else {continue;}
+				} else {continue;}
+			} else {continue;}
+
+			//printf("e %f %f %f    s %f %f %f\n", xp1, yp1, zp1, xp2, yp2, zp2);
+
+			// walk the ray to choose the max intensity with the DDA algorithm
+			step = nx * ny;
+			length = abs(xp2 - xp1);
+			lengthy = abs(yp2 - yp1);
+			lengthz = abs(zp2 - zp1);
+			if (lengthy > length) {length = lengthy;}
+			if (lengthz > length) {length = lengthz;}
+			
+			xinc = (xp2 - xp1) / (float)length;
+			yinc = (yp2 - yp1) / (float)length;
+			zinc = (zp2 - zp1) / (float)length;
+			xp1 += 0.5;
+			yp1 += 0.5;
+			zp1 += 0.5;
+			maxval = 0.0f;
+			for (i=0; i<=length; ++i) {
+				val = vol[(int)zp1*step + (int)yp1*nx + (int)xp1];
+				if (val > maxval) {maxval = val;}
+				xp1 += xinc;
+				yp1 += yinc;
+				zp1 += zinc;
+			}
+			
+			// Assign new value
+			mip[y*wim + x] = maxval;
+			
+		} // loop j
+	} // loop i
+
+
+}
+
+#undef pi

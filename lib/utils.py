@@ -318,6 +318,7 @@ def image_frc(im1, im2):
 
 # Compute SNR
 def image_snr(im):
+    print 'Does not work!!'
     wo, ho = im.shape
     noise  = image_noise(wo, ho, 1.0)
     noise  = image_normalize(noise)
@@ -423,6 +424,20 @@ def image_bp_filter(im, fl, fh, order):
 
     return im, profil, freq
 
+# rotate image with 90 deg
+def image_rot90(im):
+    from numpy import rot90
+    return rot90(im)
+
+# flip left to rigth an image
+def image_flip_lr(im):
+    from numpy import fliplr
+    return fliplr(im)
+
+# flip up to down an image
+def image_flip_ud(im):
+    from numpy import flipud
+    return flipud(im)
 
 # ==== Volume ===============================
 # ===========================================
@@ -452,8 +467,11 @@ def volume_open(name, nz, ny, nx, datatype):
 
 # get a slice from a volume
 def volume_slice(vol, pos=0, axe='z'):
+    from numpy import matrix
     if   axe == 'z': return vol[pos]
-    elif axe == 'x': return vol[:, :, pos]
+    elif axe == 'x':
+        # exception: the slice must be rotate (with transpose)
+        return matrix(vol[:, :, pos]).T.A
     elif axe == 'y': return vol[:, pos, :]
 
 # get the projection from a volume
@@ -649,6 +667,22 @@ def volume_pack_center(vol, newz, newy, newx):
 
     return newvol
 
+# rotate the volume by a quarter turn
+def volume_rotate(vol, axis='x'):
+    from numpy import zeros
+    nz, ny, nx = vol.shape
+    if   axis == 'x':
+        newvol = zeros((ny, nz, nx), vol.dtype)
+        for z in xrange(nz): newvol[:, z, :] = volume_slice(vol, z, 'z')
+    elif axis == 'y':
+        newvol = zeros((nx, ny, nz), vol.dtype)
+        for x in xrange(nx): newvol[x, :, :] = volume_slice(vol, x, 'x')
+    elif axis == 'z':
+        newvol = zeros((nz, nx, ny), vol.dtype)
+        for y in xrange(ny): newvol[:, :, y] = volume_slice(vol, y, 'y')
+
+    return newvol
+
 # ==== Misc =================================
 # ===========================================
 
@@ -684,6 +718,7 @@ def plot(x, y):
     import matplotlib.pyplot as plt
     plt.plot(x, y)
 
+# plot RAPS curve
 def plot_raps(im):
     import matplotlib.pyplot as plt
     im = image_normalize(im)
@@ -692,6 +727,15 @@ def plot_raps(im):
     plt.plot(freq, val)
     plt.xlabel('Nyquist frequency')
     plt.ylabel('Power spectrum (dB)')
+    plt.show()
+
+# plot FRC curve
+def plot_frc(im1, im2):
+    import matplotlib.pyplot as plt
+    frc, freq = image_frc(im1, im2)
+    plt.plot(freq, frc)
+    plt.xlabel('Nyquist frequency')
+    plt.ylabel('FRC')
     plt.show()
 
 # ==== List-Mode ============================

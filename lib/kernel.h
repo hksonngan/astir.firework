@@ -25,6 +25,10 @@
 // Volume rendering
 void kernel_draw_voxels(int* posxyz, int npos, float* val, int nval, float* valthr, int nthr, float gamma, float thres);
 void kernel_draw_voxels_edge(int* posxyz, int npos, float* val, int nval, float* valthr, int nthr, float thres);
+void kernel_draw_pixels(float* mapr, int him, int wim, float* mapg, int himg, int wimg, float* mapb, int himb, int wimb);
+void kernel_color_image(float* im, int him, int wim,
+						float* mapr, int him1, int wim1, float* mapg, int him2, int wim2, float* mapb, int him3, int wim3,
+						float* lutr, int him4, float* lutg, int him5, float* lutb, int him6);
 
 // 2D drawing line
 void kernel_draw_2D_line_DDA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val);
@@ -93,7 +97,7 @@ void kernel_pet3D_IM_SRM_ELL_DDA_iter_vec(unsigned short int* X1, int nx1, unsig
 										  unsigned short int* X2, int nx2, unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
 										  float* im, int nim, float* F, int nf, int wim, int ndata);
 void kernel_pet3D_IM_SRM_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
-								float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2, float* im, int nim, int wim);
+								float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2, float* im, int nim, int wim, int dim);
 void kernel_pet3D_IM_SRM_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
 									 float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2, float* im, int nim, float* F, int nf, int wim);
 void kernel_pet3D_IM_SRM_COO_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
@@ -101,7 +105,7 @@ void kernel_pet3D_IM_SRM_COO_SIDDON(float* X1, int nx1, float* Y1, int ny1, floa
 void kernel_pet3D_IM_SRM_COO_SIDDON_iter_vec(float* im, int nim, float* F, int nf, int N, int isub);
 void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
 											float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
-											float* im, int nim, float* F, int nf, int wim);
+											float* im, int nim, float* F, int nf, int wim, int dim);
 void kernel_pet3D_IM_SRM_COO_SIDDON_iter_mat(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* im, int nim, float* F, int nf, int N, int isub);
 void kernel_pet3D_IM_SRM_ELL_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
 										 float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
@@ -170,6 +174,10 @@ void kernel_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsign
 										 unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
 										 int n_start, int n_stop, char* basename);
 
+void kernel_listmode_open_subset_xyz_float(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1, 
+										   float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+										   int n_start, int n_stop, char* basename);
+
 void kernel_listmode_open_subset_ID_int(int* idc1, int n1, int* idd1, int n2, int* idc2, int n3, int* idd2, int n4,
 										int n_start, int n_stop, char* name);
 
@@ -186,3 +194,5 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, u
 											  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
 											  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
 											  float* im, int nim, float* F, int nf, float* mumap, int nmu, int wim, int ID);
+
+void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int wim, int him, float alpha);

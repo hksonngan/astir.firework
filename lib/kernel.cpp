@@ -5141,7 +5141,7 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, u
  **************************************************************/
 
 #define pi  3.141592653589
-void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int him, int wim, float alpha) {
+void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int him, int wim, float alpha, float beta, float scale) {
 	// first some var
 	float ts = 0.5 * sqrt(nz*nz + nx*nx) + 1;
 	float sizeworld = 2 * wim;
@@ -5161,6 +5161,12 @@ void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip,
 	int length, lengthy, lengthz, i;
 	float xinc, yinc, zinc, maxval, val;
 
+	float ca, sa, cb, sb;
+	ca = cos(alpha);
+	sa = sin(alpha);
+	cb = cos(beta);
+	sb = sin(beta);
+
 	for (y=0; y<him; ++y) {
 		for (x=0; x<wim; ++x) {
 			// init image
@@ -5169,13 +5175,30 @@ void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip,
 			xw = x - center_imx;
 			yw = y - center_imy;
 			zw = -ts;
-			x1 = xw*cos(alpha) - zw*sin(alpha);
-			y1 = yw;
-			z1 = xw*sin(alpha) + zw*cos(alpha);
+
+			// magnefication
+			xw = xw * scale;
+			yw = yw * scale;
+			
+			// Rotation 2 axes
+			x1 = xw*ca + zw*sa;
+			y1 = xw*sb*sa + yw*cb - zw*sb*ca;
+			z1 = -xw*sa*cb + yw*sb + zw*cb*ca;
 			zw = ts;
-			x2 = xw*cos(alpha) - zw*sin(alpha);
+			x2 = xw*ca + zw*sa;
+			y2 = xw*sb*sa + yw*cb - zw*sb*ca;
+			z2 = -xw*sa*cb + yw*sb + zw*cb*ca;
+			
+			/* One axe
+			x1 = xw*cos(alpha) + zw*sin(alpha);
+			y1 = yw;
+			z1 = -xw*sin(alpha) + zw*cos(alpha);
+			zw = ts;
+			x2 = xw*cos(alpha) + zw*sin(alpha);
 			y2 = yw;
-			z2 = xw*sin(alpha) + zw*cos(alpha);
+			z2 = -xw*sin(alpha) + zw*cos(alpha);
+			*/
+
 			//printf("%f %f %f\n", x1, y1, z1);
 			//printf("%f %f %f\n", x2, y2, z2);
 			// change origin to raycasting

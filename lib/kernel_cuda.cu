@@ -389,6 +389,68 @@ __global__ void pet3D_SRM_DDA_F_ATT_ON(unsigned int* d_F, int wim, int nx1, int 
 	}
 
 }
+// Same as pet3D_SRM_DDA_F_ON with attenuation correction
+__global__ void pet3D_dev(unsigned int* d_F, int wim, int nx1, int nim, float scale) {
+
+	int length, n, diffx, diffy, diffz, step, ind;
+	float flength, x, y, z, lx, ly, lz, xinc, yinc, zinc, Qi, Ai;
+	unsigned short int x1, y1, z1, x2, y2, z2;
+	int idx = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	step = wim*wim;
+	
+	if (idx < nx1) {
+		Qi = 0.0f;
+		Ai = 0.0f;
+		x1 = tex1Dfetch(tex_x1, idx);
+		y1 = tex1Dfetch(tex_y1, idx);
+		z1 = tex1Dfetch(tex_z1, idx);
+		x2 = tex1Dfetch(tex_x2, idx);
+		y2 = tex1Dfetch(tex_y2, idx);
+		z2 = tex1Dfetch(tex_z2, idx);
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		zinc = diffz / flength;
+		x = x1 + 0.5f;
+		y = y1 + 0.5f;
+		z = z1 + 0.5f;
+		#pragma unroll 2
+		for (n=0; n<=length; ++n) {
+			ind = (int)z * step + (int)y * wim + (int)x;
+			Qi = Qi + tex1Dfetch(tex_im, ind);
+			Ai = Ai - tex1Dfetch(tex_mumap, ind);
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+		// compute F
+		if (Qi==0.0f) {return;}
+		if (Ai < -5.0f) {Ai = -5.0f;}
+		Qi = Qi * __expf(Ai);
+		Qi = 1 / Qi;
+		x = x1 + 0.5f;
+		y = y1 + 0.5f;
+		z = z1 + 0.5f;
+		#pragma unroll 2
+		for (n=0; n<=length; ++n) {
+			//atomicFloatAdd(&d_F[(int)z * step + (int)y * wim + (int)x], Qi);
+			atomicAdd(&d_F[(int)z * step + (int)y * wim + (int)x], (unsigned int)(Qi*scale));
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+	}
+
+}
 // kernel to raytrace 3D line in SRM with DDA algorithm and ELL sparse matrix format 
 __global__ void pet3D_SRM_DDA_ELL_Q(float* d_SRM_vals, int* d_SRM_cols, float* d_im, float* d_Q,
 									unsigned short int* d_x1, unsigned short int* d_y1, unsigned short int* d_z1,

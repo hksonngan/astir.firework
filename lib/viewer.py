@@ -357,7 +357,7 @@ def volume_show_mip(vol):
     from numpy  import zeros, array
     from kernel import kernel_draw_pixels, kernel_mip_volume_rendering, kernel_color_image
     
-    global phi, theta
+    global phi, theta, scale
     global xmouse, ymouse, lmouse, rmouse
     global w, h
     global lutr, lutg, lutb
@@ -373,6 +373,7 @@ def volume_show_mip(vol):
     lmouse, rmouse   = 0, 0
     xmouse, ymouse   = 0.0, 0.0
     phi, theta       = 0.0, 0.0
+    scale            = 1.0
     mip              = zeros((h, w), 'float32')
     mapr             = zeros((h, w), 'float32')
     mapg             = zeros((h, w), 'float32')
@@ -466,13 +467,13 @@ def volume_show_mip(vol):
 
 
     def display():
-        global phi, theta
+        global phi, theta, scale
         global lutr, lutg, lutb
         glClear (GL_COLOR_BUFFER_BIT)
         glRasterPos2i(0, 0)
 
         # get mip
-        kernel_mip_volume_rendering(vol, mip, phi)
+        kernel_mip_volume_rendering(vol, mip, phi, theta, scale)
         # color map
         kernel_color_image(mip, mapr, mapg, mapb, lutr, lutg, lutb)
         # draw
@@ -492,12 +493,12 @@ def volume_show_mip(vol):
 
     def keyboard(key, x, y):
         global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, gray
-        global lutr, lutg, lutb, color_flag
+        global lutr, lutg, lutb, color_flag, phi, theta
         if key == chr(27): sys.exit(0)
-        elif key == 'a':   rotx += .5
-        elif key == 'z':   rotx -= .5
-        elif key == 'q':   roty += .5
-        elif key == 's':   roty -= .5
+        elif key == 'a':   phi   += .5
+        elif key == 'z':   phi   -= .5
+        elif key == 'q':   theta += .5
+        elif key == 's':   theta -= .5
         elif key == 'c':
             color_flag += 1
             if color_flag > 3: color_flag = 0
@@ -538,7 +539,7 @@ def volume_show_mip(vol):
                 ymosue = 0
             
     def mouse_move(x, y):
-        global xmouse, ymouse, lmouse, rmouse, phi, theta
+        global xmouse, ymouse, lmouse, rmouse, phi, theta, scale
         if lmouse:
             if xmouse == 0 and ymouse == 0:
                 xmouse = x
@@ -560,7 +561,7 @@ def volume_show_mip(vol):
             else:
                 dx = x- xmouse
                 xmouse = x
-                #scale += dx * 0.01
+                scale += dx * 0.01
                 glutPostRedisplay()
         
     glutInit(sys.argv)

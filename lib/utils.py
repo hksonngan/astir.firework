@@ -443,25 +443,44 @@ def image_flip_ud(im):
 # ===========================================
 
 # write a raw volume (bin)
-def volume_write(vol, name):
+def volume_raw_write(vol, name):
     nz, ny, nx = vol.shape
     vol        = vol.reshape((nz*ny*nx))
     vol.tofile(name)
 
+# write a volume in firework format
+def volume_write(vol, name):
+    from numpy import array
+    nz, ny, nx = vol.shape
+    vol        = vol.reshape((nz*ny*nx))
+    vol        = vol.tolist()
+    vol.insert(0, nx)
+    vol.insert(0, ny)
+    vol.insert(0, nz)
+    vol        = array(vol, 'float32')
+    vol.tofile(name)
+    
 # open a raw volume (datatype = 'uint8', 'uint16', etc.)
-def volume_open(name, nz, ny, nx, datatype):
+def volume_raw_open(name, nz, ny, nx, datatype):
     import numpy
     
     data = open(name, 'rb').read()
     vol  = numpy.fromstring(data, datatype)
-    #vol  = vol.astype('float32')
-    '''
-    if   datatype == 'uint8':  val /= 255.0
-    elif datatype == 'uint16': val /= 65535.0
-    elif datatype == 'uint32'; val /= 4294967295.0
-    '''
-    #vol *= 1.0 / vol.max()
     vol  = vol.reshape(nz, ny, nx)
+
+    return vol
+
+# open a volume (firework format)
+def volume_open(name):
+    from numpy import fromfile
+    f   = open(name, 'rb')
+    vol = fromfile(f, 'float32')
+    f.close()
+    nz  = vol[0]
+    ny  = vol[1]
+    nx  = vol[2]
+    vol = vol[3:]
+    vol = vol.reshape(nz, ny, nx)
 
     return vol
 
@@ -717,6 +736,7 @@ def time_format(t):
 def plot(x, y):
     import matplotlib.pyplot as plt
     plt.plot(x, y)
+    plt.show()
 
 # plot RAPS curve
 def plot_raps(im):

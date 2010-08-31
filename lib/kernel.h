@@ -195,4 +195,4 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, u
 											  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
 											  float* im, int nim, float* F, int nf, float* mumap, int nmu, int wim, int ID);
 
-void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int wim, int him, float alpha);
+void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int wim, int him, float alpha, float beta, float scale);

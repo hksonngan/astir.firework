@@ -997,3 +997,46 @@ def listmode_simu_circle_phantom(nbparticules, ROIsize = 141, radius_detector = 
         if p >= nbparticules: break
         
     return image, IDC1, IDD1, IDC2, IDD2
+
+# ==== Filtering ============================
+# ===========================================
+
+def filter_build_3d_Metz(size, N, sig):
+    from numpy import zeros
+    from math  import exp
+    
+    center = size // 2
+    H = zeros((size, size, size), 'float32')
+
+    for k in xrange(size):
+        for i in xrange(size):
+            for j in xrange(size):
+                fi   = i - center
+                fj   = j - center
+                fk   = k - center
+                f    = (fi*fi + fj*fj + fk*fk)**(0.5)
+                f   /= size
+                gval = exp(-(f*f) / (2*sig*sig))
+
+                H[k, i, j] = (1 - (1 - gval*gval)**N) / gval
+
+    return H
+
+def filter_pad_3d_cuda(H):
+    from numpy import zeros
+    size, size, size = H.shape
+    center           = size // 2
+    nc               = (size // 2) + 1
+    Hpad             = zeros((size, nc, size), 'float32')
+
+    for k in xrange(size):
+        for i in xrange(nc):
+            for j in xrange(size):
+                padj = j-center
+                padk = k-center
+                if padj < 0: padj = size + padj
+                if padk < 0: padk = size + padk
+
+                Hpad[padk, i, padj] = H[k, i, j]
+
+    return Hpad

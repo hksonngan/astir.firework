@@ -1,6 +1,7 @@
 #include "kernel_cuda.h"
 #include <stdio.h>
 #include <cublas.h>
+#include <cufft.h>
 #include <sys/time.h>
 #include <math_constants.h>
 
@@ -379,68 +380,6 @@ __global__ void pet3D_SRM_DDA_F_ATT_ON(unsigned int* d_F, int wim, int nx1, int 
 		x = x1 + 0.5f;
 		y = y1 + 0.5f;
 		z = z1 + 0.5f;
-		for (n=0; n<=length; ++n) {
-			//atomicFloatAdd(&d_F[(int)z * step + (int)y * wim + (int)x], Qi);
-			atomicAdd(&d_F[(int)z * step + (int)y * wim + (int)x], (unsigned int)(Qi*scale));
-			x = x + xinc;
-			y = y + yinc;
-			z = z + zinc;
-		}
-	}
-
-}
-// Same as pet3D_SRM_DDA_F_ON with attenuation correction
-__global__ void pet3D_dev(unsigned int* d_F, int wim, int nx1, int nim, float scale) {
-
-	int length, n, diffx, diffy, diffz, step, ind;
-	float flength, x, y, z, lx, ly, lz, xinc, yinc, zinc, Qi, Ai;
-	unsigned short int x1, y1, z1, x2, y2, z2;
-	int idx = __mul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	step = wim*wim;
-	
-	if (idx < nx1) {
-		Qi = 0.0f;
-		Ai = 0.0f;
-		x1 = tex1Dfetch(tex_x1, idx);
-		y1 = tex1Dfetch(tex_y1, idx);
-		z1 = tex1Dfetch(tex_z1, idx);
-		x2 = tex1Dfetch(tex_x2, idx);
-		y2 = tex1Dfetch(tex_y2, idx);
-		z2 = tex1Dfetch(tex_z2, idx);
-		diffx = x2-x1;
-		diffy = y2-y1;
-		diffz = z2-z1;
-		lx = abs(diffx);
-		ly = abs(diffy);
-		lz = abs(diffz);
-		length = ly;
-		if (lx > length) {length = lx;}
-		if (lz > length) {length = lz;}
-		flength = (float)length;
-		xinc = diffx / flength;
-		yinc = diffy / flength;
-		zinc = diffz / flength;
-		x = x1 + 0.5f;
-		y = y1 + 0.5f;
-		z = z1 + 0.5f;
-		#pragma unroll 2
-		for (n=0; n<=length; ++n) {
-			ind = (int)z * step + (int)y * wim + (int)x;
-			Qi = Qi + tex1Dfetch(tex_im, ind);
-			Ai = Ai - tex1Dfetch(tex_mumap, ind);
-			x = x + xinc;
-			y = y + yinc;
-			z = z + zinc;
-		}
-		// compute F
-		if (Qi==0.0f) {return;}
-		if (Ai < -5.0f) {Ai = -5.0f;}
-		Qi = Qi * __expf(Ai);
-		Qi = 1 / Qi;
-		x = x1 + 0.5f;
-		y = y1 + 0.5f;
-		z = z1 + 0.5f;
-		#pragma unroll 2
 		for (n=0; n<=length; ++n) {
 			//atomicFloatAdd(&d_F[(int)z * step + (int)y * wim + (int)x], Qi);
 			atomicAdd(&d_F[(int)z * step + (int)y * wim + (int)x], (unsigned int)(Qi*scale));
@@ -1514,4 +1453,77 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int n
 	cudaFree(d_x2);
 	cudaFree(d_y2);
 	cudaFree(d_z2);
+}
+
+
+// Metz filter applied to a volume
+void kernel_3Dfilter_metz_wrap_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c) {
+	// cst
+	int N = 3;
+	float sig = 10.0;
+	// prepare the filter
+	int nc = (ny / 2) + 1;
+	int size_H = nz * nx * nc;
+	int center = ny / 2;
+	int step = nc*ny;
+	//float* H = (float*)malloc(size_H * sizeof(float));
+	int i, j, k, padi, padj, padk;
+	float freq;
+	float gval;
+	for (k=0; k<nz; ++k) {
+		for (i=0; i<center+1; ++i) {
+			for (j=0; j<nx; ++j) {
+				padi = (i - center);
+				padj = (j - center);
+				padk = (k - center);
+				freq = pow(float(padi*padi + padj*padj + padk*padk), 0.5f);
+				freq = freq / float(nc+1);
+				gval = exp(-(freq*freq) / (2 * sig * sig));
+				padi = i;
+				padj = j-center;
+				padk = k-center;
+				if (padj<0) {padj = nx+padj;}
+				if (padk<0) {padk = nz+padk;}
+				H[padk*step + padi*nx + padj] = (1 - pow(1-gval*gval, N)) / gval;
+			}
+		}
+	}
+
+	/*
+	cufftHandle plan;
+	cufftReal* dr_vol;
+	cufftReal* r_vol;
+	cufftComplex* dc_vol;
+	cufftComplex* c_vol;
+	// vars
+	int nc = (nz / 2) + 1;
+	printf("nc %i\n", nc);
+	// copy data to real var
+	r_vol = (cufftReal*)vol;
+	// alloc mem CPU
+	c_vol = (cufftComplex*)malloc(nx * ny * nc * sizeof(cufftComplex));
+	// alloc mem GPU
+	cudaMalloc((void**)&dr_vol, nx*ny*nz*sizeof(cufftReal));
+	cudaMalloc((void**)&dc_vol, nx*ny*nc*sizeof(cufftComplex));
+	// tranfert to GPU
+	cudaMemcpy(dr_vol, r_vol, nx*ny*nz*sizeof(cufftReal), cudaMemcpyHostToDevice);
+	// do fft
+	cufftPlan3d(&plan, nx, ny, nz, CUFFT_R2C);
+	cufftExecR2C(plan, dr_vol, dc_vol);
+	// get results
+	cudaMemcpy(c_vol, dc_vol, nx*ny*nc*sizeof(cufftComplex), cudaMemcpyDeviceToHost);
+
+	
+	int i;
+	for (i=0; i<(nx*ny*nc); ++i) {
+		printf("%f %f\n", c_vol[i].x, c_vol[i].y);
+	}
+	
+	// clean up
+	cufftDestroy(plan);
+	cudaFree(dr_vol);
+	cudaFree(dc_vol);
+	free(c_vol);
+	*/
+
 }

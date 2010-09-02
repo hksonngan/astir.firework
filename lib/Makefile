@@ -32,7 +32,7 @@ kernel_wrap.c : kernel.i
 	swig -python kernel.i
 
 kernel_cuda.so : kernel_cuda.o
-	nvcc -o kernel_cuda.so -shared kernel_cuda.o -lcublas
+	nvcc -o kernel_cuda.so -shared kernel_cuda.o -lcublas -lcufft
 
 kernel_cuda.o : kernel_cuda.cu
 	nvcc -c kernel_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11

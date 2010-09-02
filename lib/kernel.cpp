@@ -5136,10 +5136,6 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, u
 	kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, F, nf, mumap, nmu, wim, ID);
 }
 
-/**************************************************************
- * DEVs
- **************************************************************/
-
 #define pi  3.141592653589
 void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int him, int wim, float alpha, float beta, float scale) {
 	// first some var
@@ -5325,3 +5321,11 @@ void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip,
 }
 
 #undef pi
+
+/**************************************************************
+ * DEVs
+ **************************************************************/
+
+void kernel_3Dfilter_metz_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c) {
+	kernel_3Dfilter_metz_wrap_cuda(vol, nz, ny, nx, H, a, b, c);
+}

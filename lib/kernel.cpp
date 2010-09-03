@@ -125,6 +125,7 @@ void kernel_allegro_build_all_LOR(unsigned short int* idc1, int n1, unsigned sho
 	int i1, i2;
 	unsigned int dc1, dd1, dc2, dd2;
 	int ct=0;
+
 	for (i1=0; i1<(N-1); ++i1) {
 		dd1 = i1 / idmax;
 		dc1 = i1 % idmax;
@@ -138,6 +139,7 @@ void kernel_allegro_build_all_LOR(unsigned short int* idc1, int n1, unsigned sho
 			++ct;
 		}
 	}
+	
 }
 
 // SRM Raytracing (transversal algorithm), Compute entry and exit point on SRM of the ray
@@ -5326,6 +5328,6 @@ void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip,
  * DEVs
  **************************************************************/
 
-void kernel_3Dfilter_metz_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c) {
-	kernel_3Dfilter_metz_wrap_cuda(vol, nz, ny, nx, H, a, b, c);
+void kernel_3Dconv_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c) {
+	kernel_3Dconv_wrap_cuda(vol, nz, ny, nx, H, a, b, c);
 }

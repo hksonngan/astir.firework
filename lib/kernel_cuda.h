@@ -26,4 +26,4 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int n
 												   unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
 												   float* im, int nim, float* F, int nf, float* mumap, int nmu, int wim, int ID);
 
-void kernel_3Dfilter_metz_wrap_cuda(float* vol, int z, int ny, int nx, float* H, int a, int b, int c);
+void kernel_3Dconv_wrap_cuda(float* vol, int z, int ny, int nx, float* H, int a, int b, int c);

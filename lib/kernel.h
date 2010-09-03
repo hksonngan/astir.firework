@@ -198,4 +198,4 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, u
 void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int wim, int him, float alpha, float beta, float scale);
 
 
-void kernel_3Dfilter_metz_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c);
+void kernel_3Dconv_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c);

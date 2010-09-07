@@ -5127,8 +5127,9 @@ void kernel_pet3D_IM_DEV_cuda(unsigned short int* x1, int nx1, unsigned short in
 void kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
 										  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
 										  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-										  float* im, int nim, float* F, int nf, int wim, int ID) {
-	kernel_pet3D_IM_SRM_DDA_ON_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, F, nf, wim, ID);
+										  float* im, int nim1, int nim2, int nim3, float* F, int nf1, int nf2, int nf3,
+										  int wim, int ID) {
+	kernel_pet3D_IM_SRM_DDA_ON_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim1, nim2, nim3, F, nf1, nf2, nf3, wim, ID);
 }
 
 void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,

@@ -1265,7 +1265,7 @@ void kernel_pet3D_IM_DEV_wrap_cuda(unsigned short int* x1, int nx1, unsigned sho
 								   unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
 								   int* im, int nim, int wim, int ID) {
 	// select a GPU
-	//if (ID != -1) {cudaSetDevice(ID);}
+	if (ID != -1) {cudaSetDevice(ID);}
 	// vars
 	int block_size, grid_size;
 	dim3 threads, grid;
@@ -1317,19 +1317,22 @@ void kernel_pet3D_IM_DEV_wrap_cuda(unsigned short int* x1, int nx1, unsigned sho
 	cudaFree(d_x2);
 	cudaFree(d_y2);
 	cudaFree(d_z2);
+	cudaThreadExit();
 }
 
 // Compute update in LM 3D-OSEM algorithm on-line with DDA line drawing
 void kernel_pet3D_IM_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
 											   unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
 											   unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-											   float* im, int nim, float* F, int nf, int wim, int ID){
+											   float* im, int nim1, int nim2, int nim3, float* F, int nf1, int nf2, int nf3,
+											   int wim, int ID){
 
 	// select a GPU
-	//if (ID != -1){cudaSetDevice(ID);}
+	if (ID != -1){cudaSetDevice(ID);}
 	// vars
 	int block_size, grid_size, i;
 	dim3 threads, grid;
+	int nim = nim1 * nim2 * nim3;
 	// Need to change
 	int* Fi = (int*)calloc(nim, sizeof(int));
 	// allocate device memory
@@ -1390,6 +1393,7 @@ void kernel_pet3D_IM_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int nx1, 
 	cudaFree(d_x2);
 	cudaFree(d_y2);
 	cudaFree(d_z2);
+	cudaThreadExit();
 }
 
 // DEV Compute update in LM 3D-OSEM algorithm on-line with DDA line drawing and attenuation
@@ -1469,14 +1473,15 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int n
 	cudaFree(d_x2);
 	cudaFree(d_y2);
 	cudaFree(d_z2);
+	cudaThreadExit();
 }
 
 
 // 3D convolution (in Fourier)
 void kernel_3Dconv_wrap_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c) {
-	//int ID = 0;
+	int ID = 0;
 	// select a GPU
-	//if (ID != -1){cudaSetDevice(ID);}
+	if (ID != -1){cudaSetDevice(ID);}
 	// prepare the filter
 	int nc = (ny / 2) + 1;
 	int size_H = c * b * a;
@@ -1499,21 +1504,21 @@ void kernel_3Dconv_wrap_cuda(float* vol, int nz, int ny, int nx, float* H, int a
 	hfft = (cufftComplex*)malloc(size_fft * sizeof(cufftComplex));
 	// alloc mem GPU
 	status = cudaMalloc((void**)&dvol, size_vol * sizeof(cufftReal));
-	printf("dvol %i\n", status);
+	//printf("dvol %i\n", status);
 	status = cudaMalloc((void**)&dfft, size_fft * sizeof(cufftComplex));
-	printf("dfft %i\n", status);
+	//printf("dfft %i\n", status);
 	status = cudaMalloc((void**)&dH, size_H * sizeof(float));
-	printf("dH %i\n", status);
+	//printf("dH %i\n", status);
 	// tranfert to GPU
 	status = cudaMemcpy(dvol, vol, size_vol * sizeof(cufftReal), cudaMemcpyHostToDevice);
-	printf("memcpy dvol %i\n", status);
+	//printf("memcpy dvol %i\n", status);
 	status = cudaMemcpy(dH, H, size_H * sizeof(float), cudaMemcpyHostToDevice);
-	printf("memcpy dH %i\n", status);
+	//printf("memcpy dH %i\n", status);
 	// do fft
 	status = cufftPlan3d(&plan_forward, nx, ny, nz, CUFFT_R2C);
-	printf("init plan %i\n", status);
+	//printf("init plan %i\n", status);
 	status = cufftExecR2C(plan_forward, dvol, dfft);
-	printf("fft %i\n", status);
+	//printf("fft %i\n", status);
 	// do 3D convolution
 	int block_size, grid_size;
 	dim3 threads, grid;
@@ -1524,7 +1529,7 @@ void kernel_3Dconv_wrap_cuda(float* vol, int nz, int ny, int nx, float* H, int a
 	matrix_3Dconv<<<grid, threads>>>(dfft, dH, size_fft);
 	// get back results
 	status = cudaMemcpy(hfft, dfft,  size_fft * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
-	printf("get back %i\n", status);
+	//printf("get back %i\n", status);
 	//int i;
 	//for (i=0; i<size_fft; ++i) {
 	//	printf("(%5.2f %5.2f)\n", hfft[i].x, hfft[i].y);
@@ -1543,5 +1548,7 @@ void kernel_3Dconv_wrap_cuda(float* vol, int nz, int ny, int nx, float* H, int a
 	cudaFree(dH);
 	cudaFree(dfft);
 	free(hfft);
+	
+	cudaThreadExit();
 
 }

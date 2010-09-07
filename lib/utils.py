@@ -1022,6 +1022,21 @@ def listmode_simu_circle_phantom(nbparticules, ROIsize = 141, radius_detector = 
 # ==== Filtering ============================
 # ===========================================
 
+def filter_3d_Metz(vol, N, sig):
+    from kernel import kernel_3Dconv_cuda
+
+    smax    = max(vol.shape)
+    H       = filter_build_3d_Metz(smax, N, sig)
+    Hpad    = filter_pad_3d_cuda(H)
+    z, y, x = vol.shape
+    vol     = volume_pack_cube(vol)
+    kernel_3Dconv_cuda(vol, Hpad)
+    vol     = volume_unpack_cube(vol, z, y, x)
+    vol    /= (smax*smax*smax) # due to FFT
+
+    return vol
+    
+
 def filter_build_3d_Metz(size, N, sig):
     from numpy import zeros
     from math  import exp
@@ -1042,6 +1057,22 @@ def filter_build_3d_Metz(size, N, sig):
                 H[k, i, j] = (1 - (1 - gval*gval)**N) / gval
 
     return H
+
+def filter_build_3d_Butterworth_lp(size, order, fc):
+    from numpy import zeros, array
+    
+    order *= 2
+    c      = size // 2
+    H      = zeros((size, size, size), 'float32')
+    for k in xrange(size):
+        for i in xrange(size):
+            for j in xrange(size):
+                f       = ((i-c)*(i-c) + (j-c)*(j-c) + (k-c)*(k-c))**(0.5) # radius
+                f       /= size                                            # fequency
+                H[k, i, j] = 1 / (1 + (f / fc)**order)**0.5                   # filter
+
+    return H
+
 
 def filter_pad_3d_cuda(H):
     from numpy import zeros

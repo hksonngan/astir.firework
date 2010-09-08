@@ -20,6 +20,7 @@
 #include <string.h>
 #include <math.h>
 #include <time.h>
+#include <sys/time.h>
 #include <omp.h>
 #include <GL/gl.h>
 #include "kernel_cuda.h"
@@ -5330,5 +5331,13 @@ void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip,
  **************************************************************/
 
 void kernel_3Dconv_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c) {
+	timeval start, end;
+	double t1, t2, diff;
+	gettimeofday(&start, NULL);
+	t1 = start.tv_sec + start.tv_usec / 1000000.0;
 	kernel_3Dconv_wrap_cuda(vol, nz, ny, nx, H, a, b, c);
+	gettimeofday(&end, NULL);
+	t2 = end.tv_sec + end.tv_usec / 1000000.0;
+	diff = t2 - t1;
+	printf("C time %f s\n", diff);
 }

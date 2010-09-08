@@ -587,21 +587,31 @@ __global__ void matrix_ell_spmv(float* d_vals, int* d_cols, float* d_res, int ni
 	}
 }
 
-// compute 3D convolution (complex * real)
-__global__ void matrix_3Dconv(cufftComplex* dfft, float* dH, int n) {
+// Perform a multiplication between a complex and a real vectors
+__global__ void vector_complex_x_real(cufftComplex* dcpx, float* dr, int n) {
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	float r, j, h;
 	if (idx < n) {
-		r = dfft[idx].x;
-		j = dfft[idx].y;
-		h = dH[idx];
+		r = dcpx[idx].x;
+		j = dcpx[idx].y;
+		h = dr[idx];
 		r = r * h;
 		j = j * h;
-		dfft[idx].x = r;
-		dfft[idx].y = j;
+		dcpx[idx].x = r;
+		dcpx[idx].y = j;
 	}
 }
 
+// Perform a mulitplication between a real vectors and an alpha value
+__global__ void vector_real_x_cst(float* dr, float alpha, int n) {
+	int idx = blockIdx.x * blockDim.x + threadIdx.x;
+	float val;
+	if (idx < n) {
+		val = dr[idx];
+		val = val * alpha;
+		dr[idx] = val;
+	}
+}
 
 void kernel_pet2D_EMML_wrap_cuda(float* SRM, int nlor, int npix, float* im, int npixim, int* LOR_val, int nval, float* S, int ns, int maxit) {
 	// select a GPU
@@ -1487,21 +1497,13 @@ void kernel_3Dconv_wrap_cuda(float* vol, int nz, int ny, int nx, float* H, int a
 	int size_H = c * b * a;
 	int size_vol = nz * ny * nx;
 	int size_fft = nz * nc * nx;
-	//int center = ny / 2;
-	//int step = nc*ny;
 	
 	cufftHandle plan_forward, plan_inverse;
-	cufftReal* hvol;
 	cufftReal* dvol;
-	cufftComplex* hfft;
 	cufftComplex* dfft;
 	float* dH;
 	int status;
-	
-	// alloc me CPU
-	//hvol = (cufftReal*)malloc(size_vol * sizeof(cufftReal));
-	hvol = (cufftReal*) vol;
-	hfft = (cufftComplex*)malloc(size_fft * sizeof(cufftComplex));
+
 	// alloc mem GPU
 	status = cudaMalloc((void**)&dvol, size_vol * sizeof(cufftReal));
 	//printf("dvol %i\n", status);
@@ -1509,16 +1511,19 @@ void kernel_3Dconv_wrap_cuda(float* vol, int nz, int ny, int nx, float* H, int a
 	//printf("dfft %i\n", status);
 	status = cudaMalloc((void**)&dH, size_H * sizeof(float));
 	//printf("dH %i\n", status);
+	
 	// tranfert to GPU
 	status = cudaMemcpy(dvol, vol, size_vol * sizeof(cufftReal), cudaMemcpyHostToDevice);
 	//printf("memcpy dvol %i\n", status);
 	status = cudaMemcpy(dH, H, size_H * sizeof(float), cudaMemcpyHostToDevice);
 	//printf("memcpy dH %i\n", status);
+	
 	// do fft
 	status = cufftPlan3d(&plan_forward, nx, ny, nz, CUFFT_R2C);
 	//printf("init plan %i\n", status);
 	status = cufftExecR2C(plan_forward, dvol, dfft);
 	//printf("fft %i\n", status);
+	
 	// do 3D convolution
 	int block_size, grid_size;
 	dim3 threads, grid;
@@ -1526,18 +1531,19 @@ void kernel_3Dconv_wrap_cuda(float* vol, int nz, int ny, int nx, float* H, int a
 	grid_size = (size_fft + block_size - 1) / block_size;
 	threads.x = block_size;
 	grid.x = grid_size;
-	matrix_3Dconv<<<grid, threads>>>(dfft, dH, size_fft);
-	// get back results
-	status = cudaMemcpy(hfft, dfft,  size_fft * sizeof(cufftComplex), cudaMemcpyDeviceToHost);
-	//printf("get back %i\n", status);
-	//int i;
-	//for (i=0; i<size_fft; ++i) {
-	//	printf("(%5.2f %5.2f)\n", hfft[i].x, hfft[i].y);
-	//}
+	vector_complex_x_real<<<grid, threads>>>(dfft, dH, size_fft);
 
 	// get inverse transform
 	cufftPlan3d(&plan_inverse, nz, ny, nx, CUFFT_C2R);
 	cufftExecC2R(plan_inverse, dfft, dvol);
+
+	// Normalize values due to FFT theorem (1 / N)
+	block_size = 128;
+	grid_size = (size_vol + block_size - 1) / block_size;
+	threads.x = block_size;
+	grid.x = grid_size;
+	vector_real_x_cst<<<grid, threads>>>(dvol, 1 / float(size_vol), size_vol);
+
 	// get back the volume
 	cudaMemcpy(vol, dvol, size_vol * sizeof(float), cudaMemcpyDeviceToHost);
 	
@@ -1547,8 +1553,6 @@ void kernel_3Dconv_wrap_cuda(float* vol, int nz, int ny, int nx, float* H, int a
 	cudaFree(dvol);
 	cudaFree(dH);
 	cudaFree(dfft);
-	free(hfft);
 	
 	cudaThreadExit();
-
 }

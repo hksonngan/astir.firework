@@ -38,14 +38,29 @@ def image_open(name):
 
 # export image
 def image_write(im, name):
-    from PIL import Image
+    from PIL     import Image
+    from os.path import splitext
+    from numpy   import array
+    
+    filename, ext = splitext(name)
     slice = im.copy()
-    slice /= slice.max()
-    ny, nx = slice.shape
-    slice = slice * 255
-    slice = slice.astype('uint8')
-    pilImage = Image.frombuffer('L', (nx, ny), slice, 'raw', 'L', 0, 1)
-    pilImage.save(name)
+
+    if ext == '.png' or ext == '.tif' or ext == '.bmp':
+        slice /= slice.max()
+        ny, nx = slice.shape
+        slice = slice * 255
+        slice = slice.astype('uint8')
+        pilImage = Image.frombuffer('L', (nx, ny), slice, 'raw', 'L', 0, 1)
+        pilImage.save(name)
+    elif ext == '.im':
+        # FIREwork image format
+        ny, nx = slice.shape
+        slice  = slice.reshape((ny*nx))
+        slice  = slice.tolist()
+        slice.insert(0, ny)
+        slice.insert(0, nz)
+        slice  = array(slice, 'float32')
+        slice.tofile(name)
 
 # export image with map color
 def image_write_mapcolor(im, name, color='jet'):
@@ -108,7 +123,7 @@ def image_write_mapcolor(im, name, color='jet'):
 
     pilImage = Image.frombuffer('RGBA', (nx, ny), newim, 'raw', 'RGBA', 0, 1)
     pilImage.save(name)
-
+    
 # get the 1D projection of an image
 def image_1D_projection(im, axe = 'x'):
     if   axe == 'x': return im.sum(axis = 1)
@@ -1032,10 +1047,34 @@ def filter_3d_Metz(vol, N, sig):
     vol     = volume_pack_cube(vol)
     kernel_3Dconv_cuda(vol, Hpad)
     vol     = volume_unpack_cube(vol, z, y, x)
-    vol    /= (smax*smax*smax) # due to FFT
 
     return vol
-    
+
+def filter_3d_Gaussian(vol, sig):
+    from kernel import kernel_3Dconv_cuda
+
+    smax    = max(vol.shape)
+    H       = filter_build_3d_Gaussian(smax, sig)
+    Hpad    = filter_pad_3d_cuda(H)
+    z, y, x = vol.shape
+    vol     = volume_pack_cube(vol)
+    kernel_3Dconv_cuda(vol, Hpad)
+    vol     = volume_unpack_cube(vol, z, y, x)
+
+    return vol
+
+def filter_3d_Butterworth_lp(vol, order, fc):
+    from kernel import kernel_3Dconv_cuda
+
+    smax    = max(vol.shape)
+    H       = filter_build_3d_Butterworth_lp(smax, order, fc)
+    Hpad    = filter_pad_3d_cuda(H)
+    z, y, x = vol.shape
+    vol     = volume_pack_cube(vol)
+    kernel_3Dconv_cuda(vol, Hpad)
+    vol     = volume_unpack_cube(vol, z, y, x)
+
+    return vol
 
 def filter_build_3d_Metz(size, N, sig):
     from numpy import zeros
@@ -1055,6 +1094,25 @@ def filter_build_3d_Metz(size, N, sig):
                 gval = exp(-(f*f) / (2*sig*sig))
 
                 H[k, i, j] = (1 - (1 - gval*gval)**N) / gval
+
+    return H
+
+def filter_build_3d_Gaussian(size, sig):
+    from numpy import zeros
+    from math  import exp
+
+    c = size // 2
+    H = zeros((size, size, size), 'float32')
+
+    for k in xrange(size):
+        for i in xrange(size):
+            for j in xrange(size):
+                fi   = i - c
+                fj   = j - c
+                fk   = k - c
+                f    = (fi*fi + fj*fj + fk*fk)**(0.5)
+                f   /= size
+                H[k, i, j] = exp(-(f*f) / (2*sig*sig))
 
     return H
 

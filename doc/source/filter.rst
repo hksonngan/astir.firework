@@ -1,6 +1,46 @@
 Filter
 ======
 
+filter_build_1d_Butterworth_lp
+------------------------------
+
+Same function as filter_build_3d_Butterworth_lp, but in 1d
+
+filter_build_1d_Gaussian
+------------------------
+
+Same function as filter_build_3d_Gaussian, but in 1d
+
+filter_build_1d_Metz
+--------------------
+
+Same function as filter_build_3d_Metz, but in 1d
+
+filter_build_1d_tanh_lp
+-----------------------
+
+Same function as filter_build_3d_tanh_lp, but in 1d
+
+filter_build_2d_Butterworth_lp
+------------------------------
+
+Same function as filter_build_3d_Butterworth_lp, but in 2d
+
+filter_build_2d_Gaussian
+------------------------
+
+Same function as filter_build_3d_Gaussian, but in 2d
+
+filter_build_2d_Metz
+--------------------
+
+Same function as filter_build_3d_Metz, but in 2d
+
+filter_build_2d_tanh_lp
+-----------------------
+
+Same function as filter_build_3d_tanh_lp, but in 2d
+
 filter_build_3d_Butterworth_lp
 ------------------------------
 
@@ -21,6 +61,8 @@ H = **filter_build_3d_Butterworth_lp** (size, N, fc)
 ``H`` Numpy array of 3 dimensions *(size, size, size)*, which contains coefficients of the transfert function.
 
 **Notes**
+
+The transfert function is defined with a symmetry in order to be applied directly to the Fourrier space.
 
 **Examples**
 
@@ -47,6 +89,8 @@ H = **filter_build_3d_Gaussian** (size, fc)
 ``H`` Numpy array of 3 dimensions *(size, size, size)*, which contains coefficients of the transfert function.
 
 **Notes**
+
+The transfert function is defined with a symmetry in order to be applied directly to the Fourrier space.
 
 **Examples**
 
@@ -76,6 +120,8 @@ H = **filter_build_3d_Metz** (size, N, fc)
 
 **Notes**
 
+The transfert function is defined with a symmetry in order to be applied directly to the Fourrier space.
+
 **Examples**
 
 ::
@@ -83,36 +129,38 @@ H = **filter_build_3d_Metz** (size, N, fc)
 	>>> H = filter_build_3d_Metz(141, 2, 0.2)
 
 
-filter_conv_3d_cuda
--------------------
+filter_build_3d_tanh_lp
+-----------------------
 
-volf = **filter_conv_3d_cuda** (vol, H)
+H = **filter_build_3d_tanh_lp** (size, a, fc)
 
-*Perform the convolution between a volume and a 3D transfert function with the GPU. The convolution is done in Fourrier space with cuda and cufft.*
+*Build a 3D lowpass hyperbolic tangent filter*
 
 **Parameters**
 
-``vol`` 3D Numpy array to be convolued, the dimension must all the same (nz=ny=nx) in order to used the FFT. If it's not the case, please use the function *volume_pack_cube* in order to pack your volume into a cube.
+``size`` Size of the edge of the 3D transfert function.
 
-``H`` 3D transfert function, must be a Numpy array and prepare to be used with cufft. To do that use the function *filter_pad_3d_cuda*, in order to prepare properly the filter.
+``a`` Smooth factor of the slope.
+
+``fc`` Cut-off frequency.
 
 **Returns**
 
-``volf`` Numpy array of 3 dimensions after the function transfert applied. If you want get back the original size of your volume, in the case that you used previously the function *volume_pack_cube*, you can use this function *volume_unpack_cube*.
+``H`` Numpy array of 3 dimensions *(size, size, size)*, which contains coefficients of the transfert function.
 
 **Notes**
+
+The transfert function is defined with a symmetry in order to be applied directly to the Fourrier space. In order to know which value of smoothness apply to your filter, refert the figure above where some values of *a* was plotted.
+
+.. image:: data/tanl.png
+   :scale: 50 %
+
 
 **Examples**
 
 ::
 
-	>>> vol = volume_open('myvol.vol')
-	>>> nz, ny, nx = vol.shape
-	>>> cube = volume_pack_cube(vol)
-	>>> H    = filter_build_3d_Metz(141, 2, 0.2)
-	>>> Hpad = filter_pad_3d_cuda(H)
-	>>> volf = filter_conv_3d_cuda(vol, Hpad)
-	>>> vol  = volume_unpack_cube(volf, nz, ny, nx)
+	>>> H = filter_build_3d_tanh_lp(141, 0.1, 0.2)
 
 	
 filter_pad_3d_cuda

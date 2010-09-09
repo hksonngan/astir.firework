@@ -17,14 +17,14 @@
 #
 # FIREwork Copyright (C) 2008 - 2010 Julien Bert 
 
-def image_show(mat):
+def image_show(mat, map='jet'):
     import matplotlib.pyplot as plt
     import os, sys
 
     h, w = mat.shape
     fig  = plt.figure()
     ax   = fig.add_subplot(111)
-    cax  = ax.imshow(mat, interpolation='nearest', cmap='jet')
+    cax  = ax.imshow(mat, interpolation='nearest', cmap=map)
     ax.set_title('Viewer - FIREwork : %i x %i' % (w, h))
     min  = mat.min()
     max  = mat.max()

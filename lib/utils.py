@@ -22,17 +22,29 @@
 
 # open image
 def image_open(name):
-    from PIL import Image
-    from sys import exit
+    from PIL     import Image
+    from sys     import exit
+    from os.path import splitext
     import numpy
-    im   = Image.open(name)
-    w, h = im.size
-    mode = im.mode
-    if mode == 'RGB' or mode == 'RGBA':
-        im = im.convert('L')
-    data = numpy.fromstring(im.tostring(), 'uint8')
-    data = data.reshape((h, w))
-    data = image_int2float(data)
+
+    filename, ext = splitext(name)
+    if ext == '.png' or ext == '.tif' or ext == '.bmp' or ext == '.jpg':
+        im   = Image.open(name)
+        w, h = im.size
+        mode = im.mode
+        if mode == 'RGB' or mode == 'RGBA':
+            im = im.convert('L')
+        data = numpy.fromstring(im.tostring(), 'uint8')
+        data = data.reshape((h, w))
+        data = image_int2float(data)
+    elif ext == '.im':
+        f    = open(name, 'rb')
+        data = numpy.fromfile(f, 'float32')
+        f.close()
+        ny   = data[0]
+        nx   = data[1]
+        data = data[2:]
+        data = data.reshape(ny, nx)
 
     return data
 
@@ -45,7 +57,7 @@ def image_write(im, name):
     filename, ext = splitext(name)
     slice = im.copy()
 
-    if ext == '.png' or ext == '.tif' or ext == '.bmp':
+    if ext == '.png' or ext == '.tif' or ext == '.bmp' or ext == '.jpg':
         slice /= slice.max()
         ny, nx = slice.shape
         slice = slice * 255
@@ -57,8 +69,8 @@ def image_write(im, name):
         ny, nx = slice.shape
         slice  = slice.reshape((ny*nx))
         slice  = slice.tolist()
+        slice.insert(0, nx)
         slice.insert(0, ny)
-        slice.insert(0, nz)
         slice  = array(slice, 'float32')
         slice.tofile(name)
 
@@ -645,26 +657,45 @@ def volume_lp_filter(vol, fc, order):
     return vol    #, profil, freq
 
 # create box mask
-def volume_mask_box(wb, hb, db, w, h, d):
+def volume_mask_box(nz, ny, nx, w, h, d):
     from numpy import zeros
     vol  = zeros((d, h, w), 'float32')
     cv   = (w-1)  // 2
-    cb   = (wb-1) // 2
+    cb   = (nx-1) // 2
     staw = cv - cb
-    stow = staw + wb
+    stow = staw + nx
     cv   = (h-1)  // 2
-    cb   = (hb-1) // 2
+    cb   = (ny-1) // 2
     stah = cv - cb
-    stoh = stah + hb
+    stoh = stah + ny
     cv   = (d-1)  // 2
-    cb   = (db-1) // 2
+    cb   = (nz-1) // 2
     stad = cv - cb
-    stod = stad + db
+    stod = stad + nz
     # draw mask box
     for k in xrange(stad, stod):
         for j in xrange(staw, stow):
             for i in xrange(stah, stoh):
                 vol[k, j, i] = 1.0
+
+    return vol
+
+# create cylinder mask
+def volume_mask_cylinder(nz, ny, nx, dc, rad):
+    from numpy import zeros
+    vol = zeros((nz, ny, nx), 'float32')
+    cx  = nx // 2
+    cy  = ny // 2
+    cz  = nz // 2
+    h   = dc // 2
+    for z in xrange(nz):
+        for y in xrange(ny):
+            for x in xrange(nx):
+                rxy = ((x-cx)*(x-cx) + (y-cy)*(y-cy))**(0.5)
+                if rxy > rad: continue
+                if abs(z-cz) > h: continue
+
+                vol[z, y, x] = 1.0
 
     return vol
 
@@ -1076,13 +1107,26 @@ def filter_3d_Butterworth_lp(vol, order, fc):
 
     return vol
 
+def filter_3d_tanh_lp(vol, a, fc):
+    from kernel import kernel_3Dconv_cuda
+
+    smax    = max(vol.shape)
+    H       = filter_build_3d_tanh_lp(smax, a, fc)
+    Hpad    = filter_pad_3d_cuda(H)
+    z, y, x = vol.shape
+    vol     = volume_pack_cube(vol)
+    kernel_3Dconv_cuda(vol, Hpad)
+    vol     = volume_unpack_cube(vol, z, y, x)
+
+    return vol
+
 def filter_build_3d_Metz(size, N, sig):
     from numpy import zeros
     from math  import exp
     
-    c = size // 2
-    H = zeros((size, size, size), 'float32')
-
+    c  = size // 2
+    H  = zeros((size, size, size), 'float32')
+    N += 1
     for k in xrange(size):
         for i in xrange(size):
             for j in xrange(size):
@@ -1092,11 +1136,42 @@ def filter_build_3d_Metz(size, N, sig):
                 f    = (fi*fi + fj*fj + fk*fk)**(0.5)
                 f   /= size
                 gval = exp(-(f*f) / (2*sig*sig))
-
                 H[k, i, j] = (1 - (1 - gval*gval)**N) / gval
 
     return H
 
+def filter_build_2d_Metz(size, N, sig):
+    from numpy import zeros
+    from math  import exp
+    
+    c  = size // 2
+    H  = zeros((size, size), 'float32')
+    N += 1
+    for i in xrange(size):
+        for j in xrange(size):
+            fi   = i - c
+            fj   = j - c
+            f    = (fi*fi + fj*fj)**(0.5)
+            f   /= size
+            gval = exp(-(f*f) / (2*sig*sig))
+            H[i, j] = (1 - (1 - gval*gval)**N) / gval
+                
+    return H
+
+def filter_build_1d_Metz(size, N, sig):
+    from numpy import zeros
+    from math  import exp
+    
+    c  = size // 2
+    H  = zeros((size), 'float32')
+    N += 1
+    for i in xrange(size):
+        f    = abs((i - c) / float(size))
+        gval = exp(-(f*f) / (2*sig*sig))
+        H[i] = (1 - (1 - gval*gval)**N) / gval
+                
+    return H
+    
 def filter_build_3d_Gaussian(size, sig):
     from numpy import zeros
     from math  import exp
@@ -1116,6 +1191,36 @@ def filter_build_3d_Gaussian(size, sig):
 
     return H
 
+def filter_build_2d_Gaussian(size, sig):
+    from numpy import zeros
+    from math  import exp
+
+    c = size // 2
+    H = zeros((size, size), 'float32')
+
+    for i in xrange(size):
+        for j in xrange(size):
+            fi   = i - c
+            fj   = j - c
+            f    = (fi*fi + fj*fj)**(0.5)
+            f   /= size
+            H[i, j] = exp(-(f*f) / (2*sig*sig))
+
+    return H
+
+def filter_build_1d_Gaussian(size, sig):
+    from numpy import zeros
+    from math  import exp
+
+    c = size // 2
+    H = zeros((size), 'float32')
+
+    for i in xrange(size):
+        f    = abs((i - c) / float(size))
+        H[i] = exp(-(f*f) / (2*sig*sig))
+
+    return H
+
 def filter_build_3d_Butterworth_lp(size, order, fc):
     from numpy import zeros, array
     
@@ -1125,12 +1230,99 @@ def filter_build_3d_Butterworth_lp(size, order, fc):
     for k in xrange(size):
         for i in xrange(size):
             for j in xrange(size):
-                f       = ((i-c)*(i-c) + (j-c)*(j-c) + (k-c)*(k-c))**(0.5) # radius
-                f       /= size                                            # fequency
+                f          = ((i-c)*(i-c) + (j-c)*(j-c) + (k-c)*(k-c))**(0.5) # radius
+                f         /= size                                            # fequency
                 H[k, i, j] = 1 / (1 + (f / fc)**order)**0.5                   # filter
 
     return H
 
+def filter_build_2d_Butterworth_lp(size, order, fc):
+    from numpy import zeros, array
+    
+    order *= 2
+    c      = size // 2
+    H      = zeros((size, size), 'float32')
+    for i in xrange(size):
+        for j in xrange(size):
+            f       = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5) # radius
+            f      /= size                                            # fequency
+            H[i, j] = 1 / (1 + (f / fc)**order)**0.5                   # filter
+
+    return H
+
+def filter_build_1d_Butterworth_lp(size, order, fc):
+    from numpy import zeros, array
+    
+    order *= 2
+    c      = size // 2
+    H      = zeros((size), 'float32')
+    for i in xrange(size):
+        f    = abs((i-c) / float(size))
+        H[i] = 1 / (1 + (f / fc)**order)**0.5
+
+    return H
+
+def filter_build_3d_tanh_lp(size, a, fc):
+    from numpy import zeros, array
+    from math  import tanh, pi
+
+    c = size // 2
+    H = zeros((size, size, size), 'float32')
+    for k in xrange(size):
+        for i in xrange(size):
+            for j in xrange(size):
+                f          = ((i-c)*(i-c) + (j-c)*(j-c) + (k-c)*(k-c))**(0.5) # radius
+                f         /= size                                            # fequency
+                v          = (pi * (f - fc)) / (2 * a * fc)
+                H[k, i, j] = 0.5 - (0.5 * tanh(v))                           # filter
+
+    return H
+
+def filter_build_2d_tanh_lp(size, a, fc):
+    from numpy import zeros, array
+    from math  import tanh, pi
+
+    c = size // 2
+    H = zeros((size, size), 'float32')
+    for i in xrange(size):
+        for j in xrange(size):
+            f       = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5) # radius
+            f      /= size                               # fequency
+            v       = (pi * (f - fc)) / (2 * a * fc)
+            H[i, j] = 0.5 - (0.5 * tanh(v))              # filter
+
+    return H
+
+def filter_build_1d_tanh_lp(size, a, fc):
+    from numpy import zeros, array
+    from math  import tanh, pi
+
+    c = size // 2
+    H = zeros((size), 'float32')
+    for i in xrange(size):
+        f    = abs((i-c) / float(size))
+        v    = (pi * (f - fc)) / (2 * a * fc)
+        H[i] = 0.5 - (0.5 * tanh(v))              # filter
+
+    return H
+
+def filter_build_3d_tanh_hp(size, a, fc):
+    H = filter_build_3d_tanh_lp(size, a, fc)
+    H = 1 - H
+    
+    return H
+
+def filter_build_2d_tanh_hp(size, a, fc):
+    H = filter_build_2d_tanh_lp(size, a, fc)
+    H = 1 - H
+    
+    return H
+
+def filter_build_1d_tanh_hp(size, a, fc):
+    filter_build_1d_tanh_lp(size, a, fc)
+    H = 1 - H
+    
+    return H
 
 def filter_pad_3d_cuda(H):
     from numpy import zeros

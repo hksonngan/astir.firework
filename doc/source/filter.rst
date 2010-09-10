@@ -1,6 +1,115 @@
 Filter
 ======
 
+filter_3d_Butterworth_lp
+------------------------
+
+volf = **filter_3d_Butterworth_lp** (vol, order, fc)
+
+*Apply a 3D lowpass Butterworth filter to a volume*
+
+**Parameters**
+
+``vol`` Input volume to be filtered, 3D Numpy array ('float32')
+
+``order`` Order of the filter
+
+``fc`` Cutoff frequency
+
+**Returns**
+
+``volf`` 3D Numpy array after filtering
+
+**Notes**
+
+**Examples**
+
+::
+
+	>>> volf = filter_3d_Butterworth_lp(vol, 4, 0.2)
+
+filter_3d_Gaussian
+------------------
+
+volf = **filter_3d_Gaussian** (vol, sig)
+
+*Apply a 3D Gaussian filter to a volume*
+
+**Parameters**
+
+``vol`` Input volume to be filtered, 3D Numpy array ('float32')
+
+``sig`` Standard deviation
+
+**Returns**
+
+``volf`` 3D Numpy array after filtering
+
+**Notes**
+
+**Examples**
+
+::
+
+	>>> volf = filter_3d_Gaussian(vol, 0.2)
+
+filter_3d_Metz
+--------------
+
+volf = **filter_3d_Metz** (vol, N, sig)
+
+*Apply a 3D Metz filter to a volume*
+
+**Parameters**
+
+``vol`` Input volume to be filtered, 3D Numpy array ('float32')
+
+``N`` Power of the filter
+
+``sig`` Standard deviation
+
+**Returns**
+
+``volf`` 3D Numpy array after filtering
+
+**Notes**
+
+**Examples**
+
+::
+
+	>>> volf = filter_3d_Metz(vol, 2, 0.1)
+
+	
+filter_3d_tanh_lp
+-----------------
+
+volf = **filter_3d_tanh_lp** (vol, a, fc)
+
+*Apply a 3D lowpass hyperbolic tangent filter to a volume*
+
+**Parameters**
+
+``vol`` Input volume to be filtered, 3D Numpy array ('float32')
+
+``a`` Smoothnest parameter
+
+``fc`` Cutoff frequency
+
+**Returns**
+
+``volf`` 3D Numpy array after filtering
+
+**Notes**
+
+**Examples**
+
+::
+
+	>>> volf = filter_3d_tanh_lp(vol, 0.1, 0.2)
+
+	
+	
 filter_build_1d_Butterworth_lp
 ------------------------------
 

@@ -1,6 +1,138 @@
 Image
 =====
 
+image_atodB
+-----------
+
+imdb = **image_atodB** (im)
+
+*Return the image in dB values*
+
+**Parameters**
+
+``im`` 2D Numpy array as image
+
+**Returns**
+
+``imdb`` 2D Numpy array as image
+
+image_fft
+---------
+
+imf = **image_fft** (im)
+
+*Compute the 2D FFT of image*
+
+**Parameters**
+
+``im`` 2D Numpy array as image, must be in 'float32' and square
+
+**Returns**
+
+``imf`` 2D Numpy array of FFT complexe values ('complex'). The spectrum is already shift.
+
+
+image_frc
+---------
+
+fsc, freq = **image_frc** (im1, im2)
+
+*Compute the Fourier Ring Correlation between two images*
+
+**Parameters**
+
+``im1, im2`` Two 2D Numpy array as images
+
+**Returns**
+
+``fsc`` 1D array of frc values
+
+``freq`` 1D array of Nyquist frequencies for each frc values
+
+**Notes**
+
+Input images are normalize before computing the frc.
+
+
+image_ifft
+----------
+
+im = **image_ifft** (imf)
+
+*Compute the inverse 2D FFT of image*
+
+**Parameters**
+
+``imf`` 2D Numpy array of FFT complexe values
+
+**Returns**
+
+``im`` The inverse FFT as 2D numpy array ('float32')
+
+
+image_infos
+-----------
+
+**image_infos** (im)
+
+*Display some usefull informations about an image (size, min, max, mean and std)*
+
+**Parameters**
+
+``im`` A 2D Numpy array as image
+
+
+image_logscale
+--------------
+
+imlog = **image_logscale** (im)
+
+*Return a image after streching the values in logscale*
+
+**Parameters**
+
+``im`` 2D Numpy array as image
+
+**Returns**
+
+``imlog`` 2D Numpy array as image
+
+image_mask_circle
+-----------------
+
+mask = **image_mask_circle** (ny, nx, rad)
+
+*Create a mask circle centred to the image*
+
+**Parameters**
+
+``ny, nx`` Size of the image which contains the mask
+
+``rad`` Radius of the mask circle
+
+**Returns**
+
+``mask`` 2D Numpy array as image which contains the mask
+
+
+image_noise
+-----------
+
+noise = **image_noise** (ny, nx, sigma)
+
+*Build a 2D zero mean Gaussian noise (white noise)*
+
+**Parameters**
+
+``ny, nx`` Size of noise image
+
+``sigma`` Sigma value of Gaussian noise, define the delta value around zeros. Small sigma will generate noise with values between [-small value:small value], and if sigma is large, between [-large:large].
+
+**Returns**
+
+``noise`` The noise image, 2D Numpy array ('float32')
+
+
 image_normalize
 ---------------
 
@@ -53,8 +185,62 @@ If file contains more one channel, it will be convert in luminance format.
 	>>> im = image_open('test.png')
 	>>> im = image_open('test.im')
 
+image_periodogram
+-----------------
 
+per = **image_periodogram** (im)
+
+*Return the periodogram of an image*
+
+**Parameters**
+
+``im`` A 2D Numpy array as image
+
+**Returns**
+
+``per`` A 2D Numpy array
+
+**Notes**
+
+Same as Power Spectrum (image_pows)
 	
+image_pows
+----------
+
+pows = **image_pows** (im)
+
+*Return the power spectrum of an image*
+
+**Parameters**
+
+``im`` A 2D Numpy array as image
+
+**Returns**
+
+``pows`` A 2D Numpy array
+
+
+image_raps
+----------
+
+val, freq = **image_raps** (im)
+
+*Compute the Radial Averaging Power Spectrum from an image*
+
+**Parameters**
+
+``im`` A 2D Numpy array as image ('float32')
+
+**Returns**
+
+``val`` 1D array, which contains the values of the RAPS
+
+``freq`` 1D array of Nyquist frequencies for each values of RAPS
+
+**Notes**
+
+The input image is not normalize i.e. the mean is not equal to zeros
+
 image_show
 ----------
 
@@ -82,6 +268,23 @@ viewer.py
 	>>> image_show(im)
 
 
+image_snr_from_zncc
+-------------------
+
+snr = **image_snr_from_zncc** (signal, noise)
+
+*Compute the Signal-Noise-Ratio according the ZNCC coefficient between 2 images*
+
+**Parameters**
+
+``signal`` Image without noise as reference, 2D Numpy array ('float32')
+
+``noise`` Image with noise, 2D Numpy array ('float32')
+
+**Returns**
+
+``snr`` Value of snr
+	
 image_write
 -----------
 
@@ -112,3 +315,18 @@ In the case you export an image in *im* format (FIREwork), the exact values cont
 	>>> im = im.reshape((128, 128))
 	>>> image_write(im, 'test.png')
 	>>> image_write(im, 'test.im')
+
+image_zncc
+----------
+
+ccc = **image_zncc** (im1, im2)
+
+*Return the Zero-mean Normalized Cross Correlation Coefficient between 2 images*
+
+**Parameters**
+
+``im1, im2`` Two images, must be 2D Numpy array ('float32')
+
+**Returns**
+
+``ccc`` Value of ZNCC.

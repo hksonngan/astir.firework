@@ -32,7 +32,7 @@ def image_open(name):
         im   = Image.open(name)
         w, h = im.size
         mode = im.mode
-        if mode == 'RGB' or mode == 'RGBA':
+        if mode == 'RGB' or mode == 'RGBA' or mode == 'LA':
             im = im.convert('L')
         data = numpy.fromstring(im.tostring(), 'uint8')
         data = data.reshape((h, w))
@@ -58,6 +58,7 @@ def image_write(im, name):
     slice = im.copy()
 
     if ext == '.png' or ext == '.tif' or ext == '.bmp' or ext == '.jpg':
+        slice -= slice.min()
         slice /= slice.max()
         ny, nx = slice.shape
         slice = slice * 255
@@ -192,24 +193,24 @@ def image_fft(im):
     if l != w:
         print 'Image must be square!'
         return -1
-    if w % 2 == 1: imf = fft.fft2(im)
-    else:          imf = fft.fft2(im, s=(w+1, w+1))
-    imf  = fft.fftshift(imf)
+    imf = fft.fft2(im)
+    imf = fft.fftshift(imf)
 
     return imf
 
 # compute ifft of image
-def image_ifft(imf, wo = -1):
+def image_ifft(imf):
     from numpy import fft
     l, w = imf.shape
     if wo == -1: wo = w
     if l!= w:
         print 'Image must be square!'
         return -1
-    if wo % 2 == 1: im = fft.ifft2(imf)
-    else:           im = fft.ifft2(imf, s=(wo, wo))
+    im = fft.ifft2(imf)
+    im = abs(im)
+    im = im.astype('float32')
 
-    return abs(im)
+    return im
 
 # compute power spectrum of image
 def image_pows(im):
@@ -241,18 +242,19 @@ def image_periodogram(im):
     return imf
 
 # create image noise (gauss model)
-def image_noise(w, h, sigma):
+def image_noise(ny, nx, sigma):
     from numpy import zeros
     from random import gauss
 
-    mu = 0.5
-    im = zeros((w, h), 'float32')
-    for i in xrange(h):
-        for j in xrange(w):
-            im[j, i] = gauss(mu, sigma)
+    mu = 0.0
+    im = zeros((ny, nx), 'float32')
+    for i in xrange(ny):
+        for j in xrange(nx):
+            im[i, j] = gauss(mu, sigma)
 
-    im -= im.min()
-    im /= im.max()
+    #im -= im.min()
+    #im /= im.max()
+    im -= im.mean()
     
     return im
             
@@ -342,33 +344,6 @@ def image_frc(im1, im2):
     freq /= float(wo)
 
     return fsc, freq
-
-# Compute SNR
-def image_snr(im):
-    print 'Does not work!!'
-    wo, ho = im.shape
-    noise  = image_noise(wo, ho, 1.0)
-    noise  = image_normalize(noise)
-    im     = image_normalize(im)
-    Pim    = image_pows(im)
-    Pnoise = image_pows(noise)
-    print Pnoise.mean()
-    w, h   = Pim.shape
-    c      = (w - 1) // 2
-    rmax   = c
-    snr    = 0.0
-    ct     = 0
-    # calculate inside a mask circle
-    for i in xrange(c - rmax, c + rmax + 1):
-        for j in xrange(c - rmax, c + rmax + 1):
-            r = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5)
-            if r >= rmax: continue
-            snr += (Pim[i, j] / Pnoise[i, j])
-            ct  += 1
-
-    return snr/ct
-            
-
             
 # Low pass filter
 def image_lp_filter(im, fc, order):
@@ -465,6 +440,42 @@ def image_flip_lr(im):
 def image_flip_ud(im):
     from numpy import flipud
     return flipud(im)
+
+# Compute ZNCC between 2 images
+def image_zncc(im1, im2):
+    from numpy import sqrt, sum
+    
+    im1  -= im1.mean()
+    im2  -= im2.mean()
+    s1    = sqrt(sum(im1*im1))
+    s2    = sqrt(sum(im2*im2))
+    
+    return sum(im1 * im2) / (s1 * s2)
+
+# Compute SNR based on ZNCC
+def image_snr_from_zncc(signal, noise):
+    from math import sqrt
+    
+    ccc = image_ZNCC(signal, noise)
+    snr = sqrt(ccc / (1 - ccc))
+
+    return snr
+
+# Create a 2D mask circle
+def image_mask_circle(ny, nx, rad):
+    from numpy import zeros, sqrt
+    
+    cy = ny // 2
+    cx = nx // 2
+    m  = zeros((ny, nx), 'float32')
+    for y in xrange(ny):
+        for x in xrange(nx):
+            r = ((y-cy)*(y-cy) + (x-cx)*(x-cx))**(0.5)
+            if r > rad: continue
+
+            m[y, x] = 1.0
+
+    return m
 
 # ==== Volume ===============================
 # ===========================================
@@ -616,22 +627,19 @@ def volume_fft(vol):
     if z != y or z != x or x != y:
         print 'Volume must be square!'
         return -1
-    if x % 2 == 1: volf = fft.fftn(vol)
-    else:          volf = fft.fftn(vol, s=(z+1, y+1, x+1))
+    volf = fft.fftn(vol)
     volf = fft.fftshift(volf)
 
     return volf
 
 # compute volume ifft
-def volume_ifft(volf, xo = -1):
+def volume_ifft(volf):
     from numpy import fft
     z, y, x = volf.shape
-    if xo == -1: xo = x
     if z != y or z != x or x != y:    
         print 'Volume must be square!'
         return -1
-    if xo % 2 == 1: vol = fft.ifftn(volf)
-    else:           vol = fft.ifftn(volf, s=(zo, yo, xo))
+    vol = fft.ifftn(volf)
 
     return abs(vol)
 
@@ -659,24 +667,23 @@ def volume_lp_filter(vol, fc, order):
 # create box mask
 def volume_mask_box(nz, ny, nx, w, h, d):
     from numpy import zeros
-    vol  = zeros((d, h, w), 'float32')
-    cv   = (w-1)  // 2
-    cb   = (nx-1) // 2
-    staw = cv - cb
-    stow = staw + nx
-    cv   = (h-1)  // 2
-    cb   = (ny-1) // 2
-    stah = cv - cb
-    stoh = stah + ny
-    cv   = (d-1)  // 2
-    cb   = (nz-1) // 2
-    stad = cv - cb
-    stod = stad + nz
-    # draw mask box
-    for k in xrange(stad, stod):
-        for j in xrange(staw, stow):
-            for i in xrange(stah, stoh):
-                vol[k, j, i] = 1.0
+    vol  = zeros((nz, ny, nx), 'float32')
+    cx   = nx // 2
+    cy   = ny // 2
+    cz   = nz // 2
+    hw   = w // 2
+    hh   = h // 2
+    hd   = d // 2
+    for z in xrange(nz):
+        for y in xrange(ny):
+            for x in xrange(nx):
+                iz = abs(z-cz)
+                iy = abs(y-cy)
+                ix = abs(x-cx)
+                if iz > hd: continue
+                if iy > hh: continue
+                if ix > hw: continue
+                vol[z, y, x] = 1.0
 
     return vol
 

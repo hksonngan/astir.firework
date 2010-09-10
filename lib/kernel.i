@@ -163,3 +163,5 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* IN_ARRAY1, int
 void kernel_mip_volume_rendering(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3, float* INPLACE_ARRAY2, int DIM1, int DIM2, float alpha, float beta, float scale);
 
 void kernel_3Dconv_cuda(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, float* IN_ARRAY3, int DIM1, int DIM2, int DIM3);
+void kernel_filter_2d_median(float* IN_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY2, int DIM1, int DIM2, int w);
+void kernel_filter_2d_adaptive_median(float* IN_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY2, int DIM1, int DIM2, int w, int wmax);

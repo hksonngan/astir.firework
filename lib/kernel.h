@@ -200,3 +200,5 @@ void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip,
 
 
 void kernel_3Dconv_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c);
+void kernel_filter_2d_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w);
+void kernel_filter_2d_adaptive_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w, int wmax);

@@ -1,6 +1,40 @@
 Volume
 ======
 
+volume_mask_box
+---------------
+
+mask = *volume_mask_box* (nz, ny, nx, w, h, d)
+
+*Create a 3D box mask*
+
+**Paramters**
+
+``nz, ny, nx`` size of the 3D Numpy array which contains the mask
+
+``w, h, d`` Width, height and depth of the mask centered to the volume
+
+**Returns**
+
+``mask`` Return the mask as 3D Numpy array
+
+volume_mask_cylinder
+--------------------
+
+mask = *volume_mask_cylinder* (nz, ny, nx, h, rad)
+
+*Create a 3D cylinder mask*
+
+**Paramters**
+
+``nz, ny, nx`` size of the 3D Numpy array which contains the mask
+
+``h, rad`` height and radius of cylinder centered to the volume
+
+**Returns**
+
+``mask`` Return the mask as 3D Numpy array
+
 volume_mip
 ----------
 

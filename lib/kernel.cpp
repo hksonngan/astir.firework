@@ -5323,8 +5323,46 @@ void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip,
 
 
 }
-
 #undef pi
+
+//#define SORT(a, b) {if (a>b) SWAP(a, b);}
+#define SWAP(a, b) {float tmp=(a); (a)=(b); (b)=tmp;}
+void kernel_filter_2d_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w) {
+	int nwin = w*w;
+	float* win = (float*)malloc(nwin * sizeof(float));
+	int edgex = w / 2;
+	int edgey = w / 2;
+	int mpos = nwin / 2;
+	int x, y, wx, wy, ind, indy, indw, i;
+	bool move;
+	for (y=edgey; y<(ny-edgey); ++y) {
+		ind = y*ny;
+		for (x=edgex; x<(nx-edgex); ++x) {
+			for (wy=0; wy<w; ++wy) {
+				indw = wy*w;
+				indy = ny*(y + wy - edgey);
+				for (wx=0; wx<w; ++wx) {
+					win[indw + wx] = im[indy + x + wx - edgex];
+				}
+			}
+			// sort win
+			move = true;
+			while (move) {
+				move = false;
+				for (i=0; i<(nwin-1); ++i) {
+					if (win[i] > win[i+1]) {
+						SWAP(win[i], win[i+1]);
+						move = true;
+					}
+				}
+			}
+			// select mpos
+			res[ind + x] = win[mpos];
+		}
+	}
+}
+//#undef SORT
+#undef SWAP
 
 /**************************************************************
  * DEVs
@@ -5341,3 +5379,80 @@ void kernel_3Dconv_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int
 	//diff = t2 - t1;
 	//printf("C time %f s\n", diff);
 }
+
+#define SWAP(a, b) {float tmp=(a); (a)=(b); (b)=tmp;}
+void kernel_filter_2d_adaptive_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w, int wmax) {
+	int nwin = wmax*wmax;
+	float* win = (float*)malloc(nwin * sizeof(float));
+	float smin, smead, smax;
+	int edgex = w / 2;
+	int edgey = w / 2;
+	int wa = w;
+	int edgexa = wa / 2;
+	int edgeya = wa / 2;
+	int x, y, wx, wy, ind, indy, indw, i, posy, posx;
+	bool move;
+
+	for (y=edgey; y<(ny-edgey); ++y) {
+		ind = y*ny;
+		for (x=edgex; x<(nx-edgex); ++x) {
+			while (1) {
+				edgexa = wa / 2;
+				edgeya = wa / 2;
+				// read windows
+				for (wy=0; wy<wa; ++wy) {
+					indw = wy*w;
+					posy = y + wy - edgeya;
+					if (posy >= ny) {posy = (ny-1);}
+					if (posy < 0) {posy = 0;}
+					indy = ny*posy;
+					for (wx=0; wx<wa; ++wx) {
+						posx = x + wx - edgexa;
+						if (posx >= nx) {posx = (nx-1);}
+						if (posx < 0) {posx = 0;}
+						win[indw + wx] = im[indy + posx];
+					}
+				}
+				// sort win
+				move = true;
+				while (move) {
+					move = false;
+					for (i=0; i<(nwin-1); ++i) {
+						if (win[i] > win[i+1]) {
+							SWAP(win[i], win[i+1]);
+							move = true;
+						}
+					}
+				}
+				// get values
+				smin = win[0];
+				smead = win[(wa*wa)/2];
+				smax = win[(wa*wa)];
+				// step 3.
+				if ((smin < smead) && (smead < smax)) {
+					// step 5.
+					if ((smin < im[ind + x]) && (im[ind + x] < smax)) {
+						res[ind + x] = im[ind + x];
+						break;
+					} else {
+						printf("update\n");
+						res[ind + x] = smead;
+						break;
+					}
+				} else {
+					wa += 2;
+					// step 4.
+					if (wa > wmax) {
+						printf("update\n");
+						res[ind + x] = smead;
+						break;
+					}
+				}
+				
+			} // for ;;
+		} // for x
+	} // for y
+
+}
+//#undef SORT
+#undef SWAP

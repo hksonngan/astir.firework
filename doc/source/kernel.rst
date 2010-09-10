@@ -31,3 +31,33 @@ If you want get back the original size of your volume, in the case that you used
 	>>> Hpad = filter_pad_3d_cuda(H)
 	>>> kernel_3Dconv_cuda(cube, Hpad)
 	>>> vol  = volume_unpack_cube(cube, nz, ny, nx)
+
+kernel_filter_2d_median
+-----------------------
+
+**kernel_filter_2d_median** (im_in, im_out, w)
+
+*Proceed a 2D median filter on image*
+
+**Parameters**
+
+``im_in`` A 2D Numpy array as image ('float32'), it is the input image to be filtered.
+
+``im_out`` A 2D Numpy array as return image ('float32'), with every values set to zero. This array must be the same size as *im_in*.
+
+``w`` Size of the filter window, must be odd.
+
+**Returns**
+
+``im_out`` The image is proceed inplace, so this 2D Numpy arary will be overwritten by the result of the filtration.
+
+**Examples**
+
+::
+
+	>>> im = image_open('test.png')
+	>>> res = zeros(im.shape, 'float32')
+	>>> kernel_filter_2d_median(im, res, 5)
+	>>> image_show(res)
+
+

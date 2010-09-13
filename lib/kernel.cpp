@@ -25,6 +25,50 @@
 #include <GL/gl.h>
 #include "kernel_cuda.h"
 
+/**************************************************************
+ * Utils (functions know ony by the kernel)
+ **************************************************************/
+#define SWAP(a, b) {float tmp=(a); (a)=(b); (b)=tmp;}
+// Quick sort O(n(log n))
+void inkernel_quicksort(float* vec, int l, int r) {
+	int key, i, j, k;
+
+	if (l < r) {
+		int i, j;
+		float pivot;
+		pivot = vec[l];
+		i = l;
+		j = r+1;
+
+		while (1) {
+			do ++i; while(vec[i] <= pivot && i <= r);
+			do --j; while(vec[j] > pivot);
+			if (i >= j) break;
+			SWAP(vec[i], vec[j]);
+		}
+		SWAP(vec[l], vec[j]);
+		inkernel_quicksort(vec, l, j-1);
+		inkernel_quicksort(vec, j+1, r);
+
+	}
+}
+// Bubble sort O(n2)
+void inkernel_bubblesort(float* vec, int n) {
+	bool move = true;
+	int i;
+
+	while (move) {
+		move = false;
+		for (i=0; i<(n-1); ++i) {
+			if (vec[i] > vec[i+1]) {
+				SWAP(vec[i], vec[i+1]);
+				move = true;
+			}
+		}
+	}
+}
+#undef SWAP
+
 /********************************************************************************
  * PET Scan Allegro      
  ********************************************************************************/
@@ -5325,16 +5369,14 @@ void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip,
 }
 #undef pi
 
-//#define SORT(a, b) {if (a>b) SWAP(a, b);}
-#define SWAP(a, b) {float tmp=(a); (a)=(b); (b)=tmp;}
+// 2d median filter
 void kernel_filter_2d_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w) {
 	int nwin = w*w;
 	float* win = (float*)malloc(nwin * sizeof(float));
 	int edgex = w / 2;
 	int edgey = w / 2;
 	int mpos = nwin / 2;
-	int x, y, wx, wy, ind, indy, indw, i;
-	bool move;
+	int x, y, wx, wy, ind, indy, indw;
 	for (y=edgey; y<(ny-edgey); ++y) {
 		ind = y*ny;
 		for (x=edgex; x<(nx-edgex); ++x) {
@@ -5346,23 +5388,159 @@ void kernel_filter_2d_median(float* im, int ny, int nx, float* res, int nyr, int
 				}
 			}
 			// sort win
-			move = true;
-			while (move) {
-				move = false;
-				for (i=0; i<(nwin-1); ++i) {
-					if (win[i] > win[i+1]) {
-						SWAP(win[i], win[i+1]);
-						move = true;
-					}
-				}
-			}
+			inkernel_quicksort(win, 0, nwin-1);
 			// select mpos
 			res[ind + x] = win[mpos];
 		}
 	}
 }
-//#undef SORT
-#undef SWAP
+
+// 3d median filter
+void kernel_filter_3d_median(float* im, int nz, int ny, int nx, float* res, int nzr, int nyr, int nxr, int w) {
+	int nwin = w*w*w;
+	float* win = (float*)malloc(nwin * sizeof(float));
+	int edgex = w / 2;
+	int edgey = w / 2;
+	int edgez = w / 2;
+	int mpos = nwin / 2;
+	int step = ny*nx;
+	int x, y, z, wx, wy, wz, ind, indy, indz, indw;
+	int nwa;
+	for (z=edgez; z<(nz-edgez); ++z) {
+		indz = z * step;
+		for (y=edgey; y<(ny-edgey); ++y) {
+			ind = indz + y*ny;
+			for (x=edgex; x<(nx-edgex); ++x) {
+				nwa = 0;
+				for (wz=0; wz<w; ++wz) {
+					indw = step * (z + wz - edgez);
+					for (wy=0; wy<w; ++wy) {
+						indy = indw + ny*(y + wy - edgey);
+						for (wx=0; wx<w; ++wx) {
+							win[nwa] = im[indy + x + wx - edgex];
+							++nwa;
+						}
+					}
+				}
+				// sort win
+				inkernel_quicksort(win, 0, nwin-1);
+				// select mpos
+				res[ind + x] = win[mpos];
+			}
+		}
+	}
+}
+
+// 2d adaptive median filter
+void kernel_filter_2d_adaptive_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w, int wmax) {
+	int nwin = wmax*wmax;
+	float* win = (float*)malloc(nwin * sizeof(float));
+	int size_mem_im = ny * nx * sizeof(float);
+	float smin, smead, smax;
+	int edgex, edgey;
+	int wa, nwa;
+	int x, y, wx, wy, ind, indy;
+
+	for (wa=w; wa<=wmax; wa+=2) {
+		edgex = wa / 2;
+		edgey = wa / 2;
+		for (y=edgey; y<(ny-edgey); ++y) {
+			ind = y * ny;
+			for (x=edgex; x<(nx-edgex); ++x) {
+				// read windows
+				nwa = 0;
+				for (wy=0; wy<wa; ++wy) {
+					indy = ny * (y + wy - edgey);
+					for (wx=0; wx<wa; ++wx) {
+						win[nwa] = im[indy + x + wx - edgex];
+						++nwa;
+					} // wx
+				} // wy
+				// sort win
+				inkernel_quicksort(win, 0, nwa-1);
+				// get values
+				smin = win[0];
+				smead = win[nwa/2];
+				smax = win[nwa-1];
+				// median filter
+				if ((smin < smead) && (smead < smax)) {
+					// step 5.
+					if ((smin < im[ind + x]) && (im[ind + x] < smax)) {
+						res[ind + x] = im[ind + x];
+					} else {
+						res[ind + x] = smead;
+					}
+				} else {
+					res[ind + x] = smead;
+				}
+
+			} // x
+		} // y
+		if (wa != wmax) {memcpy(im, res, size_mem_im);} 
+	} // wa
+
+}
+
+// 3d adaptive median filter
+void kernel_filter_3d_adaptive_median(float* im, int nz, int ny, int nx,
+									  float* res, int nzr, int nyr, int nxr, int w, int wmax) {
+	int nwin = wmax*wmax*wmax;
+	float* win = (float*)malloc(nwin * sizeof(float));
+	int size_mem_im = nz * ny * nx * sizeof(float);
+	int step = ny * nx;
+	float smin, smead, smax;
+	int edgex, edgey, edgez;
+	int wa, nwa;
+	int x, y, z, wx, wy, wz, ind, indimz, indy, indz;
+
+	for (wa=w; wa<=wmax; wa+=2) {
+		edgex = wa / 2;
+		edgey = wa / 2;
+		edgez = wa / 2;
+		for (z=edgez; z<(nz-edgez); ++z) {
+			indimz = step * z;
+			for (y=edgey; y<(ny-edgey); ++y) {
+				ind = indimz + y * ny;
+				for (x=edgex; x<(nx-edgex); ++x) {
+					// read windows
+					nwa = 0;
+					for (wz=0; wz<wa; ++wz) {
+						indz = step * (z + wz - edgez);
+						for (wy=0; wy<wa; ++wy) {
+							indy = indz + ny * (y + wy - edgey);
+							for (wx=0; wx<wa; ++wx) {
+								win[nwa] = im[indy + x + wx - edgex];
+								++nwa;
+							} // wx
+						} // wy
+					} // wz
+					// sort win
+					inkernel_quicksort(win, 0, nwa-1);
+					// get values
+					smin = win[0];
+					smead = win[nwa/2];
+					smax = win[nwa-1];
+					// median filter
+					res[ind + x] = smead;
+					if ((smin < smead) && (smead < smax)) {
+						// step 5.
+						if ((smin < im[ind + x]) && (im[ind + x] < smax)) {
+							res[ind + x] = im[ind + x];
+						} else {
+							res[ind + x] = smead;
+						}
+					} else {
+						res[ind + x] = smead;
+					}
+
+				} // x
+			} // y
+		} // z
+		if (wa != wmax) {memcpy(im, res, size_mem_im);} 
+	} // wa
+
+}
+
 
 /**************************************************************
  * DEVs
@@ -5380,79 +5558,3 @@ void kernel_3Dconv_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int
 	//printf("C time %f s\n", diff);
 }
 
-#define SWAP(a, b) {float tmp=(a); (a)=(b); (b)=tmp;}
-void kernel_filter_2d_adaptive_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w, int wmax) {
-	int nwin = wmax*wmax;
-	float* win = (float*)malloc(nwin * sizeof(float));
-	float smin, smead, smax;
-	int edgex = w / 2;
-	int edgey = w / 2;
-	int wa = w;
-	int edgexa = wa / 2;
-	int edgeya = wa / 2;
-	int x, y, wx, wy, ind, indy, indw, i, posy, posx;
-	bool move;
-
-	for (y=edgey; y<(ny-edgey); ++y) {
-		ind = y*ny;
-		for (x=edgex; x<(nx-edgex); ++x) {
-			while (1) {
-				edgexa = wa / 2;
-				edgeya = wa / 2;
-				// read windows
-				for (wy=0; wy<wa; ++wy) {
-					indw = wy*w;
-					posy = y + wy - edgeya;
-					if (posy >= ny) {posy = (ny-1);}
-					if (posy < 0) {posy = 0;}
-					indy = ny*posy;
-					for (wx=0; wx<wa; ++wx) {
-						posx = x + wx - edgexa;
-						if (posx >= nx) {posx = (nx-1);}
-						if (posx < 0) {posx = 0;}
-						win[indw + wx] = im[indy + posx];
-					}
-				}
-				// sort win
-				move = true;
-				while (move) {
-					move = false;
-					for (i=0; i<(nwin-1); ++i) {
-						if (win[i] > win[i+1]) {
-							SWAP(win[i], win[i+1]);
-							move = true;
-						}
-					}
-				}
-				// get values
-				smin = win[0];
-				smead = win[(wa*wa)/2];
-				smax = win[(wa*wa)];
-				// step 3.
-				if ((smin < smead) && (smead < smax)) {
-					// step 5.
-					if ((smin < im[ind + x]) && (im[ind + x] < smax)) {
-						res[ind + x] = im[ind + x];
-						break;
-					} else {
-						printf("update\n");
-						res[ind + x] = smead;
-						break;
-					}
-				} else {
-					wa += 2;
-					// step 4.
-					if (wa > wmax) {
-						printf("update\n");
-						res[ind + x] = smead;
-						break;
-					}
-				}
-				
-			} // for ;;
-		} // for x
-	} // for y
-
-}
-//#undef SORT
-#undef SWAP

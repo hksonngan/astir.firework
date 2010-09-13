@@ -111,3 +111,29 @@ newvol = **volume_pack_cube** (vol)
 
 	>>> cube = volume_pack_cube(vol)
 
+volume_slice
+------------
+
+im = **volume_slice** (vol, pos, [axe])
+
+*Return the slice image from a volume according the position and the axe of the slice.*
+
+**Parameters**
+
+``vol`` Volume name, must be a 3D Numpy array.
+
+``pos`` Position of the slice inside the volume.
+
+``axe`` Axe of the slice 'x', 'y', or 'z', by default the value is set to 'z', which is the transversal axis.
+
+**Returns**
+
+``im`` Image of the slice, 2D Numpy array.
+
+**Examples**
+
+::
+
+	>>> vol = volume_open('test.vol')
+	>>> im  = volume_slice(vol, 22)
+	>>> image_show(im)

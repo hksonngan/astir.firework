@@ -198,7 +198,16 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, u
 
 void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int wim, int him, float alpha, float beta, float scale);
 
-
-void kernel_3Dconv_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c);
+// filter
 void kernel_filter_2d_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w);
+void kernel_filter_3d_median(float* im, int nz, int ny, int nx, float* res, int nzr, int nyr, int nxr, int w);
 void kernel_filter_2d_adaptive_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w, int wmax);
+void kernel_filter_3d_adaptive_median(float* im, int nz, int ny, int nx,
+									  float* res, int nzr, int nyr, int nxr, int w, int wmax);
+// Utils function
+void inkernel_quicksort(float* vec, int m, int n);
+void inkernel_bubblesort(float* vec, int n);
+
+// dev
+void kernel_3Dconv_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c);
+

@@ -62,37 +62,6 @@ kernel_filter_2d_adaptive_median
 	>>> kernel_filter_2d_adaptive_median(im, res, 3, 9)
 	>>> image_show(res)
 
-kernel_filter_3d_adaptive_median
---------------------------------
-
-**kernel_filter_3d_median** (vol_in, vol_out, w, wmax)
-
-*Proceed a 3D adaptive median filter on image. It's like median filter apllied with servelas kernel size. The main advantage of the adaptive version it is that the high frequencies are less cutoff than the classical one.*
-
-**Parameters**
-
-``vol_in`` A 3D Numpy array as image ('float32'), it is the input image to be filtered.
-
-``vol_out`` A 3D Numpy array as return image ('float32'), with every values set to zero. This array must be the same size as *im_in*.
-
-``w`` First size of the kernel, must be odd.
-
-``wmax`` Is the last size of the kernel, must be odd.
-
-**Returns**
-
-``vol_out`` The volume is proceed inplace, so this 3D Numpy array will be overwritten by the result of the filtration.
-
-**Examples**
-
-::
-
-	>>> vol = volume_open('test.vol')
-	>>> res = zeros(vol.shape, 'float32')
-	>>> kernel_filter_3d_adaptive_median(vol, res, 3, 9)
-	>>> volume_write(res, 'res.vol')
-
-	
 kernel_filter_2d_median
 -----------------------
 
@@ -122,3 +91,34 @@ kernel_filter_2d_median
 	>>> image_show(res)
 
 
+kernel_filter_3d_adaptive_median
+--------------------------------
+
+**kernel_filter_3d_adaptive_median** (vol_in, vol_out, w, wmax)
+
+*Proceed a 3D adaptive median filter on image. It's like median filter apllied with servelas kernel size. The main advantage of the adaptive version it is that the high frequencies are less cutoff than the classical one.*
+
+**Parameters**
+
+``vol_in`` A 3D Numpy array as image ('float32'), it is the input image to be filtered.
+
+``vol_out`` A 3D Numpy array as return image ('float32'), with every values set to zero. This array must be the same size as *im_in*.
+
+``w`` First size of the kernel, must be odd.
+
+``wmax`` Is the last size of the kernel, must be odd.
+
+**Returns**
+
+``vol_out`` The volume is proceed inplace, so this 3D Numpy array will be overwritten by the result of the filtration.
+
+**Examples**
+
+::
+
+	>>> vol = volume_open('test.vol')
+	>>> res = zeros(vol.shape, 'float32')
+	>>> kernel_filter_3d_adaptive_median(vol, res, 3, 9)
+	>>> volume_write(res, 'res.vol')
+
+	

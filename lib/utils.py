@@ -456,7 +456,7 @@ def image_zncc(im1, im2):
 def image_snr_from_zncc(signal, noise):
     from math import sqrt
     
-    ccc = image_ZNCC(signal, noise)
+    ccc = image_zncc(signal, noise)
     snr = sqrt(ccc / (1 - ccc))
 
     return snr
@@ -583,12 +583,15 @@ def volume_mosaic(vol, axe='z'):
     z, y, x = vol.shape
     if axe == 'z':
         wi  = int(z**0.5 + 0.5)
-        hi  = int(z / wi + 0.5)
+        if z%wi == 0: hi = z // wi
+        else:         hi = (z // wi) + 1
+        print wi, hi
         mos = zeros((hi * y, wi * x), 'float32')
         zi  = 0
         for i in xrange(hi):
             for j in xrange(wi):
                 im  = volume_slice(vol, zi, 'z')
+                #im /= im.max()
                 mos[i*y:(i+1)*y, j*x:(j+1)*x] = im
                 zi += 1
                 if zi >= z: break

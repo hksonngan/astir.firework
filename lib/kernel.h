@@ -70,7 +70,7 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 							float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
 							int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
 							float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
-							float respix, int sizespacexy, int sizespacez);
+							float respix, int sizespacexy, int sizespacez, int rnd);
 void kernel_allegro_build_all_LOR(unsigned short int* idc1, int n1, unsigned short int* idd1, int n2,
 								  unsigned short int* idc2, int n3, unsigned short int* idd2, int n4);
 void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
@@ -211,3 +211,10 @@ void inkernel_bubblesort(float* vec, int n);
 // dev
 void kernel_3Dconv_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c);
 
+int kernel_pack_id(int* d1, int nd1, int* c1, int nc1,
+					int* d2, int nd2, int* c2, int nc2,
+					unsigned short int* pack, int np, int id, int flag);
+
+void kernel_SRM_to_HD(int* id1, int nid1, int* id2, int nid2,
+					  int* X1, int nx1, int* Y1, int ny1, int* Z1, int nz1,
+					  int* X2, int nx2, int* Y2, int ny2, int* Z2, int nz2);

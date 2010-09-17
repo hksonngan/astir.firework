@@ -79,7 +79,7 @@ kernel_filter_2d_median
 
 **Returns**
 
-``im_out`` The image is proceed inplace, so this 2D Numpy arary will be overwritten by the result of the filtration.
+``im_out`` The image is proceed inplace, so this 2D Numpy array will be overwritten by the result of the filtration.
 
 **Examples**
 
@@ -122,3 +122,30 @@ kernel_filter_3d_adaptive_median
 	>>> volume_write(res, 'res.vol')
 
 	
+kernel_filter_3d_median
+-----------------------
+
+**kernel_filter_3d_median** (vol_in, vol_out, w)
+
+*Proceed a 3D median filter on volume*
+
+**Parameters**
+
+``vol_in`` A 3D Numpy array as image ('float32'), it is the input volume to be filtered.
+
+``vol_out`` A 3D Numpy array as return volume ('float32'), with every values set to zero. This array must be the same size as *vol_in*.
+
+``w`` Size of the filter window, must be odd.
+
+**Returns**
+
+``vol_out`` The volume is proceed inplace, so this 3D Numpy array will be overwritten by the result of the filtration.
+
+**Examples**
+
+::
+
+	>>> vol = volume_open('test.vol')
+	>>> res = zeros(vol.shape, 'float32')
+	>>> kernel_filter_3d_median(vol, res, 5)
+

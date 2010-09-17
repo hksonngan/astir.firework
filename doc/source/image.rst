@@ -51,7 +51,7 @@ fsc, freq = **image_frc** (im1, im2)
 
 **Notes**
 
-Input images are normalize before computing the frc.
+Input images must be not normalize before computing the frc, in order to avoid (negative value).
 
 
 image_ifft
@@ -284,7 +284,35 @@ snr = **image_snr_from_zncc** (signal, noise)
 **Returns**
 
 ``snr`` Value of snr
-	
+
+image_stats_ROI_circle
+----------------------
+
+ROI, min, max, mean, std = **image_stats_ROI_circle** (im, cx, cy, rad)
+
+*Get statistic values on an image only for a ROI with a circle shape*
+
+**Parameters**
+
+``im`` 2D Numpy array as image to be analysed.
+
+``cx, cy`` Position of the circle ROI on the image in pixel
+
+``rad`` Radius of the circle ROI
+
+**Returns**
+
+``ROI`` Image (2D Numpy array) with the ROI used
+
+``min`` The min value on ROI
+
+``max`` The max value on ROI
+
+``mean`` The mean value on ROI
+
+``std`` The standard deviation value on ROI
+
+
 image_write
 -----------
 
@@ -316,6 +344,31 @@ In the case you export an image in *im* format (FIREwork), the exact values cont
 	>>> image_write(im, 'test.png')
 	>>> image_write(im, 'test.im')
 
+image_write_mapcolor
+--------------------
+
+**image_write_mapcolor** (im, filename, [colormap])
+
+*Save a 2D Numpy array as an image with false color*
+
+**Parameters**
+
+``im`` Name of 2D Numpy array. The value format must be in *float32*.
+
+``filename`` Name of the file you want to export the image. Different kind of format is supported like *bmp*, *png*, *tif* and *jpg*.
+
+``colormap`` Specify the mapcolor of the false color transformation on the image, the default value is 'jet', but it can be 'hot', and 'hsv' as well.
+
+**Examples**
+
+::
+
+	>>> im = range(128 * 128)
+	>>> im = array(im, 'float32')
+	>>> im = im.reshape((128, 128))
+	>>> image_write_mapcolor(im, 'test.png', 'hot')
+
+	
 image_zncc
 ----------
 

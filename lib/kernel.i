@@ -66,7 +66,7 @@ void kernel_pet2D_SRM_BLA(float* INPLACE_ARRAY2, int DIM1, int DIM2, int* IN_ARR
 void kernel_pet2D_SRM_SIDDON(float* INPLACE_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, int matsize);
 void kernel_pet2D_SRM_ELL_SIDDON(float* INPLACE_ARRAY2, int DIM1, int DIM2, int* INPLACE_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, int matsize);
 void kernel_pet2D_SRM_WLA(float* INPLACE_ARRAY2, int DIM1, int DIM2, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int wim);
-void kernel_allegro_idtopos(int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float respix, int sizespacexy, int sizespacez);
+void kernel_allegro_idtopos(int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float respix, int sizespacexy, int sizespacez, int rnd);
 void kernel_allegro_build_all_LOR(unsigned short int* INPLACE_ARRAY1, int DIM1, unsigned short int* INPLACE_ARRAY1, int DIM1, unsigned short int* INPLACE_ARRAY1, int DIM1, unsigned short int* INPLACE_ARRAY1, int DIM1);
 void kernel_pet3D_SRM_raycasting(float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int border, int ROIxy, int ROIz);
 void kernel_pet3D_SRM_clean_LOR_int(int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1);
@@ -169,4 +169,11 @@ void kernel_filter_3d_adaptive_median(float* IN_ARRAY3, int DIM1, int DIM2, int 
 
 void kernel_3Dconv_cuda(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, float* IN_ARRAY3, int DIM1, int DIM2, int DIM3);
 
+int kernel_pack_id(int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1,
+					int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1,
+					unsigned short int* INPLACE_ARRAY1, int DIM1, int id, int flag);
+
+void kernel_SRM_to_HD(int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1,
+					  int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1,
+					  int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1);
 

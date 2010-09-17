@@ -64,6 +64,32 @@ Axis according 'x' and 'y' must be verify!!
 	>>> im  = volume_mip(vol)
 	>>> image_show(im)
 
+volume_mosaic
+-------------
+
+mos = **volume_mosaic** (vol, [axe], [norm])
+
+*Create a mosaic image from a volume, very usefull to compare each volume slice on one image.*
+
+**Parameters**
+
+``vol`` 3D Numpy array as volume
+
+``axe`` Axis of slice to build the mosaic, default is 'z' (transversal view)
+
+``norm`` Specifie if each slice are normalize separetly, default is False
+
+**Returns**
+
+``mos`` Mosaic of images which contains slice for every axis value (2D Numpy array)
+
+**Examples**
+
+::
+
+	>>> vol = volume_open('test.vol')
+	>>> mos = volume_mosaic(vol, norm=True)
+	>>> image_write_mapcolor(mos, 'mos.png')
 
 volume_open
 -----------

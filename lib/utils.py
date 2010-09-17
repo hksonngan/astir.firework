@@ -83,6 +83,7 @@ def image_write_mapcolor(im, name, color='jet'):
     npix   = ny * nx
     map    = im.copy()
     map    = map.astype('float32')
+    map   -= map.min()
     map   /= map.max()
     map   *= 255
     map    = map.astype('uint8')
@@ -202,7 +203,6 @@ def image_fft(im):
 def image_ifft(imf):
     from numpy import fft
     l, w = imf.shape
-    if wo == -1: wo = w
     if l!= w:
         print 'Image must be square!'
         return -1
@@ -302,8 +302,8 @@ def image_frc(im1, im2):
         return -1
 
     wo, ho = im1.shape
-    im1    = image_normalize(im1)
-    im2    = image_normalize(im2)
+    #im1    = image_normalize(im1)
+    #im2    = image_normalize(im2)
     imf1   = image_fft(im1)
     imf2   = image_fft(im2)
     imf2c  = imf2.conj()
@@ -336,7 +336,7 @@ def image_frc(im1, im2):
                 fsc[cir] += (frac * ifsc)
                 nf1[cir] += (frac * inf1)
                 nf2[cir] += (frac * inf2)
-
+    
     fsc = fsc / (nf1 * nf2)**0.5
 
     freq  = range(0, wo // 2 + 1)
@@ -477,6 +477,24 @@ def image_mask_circle(ny, nx, rad):
 
     return m
 
+# Get statistics values from a circle ROI on an image
+def image_stats_ROI_circle(im, cx, cy, rad):
+    from numpy import array, zeros
+
+    val    = []
+    ny, nx = im.shape
+    ROI    = zeros((ny, nx), 'float32')
+    for y in xrange(ny):
+        for x in xrange(nx):
+            r = ((y-cy)*(y-cy) + (x-cx)*(x-cx))**(0.5)
+            if r > rad: continue
+            val.append(im[y, x])
+            ROI[y, x] = 1.0
+
+    val = array(val, 'float32')
+
+    return ROI, val.min(), val.max(), val.mean(), val.std()
+
 # ==== Volume ===============================
 # ===========================================
 
@@ -577,7 +595,7 @@ def volume_miip(vol, axe='z'):
     return vol.min(axis=axis)
 
 # Display volume as a mosaic
-def volume_mosaic(vol, axe='z'):
+def volume_mosaic(vol, axe='z', norm=False):
     from numpy import zeros
     
     z, y, x = vol.shape
@@ -591,7 +609,7 @@ def volume_mosaic(vol, axe='z'):
         for i in xrange(hi):
             for j in xrange(wi):
                 im  = volume_slice(vol, zi, 'z')
-                #im /= im.max()
+                if norm: im = image_normalize(im)
                 mos[i*y:(i+1)*y, j*x:(j+1)*x] = im
                 zi += 1
                 if zi >= z: break
@@ -1129,6 +1147,15 @@ def filter_3d_tanh_lp(vol, a, fc):
     vol     = volume_unpack_cube(vol, z, y, x)
 
     return vol
+
+def filter_2d_Metz(im, N, sig):
+    smax = max(im.shape)
+    H    = filter_build_2d_Metz(smax, N, sig)
+    imf  = image_fft(im)
+    imf *= H
+    im   = image_ifft(imf)
+
+    return im
 
 def filter_build_3d_Metz(size, N, sig):
     from numpy import zeros

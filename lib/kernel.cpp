@@ -80,7 +80,7 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 							float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
 							int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
 							float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
-							float respix, int sizespacexy, int sizespacez) {
+							float respix, int sizespacexy, int sizespacez, int rnd) {
 	// NOTE: ref system will be change instead of ref GATE system.
 	// We use the image ref system
 	// GATE             IMAGE
@@ -105,7 +105,10 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 	float czimage = (float)sizespacez / 2.0f;
 	float xi, yi, zi, a, newx, newy, newz;
 	float cosa, sina;
+	float e;
 	int n, ID;
+	// to add fluctuation (due to DDA line drawing)
+	if (rnd) {srand(rnd);}
 	for (n=0;n<nidc1; ++n) {
 		// ID1
 		////////////////////////////////
@@ -128,6 +131,15 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		newx /= respix;             // scale factor to match with ROI (image)
 		newy /= respix;
 		newz /= respix;
+		// add flunctuation (to avoid moire pattern in DDA)
+		if (rnd) {
+			e = (float)rand() / (float)RAND_MAX;
+			e = e * 1.0f - 0.5f; // rnd number between -0.25 to 0.25
+			newx += e;
+			newy += e;
+			newz += e;
+			if (n==0) {printf("Rnd\n");}
+		}
 		x1[n] = newx;
 		y1[n] = newy;
 		z1[n] = newz;
@@ -152,6 +164,12 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		newx /= respix;             // scale factor to match with ROI (image)
 		newy /= respix;
 		newz /= respix;
+		// add flunctuation (to avoid moire pattern in DDA)
+		if (rnd) {
+			newx += e;
+			newy += e;
+			newz += e;
+		}
 		x2[n] = newx;
 		y2[n] = newy;
 		z2[n] = newz;
@@ -1419,12 +1437,12 @@ void kernel_pet3D_SRM_clean_LOR_int(int* enable, int ne, float* x1, int nx1, flo
 	c = 0;
 	for (i=0; i<nx1; ++i) {
 		if (enable[i]) {
-			xi1[c] = (int)x1[i];
-			yi1[c] = (int)y1[i];
-			zi1[c] = (int)z1[i];
-			xi2[c] = (int)x2[i];
-			yi2[c] = (int)y2[i];
-			zi2[c] = (int)z2[i];
+			xi1[c] = (int)(x1[i]);
+			yi1[c] = (int)(y1[i]);
+			zi1[c] = (int)(z1[i]);
+			xi2[c] = (int)(x2[i]);
+			yi2[c] = (int)(y2[i]);
+			zi2[c] = (int)(z2[i]);
 			++c;
 		}
 	}
@@ -5558,3 +5576,106 @@ void kernel_3Dconv_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int
 	//printf("C time %f s\n", diff);
 }
 
+int kernel_pack_id(int* d1, int nd1, int* c1, int nc1,
+					int* d2, int nd2, int* c2, int nc2,
+					unsigned short int* pack, int np, int id, int flag) {
+	int i;
+	// return only the number of elements
+	if (flag) {
+		int ct = 0;
+		for (i=0; i<nd1; ++i) {
+			if (d1[i]==id) {++ct;}
+		}
+		return ct;
+	// pack values
+	} else {
+		int ind = 0;
+		for (i=0; i<nd1; ++i) {
+			if (d1[i]==id) {
+				pack[ind] = (unsigned short int)d1[i];
+				pack[ind+1] = (unsigned short int)c1[i];
+				pack[ind+2] = (unsigned short int)d2[i];
+				pack[ind+3] = (unsigned short int)c2[i];
+				ind += 4;
+			}
+		}
+		return ind;
+
+	}
+
+}
+
+void kernel_SRM_to_HD(int* id1, int nid1, int* id2, int nid2,
+					  int* X1, int nx1, int* Y1, int ny1, int* Z1, int nz1,
+					  int* X2, int nx2, int* Y2, int ny2, int* Z2, int nz2) {
+	// vars
+	int length, lengthy, lengthz, i, n;
+	float flength, val;
+	float x, y, z, lx, ly, lz;
+	float xinc, yinc, zinc;
+	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
+	int step;
+	int ID, ptr, size;
+	int ind;
+
+	// TOBE change
+	int wim = 141;
+	int ncrys_det = 22*29;
+	int ncrys = 28*ncrys_det;
+	step = wim*wim;
+	// init file
+	FILE * pfile_toc;
+	FILE * pfile_srm;
+	char nametoc [20];
+	char namesrm [20];
+	sprintf(nametoc, "toc.bin");
+	sprintf(namesrm, "srm.bin");
+	pfile_toc = fopen(nametoc, "rb+");
+	pfile_srm = fopen(namesrm, "wb");
+
+	for (i=0; i<nid1; ++i) {
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		z1 = Z1[i];
+		z2 = Z2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = (float)length;
+		xinc = diffx / flength;
+		yinc = diffy / flength;
+		zinc = diffz / flength;
+
+		// save info to toc file
+		ID = id2[i] * ncrys + id1[i];
+		ptr = ftell(pfile_srm);
+		fseek(pfile_toc, (3*ID + 1)*sizeof(int), SEEK_SET);
+		fwrite(&ptr, sizeof(int), 1, pfile_toc);
+		fseek(pfile_toc, (3*ID + 2)*sizeof(int), SEEK_SET);
+		size = length + 1;
+		fwrite(&size, sizeof(int), 1, pfile_toc);
+		x = x1 + 0.5;
+		y = y1 + 0.5;
+		z = z1 + 0.5;
+		for (n=0; n<=length; ++n) {
+			ind = (int)z * step + (int)y * wim + (int)x;
+			fwrite(&ind, sizeof(int), 1, pfile_srm);
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+	}
+
+	fclose(pfile_toc);
+	fclose(pfile_srm);
+
+
+}

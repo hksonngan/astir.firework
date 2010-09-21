@@ -28,7 +28,7 @@ except:
 try:
     from firework      import *
     from numpy         import *
-    from math          import *
+    import matplotlib.pyplot as plt
 except:
     print 'Please check your installation'
     exit()

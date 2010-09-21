@@ -254,7 +254,7 @@ def image_noise(ny, nx, sigma):
 
     #im -= im.min()
     #im /= im.max()
-    im -= im.mean()
+    #im -= im.mean()
     
     return im
             
@@ -494,6 +494,22 @@ def image_stats_ROI_circle(im, cx, cy, rad):
     val = array(val, 'float32')
 
     return ROI, val.min(), val.max(), val.mean(), val.std()
+
+# Get statiscitcs values under a specified mask
+def image_stats_mask(im, mask):
+    from numpy import zeros
+
+    npix   = mask.sum()
+    val    = zeros((npix), 'float32')
+    ny, nx = mask.shape
+    ct     = 0
+    for y in xrange(ny):
+        for x in xrange(nx):
+            if mask[y, x] == 1.0:
+                val[ct] = im[y, x]
+                ct     += 1
+
+    return val.min(), val.max(), val.mean(), val.std()
 
 # ==== Volume ===============================
 # ===========================================
@@ -836,12 +852,14 @@ def plot(x, y):
 # plot RAPS curve
 def plot_raps(im):
     import matplotlib.pyplot as plt
-    im = image_normalize(im)
+    from numpy import log
+    #im = image_normalize(im)
     val, freq = image_raps(im)
-    val = image_atodB(val)
-    plt.plot(freq, val)
+    #val = image_atodB(val)
+    #val = log(val)
+    plt.semilogy(freq, val)
     plt.xlabel('Nyquist frequency')
-    plt.ylabel('Power spectrum (dB)')
+    plt.ylabel('Power spectrum (log10)')
     plt.show()
 
 # plot FRC curve

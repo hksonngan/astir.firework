@@ -106,6 +106,11 @@ void kernel_pet3D_IM_SRM_COO_SIDDON_iter_vec(float* im, int nim, float* F, int n
 void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
 											float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
 											float* im, int nim, float* F, int nf, int wim, int dim);
+void kernel_pet3D_IM_ATT_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+												float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
+												float* im, int nim, float* F, int nf, float* mumap, int nmu,
+												int wim, int dim);
+
 void kernel_pet3D_IM_SRM_COO_SIDDON_iter_mat(float* vals, int nvals, int* cols, int ncols, int* rows, int nrows, float* im, int nim, float* F, int nf, int N, int isub);
 void kernel_pet3D_IM_SRM_ELL_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
 										 float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
@@ -186,15 +191,19 @@ void kernel_pet3D_IM_DEV_cuda(unsigned short int* x1, int nx1, unsigned short in
 							  unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
 							  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
 							  int* im, int nim, int wim, int ID);
+
 void kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
 										  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
 										  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
 										  float* im, int nim1, int nim2, int nim3, float* F, int nf1, int nf2, int nf3,
 										  int wim, int ID);
+
 void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
 											  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
 											  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-											  float* im, int nim, float* F, int nf, float* mumap, int nmu, int wim, int ID);
+											  float* im, int nim1, int nim2, int nim3,
+											  float* F, int nf1, int nf2, int nf3,
+											  float* mumap, int nmu1, int nmu2, int nmu3, int wim, int ID);
 
 void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int wim, int him, float alpha, float beta, float scale);
 
@@ -215,6 +224,8 @@ int kernel_pack_id(int* d1, int nd1, int* c1, int nc1,
 					int* d2, int nd2, int* c2, int nc2,
 					unsigned short int* pack, int np, int id, int flag);
 
-void kernel_SRM_to_HD(int* id1, int nid1, int* id2, int nid2,
-					  int* X1, int nx1, int* Y1, int ny1, int* Z1, int nz1,
-					  int* X2, int nx2, int* Y2, int ny2, int* Z2, int nz2);
+void kernel_SRM_to_HD(int isub);
+
+void kernel_allegro_save_all_LOR(int* id1, int n1, int* id2, int n2,
+								 int* x1, int nx1, int* y1, int ny1, int* z1, int nz1,
+								 int* x2, int nx2, int* y2, int ny2, int* z2, int nz2);

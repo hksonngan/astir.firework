@@ -69,6 +69,17 @@ void inkernel_bubblesort(float* vec, int n) {
 }
 #undef SWAP
 
+// Mono function
+int inkernel_mono(int i, int j) {
+	int ma, mi;
+	if (i>j) {ma = i;}
+	else {ma = j;}
+	if (i<j) {mi = i;}
+	else {mi = j;}
+
+	return mi + ma * (ma - 1) / 2;
+}
+
 /********************************************************************************
  * PET Scan Allegro      
  ********************************************************************************/
@@ -2363,6 +2374,247 @@ void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int n
 	} // LORs loop
 	
 }
+
+// Update image online, SRM is build with Siddon's Line Algorithm in COO format, and update with LM-OSEM
+// Use attenuation correction
+void kernel_pet3D_IM_ATT_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+												float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
+												float* im, int nim, float* F, int nf, float* mumap, int nmu,
+												int wim, int dim) {
+	int n, ct;
+	float tx, ty, tz, px, qx, py, qy, pz, qz;
+	int ei, ej, ek, u, v, w, i, j, k, oldi, oldj, oldk;
+	int stepi, stepj, stepk;
+	float divx, divy, divz, runx, runy, runz, oldv, newv, val, valmax;
+	float axstart, aystart, azstart, astart, pq, stepx, stepy, stepz, startl, initl;
+	int wim2 = wim*wim;
+	double Qi;
+	double Ai;
+	float* vals = NULL;
+	int* cols = NULL;
+
+	// random seed
+	srand(time(NULL));
+	for (n=0; n<nx1; ++n) {
+		float* vals = NULL;
+		int* cols = NULL;
+		Qi = 0.0f;
+		Ai = 0.0f;
+		ct = 0;
+		// draw the line
+		px = X2[n];
+		py = Y2[n];
+		pz = Z2[n];
+		qx = X1[n];
+		qy = Y1[n];
+		qz = Z1[n];
+		initl = (float)rand() / (float)RAND_MAX;
+		//initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+		initl = initl * 0.4 + 0.1;
+		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
+		ty = (py-qy) * initl + qy;
+		tz = (pz-qz) * initl + qz;
+		ei = int(tx);
+		ej = int(ty);
+		ek = int(tz);
+		if (qx-tx>0) {
+			u=ei+1;
+			stepi=1;
+		}
+		if (qx-tx<0) {
+			u=ei;
+			stepi=-1;
+		}
+		if (qx-tx==0) {
+			u=ei;
+			stepi=0;
+		}
+		if (qy-ty>0) {
+			v=ej+1;
+			stepj=1;
+		}
+		if (qy-ty<0) {
+			v=ej;
+			stepj=-1;
+		}
+		if (qy-ty==0) {
+			v=ej;
+			stepj=0;
+		}
+		if (qz-tz>0) {
+			w=ek+1;
+			stepk=1;
+		}
+		if (qz-tz<0) {
+			w=ek;
+			stepk=-1;
+		}
+		if (qz-tz==0) {
+			w=ej;
+			stepk=0;
+		}
+		
+		if (qx==px) {divx=1.0;}
+		else {divx = float(qx-px);}
+		if (qy==py) {divy=1.0;}
+		else {divy = float(qy-py);}
+		if (qz==pz) {divz=1.0;}
+		else {divz = float(qz-pz);}
+		axstart = (u-px) / divx;
+		aystart = (v-py) / divy;
+		azstart = (w-pz) / divz;
+		astart = aystart;
+		if (axstart > aystart) {astart = axstart;}
+		if (azstart > astart) {astart = azstart;}
+		pq = sqrt((qx-px)*(qx-px)+(qy-py)*(qy-py)+(qz-pz)*(qz-pz));
+		stepx = fabs(pq / divx);
+		stepy = fabs(pq / divy);
+		stepz = fabs(pq / divz);
+		startl = astart * pq;
+		valmax = stepx;
+		if (stepy < valmax) {valmax = stepy;}
+		if (stepz < valmax) {valmax = stepz;}
+		valmax = valmax + valmax*0.01f;
+
+		// first half-ray
+		runx = axstart * pq;
+		runy = aystart * pq;
+		runz = azstart * pq;
+		i = ei;
+		j = ej;
+		k = ek;
+		if (runx == startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy == startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		if (runz == startl) {
+			k += stepk;
+			runz += stepz;
+		}
+		oldv = startl;
+		oldi = -1;
+		oldj = -1;
+		oldk = -1;
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<dim) {
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			if (runz < newv) {newv = runz;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			if (oldi != i || oldj != j || oldk != k) {
+				++ct;
+				vals = (float*)realloc(vals, ct*sizeof(float));
+				cols = (int*)realloc(cols, ct*sizeof(int));
+				vals[ct-1] = val;
+				cols[ct-1] = k * wim2 + j * wim + i;
+			}
+			oldv = newv;
+			oldi = i;
+			oldj = j;
+			oldk = k;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
+			if (runz == newv) {
+				k += stepk;
+				runz += stepz;
+			}
+		}
+		// second half-ray
+		if (px-tx>0) {stepi=1;}
+		if (px-tx<0) {stepi=-1;}
+		if (py-ty>0) {stepj=1;}
+		if (py-ty<0) {stepj=-1;}
+		if (pz-tz>0) {stepk=1;}
+		if (pz-tz<0) {stepk=-1;}
+		runx = axstart * pq;
+		runy = aystart * pq;
+		runz = azstart * pq;
+		i = ei;
+		j = ej;
+		k = ek;
+		if (runx==startl) {
+			i += stepi;
+			runx += stepx;
+		}
+		if (runy==startl) {
+			j += stepj;
+			runy += stepy;
+		}
+		if (runz==startl) {
+			k += stepk;
+			runz += stepz;
+		}
+		++ct;
+		vals = (float*)realloc(vals, ct*sizeof(float));
+		cols = (int*)realloc(cols, ct*sizeof(int));
+		vals[ct-1] = 0.707f;
+		cols[ct-1] = ek * wim2 + ej * wim + ei;
+		oldv = startl;
+		oldi = -1;
+		oldj = -1;
+		oldk = -1;
+		while (i>=0 && j>=0 && k>=0 && i<wim && j<wim && k<dim) {
+			newv = runy;
+			if (runx < runy) {newv = runx;}
+			if (runz < newv) {newv = runz;}
+			val = fabs(newv - oldv);
+			if (val > valmax) {val = valmax;}
+			if (oldi != i || oldj != j || oldk != k) {
+				++ct;
+				vals = (float*)realloc(vals, ct*sizeof(float));
+				cols = (int*)realloc(cols, ct*sizeof(int));
+				vals[ct-1] = val;
+				cols[ct-1] = k * wim2 + j * wim + i;
+			}
+			oldv = newv;
+			oldi = i;
+			oldj = j;
+			oldk = k;
+			if (runx == newv) {
+				i += stepi;
+				runx += stepx;
+			}
+			if (runy == newv) {
+				j += stepj;
+				runy += stepy;
+			}
+			if (runz == newv) {
+				k += stepk;
+				runz += stepz;
+			}
+		}
+		// first compute Qi
+		for (i=0; i<ct; ++i) {Qi += (vals[i] * im[cols[i]]);}
+		if (Qi == 0.0f) {continue;}
+		// second compute Ai
+		for (i=0; i<ct; ++i) {Ai += (vals[i] * mumap[cols[i]]);}
+		//printf("%i Ai %f ", n, Ai);
+		if (Ai > 5.0) {Ai = 5.0;}
+		Ai = exp(-Ai);
+		//printf("exp %f\n", Ai);
+		// accumulate to F
+		for(i=0; i<ct; ++i) {
+			if (im[cols[i]] != 0.0f) {
+				F[cols[i]] += (vals[i] / (Qi * Ai));
+			}
+		}
+		free(vals);
+		free(cols);
+		
+	} // LORs loop
+	
+}
+
 
 // Compute first image online by Siddon's Line Algorithm, and store SRM matrix to the harddrive with COO format
 void kernel_pet3D_IM_SRM_COO_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
@@ -5198,8 +5450,10 @@ void kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsig
 void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
 											  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
 											  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-											  float* im, int nim, float* F, int nf, float* mumap, int nmu, int wim, int ID) {
-	kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, F, nf, mumap, nmu, wim, ID);
+											  float* im, int nim1, int nim2, int nim3,
+											  float* F, int nf1, int nf2, int nf3,
+											  float* mumap, int nmu1, int nmu2, int nmu3, int wim, int ID) {
+	kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim1, nim2, nim3, F, nf1, nf2, nf3, mumap, nmu1, nmu2, nmu3, wim, ID);
 }
 
 #define pi  3.141592653589
@@ -5605,9 +5859,65 @@ int kernel_pack_id(int* d1, int nd1, int* c1, int nc1,
 
 }
 
-void kernel_SRM_to_HD(int* id1, int nid1, int* id2, int nid2,
-					  int* X1, int nx1, int* Y1, int ny1, int* Z1, int nz1,
-					  int* X2, int nx2, int* Y2, int ny2, int* Z2, int nz2) {
+// build the list of all LOR in order to compute S matrix
+void kernel_allegro_save_all_LOR(int* id1, int n1, int* id2, int n2,
+								 int* x1, int nx1, int* y1, int ny1, int* z1, int nz1,
+								 int* x2, int nx2, int* y2, int ny2, int* z2, int nz2) {
+	FILE * pfile_lors;
+	char namelors [20];
+
+	int i, N, isub, ct;
+	char xc1, yc1, zc1, xc2, yc2, zc2;
+	N = int(n1 / 10000000);
+	ct = 0;
+	for (isub=0; isub<N; ++isub) {
+		printf("Save iter %i\n", isub);
+		sprintf(namelors, "lors_%i.bin", isub);
+		pfile_lors = fopen(namelors, "wb");
+		for (i=0; i<10000000; ++i) {
+			fwrite(&id1[ct], sizeof(int), 1, pfile_lors);
+			fwrite(&id2[ct], sizeof(int), 1, pfile_lors);
+			xc1 = (char)x1[ct];
+			yc1 = (char)y1[ct];
+			zc1 = (char)z1[ct];
+			xc2 = (char)x2[ct];
+			yc2 = (char)y2[ct];
+			zc2 = (char)z2[ct];
+			fwrite(&xc1, sizeof(char), 1, pfile_lors);
+			fwrite(&yc1, sizeof(char), 1, pfile_lors);
+			fwrite(&zc1, sizeof(char), 1, pfile_lors);
+			fwrite(&xc2, sizeof(char), 1, pfile_lors);
+			fwrite(&yc2, sizeof(char), 1, pfile_lors);
+			fwrite(&zc2, sizeof(char), 1, pfile_lors);
+			++ct;
+		}
+		fclose(pfile_lors);
+	}
+	sprintf(namelors, "lors_%i.bin", N);
+	pfile_lors = fopen(namelors, "wb");
+	while (ct<n1) {
+		fwrite(&id1[ct], sizeof(int), 1, pfile_lors);
+		fwrite(&id2[ct], sizeof(int), 1, pfile_lors);
+		xc1 = (char)x1[ct];
+		yc1 = (char)y1[ct];
+		zc1 = (char)z1[ct];
+		xc2 = (char)x2[ct];
+		yc2 = (char)y2[ct];
+		zc2 = (char)z2[ct];
+		fwrite(&xc1, sizeof(char), 1, pfile_lors);
+		fwrite(&yc1, sizeof(char), 1, pfile_lors);
+		fwrite(&zc1, sizeof(char), 1, pfile_lors);
+		fwrite(&xc2, sizeof(char), 1, pfile_lors);
+		fwrite(&yc2, sizeof(char), 1, pfile_lors);
+		fwrite(&zc2, sizeof(char), 1, pfile_lors);
+		++ct;
+	}
+	fclose(pfile_lors);
+	
+}
+
+
+void kernel_SRM_to_HD(int isub) {
 	// vars
 	int length, lengthy, lengthz, i, n;
 	float flength, val;
@@ -5617,29 +5927,54 @@ void kernel_SRM_to_HD(int* id1, int nid1, int* id2, int nid2,
 	int step;
 	int ID, ptr, size;
 	int ind;
-
+	int id1, id2;
+	unsigned char buf;
+	
 	// TOBE change
 	int wim = 141;
-	int ncrys_det = 22*29;
-	int ncrys = 28*ncrys_det;
 	step = wim*wim;
 	// init file
 	FILE * pfile_toc;
 	FILE * pfile_srm;
+	FILE * pfile_ID;
 	char nametoc [20];
 	char namesrm [20];
+	char nameID [20];
 	sprintf(nametoc, "toc.bin");
 	sprintf(namesrm, "srm.bin");
+	sprintf(nameID, "lors_%i.bin", isub);
 	pfile_toc = fopen(nametoc, "rb+");
-	pfile_srm = fopen(namesrm, "wb");
+	pfile_srm = fopen(namesrm, "ab+");
+	pfile_ID = fopen(nameID, "rb");
 
-	for (i=0; i<nid1; ++i) {
-		x1 = X1[i];
-		x2 = X2[i];
-		y1 = Y1[i];
-		y2 = Y2[i];
-		z1 = Z1[i];
-		z2 = Z2[i];
+	int nid;
+	fseek(pfile_ID, 0, SEEK_END);
+	nid = ftell(pfile_ID);
+	rewind(pfile_ID);
+	nid /= 14;
+
+	fseek(pfile_srm, 0, SEEK_END);
+	//printf("id %i\n", nid);
+	//int debug = 0;
+	
+	for (i=0; i<nid; ++i) {
+		fread(&id1, 1, sizeof(int), pfile_ID);
+		fread(&id2, 1, sizeof(int), pfile_ID);
+		fread(&buf, 1, sizeof(char), pfile_ID);
+		x1 = (int)buf;
+		fread(&buf, 1, sizeof(char), pfile_ID);
+		y1 = (int)buf;
+		fread(&buf, 1, sizeof(char), pfile_ID);
+		z1 = (int)buf;
+		fread(&buf, 1, sizeof(char), pfile_ID);
+		x2 = (int)buf;
+		fread(&buf, 1, sizeof(char), pfile_ID);
+		y2 = (int)buf;
+		fread(&buf, 1, sizeof(char), pfile_ID);
+		z2 = (int)buf;
+
+		//printf("%i - id %i %i - p1 %i %i %i - p2 %i %i %i\n", i, id1, id2, x1, y1, z1, x2, y2, z2);
+
 		diffx = x2-x1;
 		diffy = y2-y1;
 		diffz = z2-z1;
@@ -5655,8 +5990,9 @@ void kernel_SRM_to_HD(int* id1, int nid1, int* id2, int nid2,
 		zinc = diffz / flength;
 
 		// save info to toc file
-		ID = id2[i] * ncrys + id1[i];
+		ID = inkernel_mono(id1, id2);
 		ptr = ftell(pfile_srm);
+		//printf("ptr %i\n", ptr);
 		fseek(pfile_toc, (3*ID + 1)*sizeof(int), SEEK_SET);
 		fwrite(&ptr, sizeof(int), 1, pfile_toc);
 		fseek(pfile_toc, (3*ID + 2)*sizeof(int), SEEK_SET);
@@ -5665,6 +6001,7 @@ void kernel_SRM_to_HD(int* id1, int nid1, int* id2, int nid2,
 		x = x1 + 0.5;
 		y = y1 + 0.5;
 		z = z1 + 0.5;
+		//debug += size;
 		for (n=0; n<=length; ++n) {
 			ind = (int)z * step + (int)y * wim + (int)x;
 			fwrite(&ind, sizeof(int), 1, pfile_srm);
@@ -5672,10 +6009,12 @@ void kernel_SRM_to_HD(int* id1, int nid1, int* id2, int nid2,
 			y = y + yinc;
 			z = z + zinc;
 		}
+		
 	}
 
 	fclose(pfile_toc);
 	fclose(pfile_srm);
-
+	fclose(pfile_ID);
+	//printf("tot %i\n", debug);
 
 }

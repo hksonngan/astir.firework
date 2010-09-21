@@ -1410,13 +1410,16 @@ void kernel_pet3D_IM_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int nx1, 
 void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
 												   unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
 												   unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-												   float* im, int nim, float* F, int nf, float* mumap, int nmu, int wim, int ID){
+												   float* im, int nim1, int nim2, int nim3,
+												   float* F, int nf1, int nf2, int nf3,
+												   float* mumap, int nmu1, int nmu2, int nmu3, int wim, int ID){
 
 	// select a GPU
 	if (ID != -1){cudaSetDevice(ID);}
 	// vars
 	int block_size, grid_size, i;
 	dim3 threads, grid;
+	int nim = nim1 * nim2 * nim3;
 	// Need to change
 	int* Fi = (int*)calloc(nim, sizeof(int));
 	// allocate device memory

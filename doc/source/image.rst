@@ -285,6 +285,30 @@ snr = **image_snr_from_zncc** (signal, noise)
 
 ``snr`` Value of snr
 
+image_stats_mask
+----------------
+
+min, max, mean, std = **image_stats_mask** (im, mask)
+
+*Get statistic values on an image under a specified mask*
+
+**Parameters**
+
+``im`` 2D Numpy array as image.
+
+``mask`` 2D Numpy array as mask (value must be 0.0 or 1.0)
+
+**Return**
+
+``min`` Minimum value under the mask
+
+``max`` Maximum value under the mask
+
+``mean`` Mean value under the mask
+
+``std`` Standard deviation under the mask
+
+
 image_stats_ROI_circle
 ----------------------
 

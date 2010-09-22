@@ -287,7 +287,7 @@ def image_raps(im):
 
     val /= ct
     
-    freq  = range(0, wo // 2 + 1)
+    freq  = range(0, rmax + 1) # should be wo // 2 + 1 coefficient need to fix!!
     freq  = array(freq, 'float32')
     freq /= float(wo)
     
@@ -510,6 +510,19 @@ def image_stats_mask(im, mask):
                 ct     += 1
 
     return val.min(), val.max(), val.mean(), val.std()
+
+# Stitch two images in one
+def image_stitch(im1, im2):
+    from numpy import zeros
+
+    ny1, nx1 = im1.shape
+    ny2, nx2 = im2.shape
+    res = zeros((max(ny1, ny2), nx1+nx2), 'float32')
+    res[0:ny1, 0:nx1] = im1
+    res[0:ny2, nx1:nx1+nx2] = im2
+
+    return res
+
 
 # ==== Volume ===============================
 # ===========================================
@@ -828,7 +841,7 @@ def prefix_SI(mem):
     iemem  = int(log(mem) // log(1e3))
     mem   /= (1e3 ** iemem)
 
-    return '%5.2f %sB' % (mem, pref[iemem])
+    return '%5.2f %s' % (mem, pref[iemem])
 
 # convert time format to nice format
 def time_format(t):
@@ -859,7 +872,8 @@ def plot_raps(im):
     #val = log(val)
     plt.semilogy(freq, val)
     plt.xlabel('Nyquist frequency')
-    plt.ylabel('Power spectrum (log10)')
+    plt.ylabel('Power spectrum')
+    plt.grid(True)
     plt.show()
 
 # plot FRC curve
@@ -871,6 +885,22 @@ def plot_frc(im1, im2):
     plt.ylabel('FRC')
     plt.show()
 
+# smooth curve
+def curve_smooth(a, order):
+    from numpy import zeros
+
+    for o in xrange(order):
+        b     = zeros(a.shape, a.dtype)
+        n     = a.size - 1
+        b[-1] = a[-1]
+        for i in xrange(n):
+            b[i] = (a[i] + a[i+1]) / 2.0
+
+        a = b.copy()
+
+    return a
+    
+    
 # ==== List-Mode ============================
 # ===========================================
 

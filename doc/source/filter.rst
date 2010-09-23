@@ -296,3 +296,20 @@ Hpad = **filter_pad_3d_cuda** (H)
 	>>> H = filter_build_3d_Metz(141, 2, 0.2)
 	>>> Hpad = filter_pad_3d_cuda(H)
 
+filter_profil
+-------------
+
+p, f = **filter_profil** (H)
+
+*Return the profil of any filter*
+
+**Parameters**
+
+``H`` Transfert function, can be 3D or 2D Numpy array
+
+**Returns**
+
+``p`` Value of profil
+
+``f`` Nyquist frequency for each profil's values
+

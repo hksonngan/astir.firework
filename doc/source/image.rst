@@ -53,6 +53,26 @@ fsc, freq = **image_frc** (im1, im2)
 
 Input images must be not normalize before computing the frc, in order to avoid (negative value).
 
+image_ginput
+------------
+
+pts = **image_ginput** (im, n, [mapcolor])
+
+*Get points position acquired by the mouse on a specify image*
+
+**Parameters**
+
+``im`` 2D Numpy array as image
+
+``n`` Number of points required
+
+``mapcolor`` Mapcolor to display the image, by default it is 'gray'
+
+**Returns**
+
+``pts`` List of points define as a 1D array pts = [x1, y1, xi, yi, ..., xn, yn]
+
+
 
 image_ifft
 ----------
@@ -244,7 +264,7 @@ The input image is not normalize i.e. the mean is not equal to zeros
 image_show
 ----------
 
-**image_show** (im, mapcolor)
+**image_show** (im, [mapcolor])
 
 *Display an image*
 
@@ -335,6 +355,30 @@ ROI, min, max, mean, std = **image_stats_ROI_circle** (im, cx, cy, rad)
 ``mean`` The mean value on ROI
 
 ``std`` The standard deviation value on ROI
+
+image_stitch
+------------
+
+newim = **image_stitch** (im1, im2)
+
+*Stitch two images in one, i.e. put side by side two images, usefull to display in once*
+
+**Parameters**
+
+``im1, im2`` 2D Numpy array as images
+
+**Returns**
+
+``newim`` 2D Numpy array
+
+**Examples**
+
+::
+
+	>>> im1 = image_open('im1.png')
+	>>> im2 = image_open('im2.png')
+	>>> image_show(image_stitch(im1, im2))
+
 
 
 image_write

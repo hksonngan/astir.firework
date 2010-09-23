@@ -17,9 +17,9 @@
 #
 # FIREwork Copyright (C) 2008 - 2010 Julien Bert 
 
-def image_show(mat, map='jet'):
+# display an image
+def image_show(mat, map='gray'):
     import matplotlib.pyplot as plt
-    import os, sys
 
     h, w = mat.shape
     fig  = plt.figure()
@@ -34,6 +34,20 @@ def image_show(mat, map='jet'):
     cbar = fig.colorbar(cax, ticks=lti)
     cbar.ax.set_yticklabels(txt)
     plt.show()
+
+# Get input values from an image
+def image_ginput(im, n, map='gray'):
+    from numpy import array
+    import matplotlib.pyplot as plt
+    #plt.figure(figsize=(1.4, 1.4))
+    plt.figure(0)
+    plt.imshow(im, interpolation='nearest', cmap=map)
+    plt.colorbar()
+    pts = plt.ginput(n)
+    plt.show()
+    plt.close(0)
+    
+    return array(pts, 'float32')
     
 # plot 1D hitogram based on 1D data
 def hist1D_plot(data, nbins):

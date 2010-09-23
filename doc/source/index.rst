@@ -14,7 +14,9 @@ Contents:
    image
    volume
    filter
-   kernel   
+   kernel
+   misc
+   
    
 Indices and tables
 ==================

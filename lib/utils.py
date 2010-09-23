@@ -339,7 +339,7 @@ def image_frc(im1, im2):
     
     fsc = fsc / (nf1 * nf2)**0.5
 
-    freq  = range(0, wo // 2 + 1)
+    freq  = range(len(fsc))  # should be 0, wo // 2 + 1) need to fix!!
     freq  = array(freq, 'float32')
     freq /= float(wo)
 
@@ -523,6 +523,23 @@ def image_stitch(im1, im2):
 
     return res
 
+# Threshold an image (up version)
+def image_threshold_up(im, th, val):
+    from numpy import where
+
+    ind = where(im > th)
+    im[ind] = val
+
+    return im
+
+# Threshold an image (down version)
+def image_threshold_down(im, th, val):
+    from numpy import where
+
+    ind = where(im < th)
+    im[ind] = val
+
+    return im
 
 # ==== Volume ===============================
 # ===========================================
@@ -885,6 +902,16 @@ def plot_frc(im1, im2):
     plt.ylabel('FRC')
     plt.show()
 
+# plot profil of any filter
+def plot_filter_profil(H):
+    import matplotlib.pyplot as plt
+    p, f = filter_profil(H)
+    plt.plot(f, p)
+    plt.xlabel('Nyquist frequency')
+    plt.ylabel('Gain')
+    plt.grid(True)
+    plt.show()
+    
 # smooth curve
 def curve_smooth(a, order):
     from numpy import zeros
@@ -1199,11 +1226,14 @@ def filter_3d_tanh_lp(vol, a, fc):
 def filter_2d_Metz(im, N, sig):
     smax = max(im.shape)
     H    = filter_build_2d_Metz(smax, N, sig)
-    imf  = image_fft(im)
-    imf *= H
-    im   = image_ifft(imf)
 
-    return im
+    return image_ifft(image_fft(im) * H)
+
+def filter_2d_tanh_lp(im, a, fc):
+    smax = max(im.shape)
+    H    = filter_build_2d_tanh_lp(smax, a, fc)
+
+    return image_ifft(image_fft(im) * H)
 
 def filter_build_3d_Metz(size, N, sig):
     from numpy import zeros
@@ -1429,3 +1459,24 @@ def filter_pad_3d_cuda(H):
                 Hpad[padk, padi, padj] = H[k, i, j]
 
     return Hpad[:, :, :nc]
+
+# Return the profil of any filter
+def filter_profil(H):
+    from numpy import arange
+    dim = len(H.shape)
+    if dim == 3:
+        nz, ny, nx = H.shape
+        cz = nz // 2
+        im = H[cz, :, :]
+        cx = nx // 2
+        cy = ny // 2
+        p  = im[cy, cx:]
+    elif dim == 2:
+        ny, nx = H.shape
+        cx = nx // 2
+        cy = ny // 2
+        p  = H[cy, cx:]
+
+    f = arange(len(p), dtype='float32') / float(nx)
+
+    return p, f

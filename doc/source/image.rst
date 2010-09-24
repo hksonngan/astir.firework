@@ -379,6 +379,43 @@ newim = **image_stitch** (im1, im2)
 	>>> im2 = image_open('im2.png')
 	>>> image_show(image_stitch(im1, im2))
 
+image_threshold_down
+--------------------
+
+newim = **image_threshold_down** (im, th, val)
+
+*Replace values of an image if they are less or equal to a threshold value*
+
+**Parameters**
+
+``im`` 2D Numpy array as image
+
+``th`` Threshold value
+
+``val`` New replace value where the pixel value is lower than *th*
+
+**Returns**
+
+``newim`` New image as 2D Numpy array
+
+image_threshold_up
+------------------
+
+newim = **image_threshold_up** (im, th, val)
+
+*Replace values of an image if they are more or equal to a threshold value*
+
+**Parameters**
+
+``im`` 2D Numpy array as image
+
+``th`` Threshold value
+
+``val`` New replace value where the pixel value is more than *th*
+
+**Returns**
+
+``newim`` New image as 2D Numpy array
 
 
 image_write

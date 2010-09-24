@@ -1,6 +1,50 @@
 Filter
 ======
 
+filter_2d_Metz
+--------------
+
+imf = **filter_2d_Metz** (im, N, sig)
+
+*Apply a 2D Metz filter to image*
+
+**Parameters**
+
+``im`` 2D Numpy array as image
+
+``N`` Power of the filter, if *N=0* is equivalent to a Gaussian filter.
+
+``sig`` Sigma value of the filter
+
+**Returns**
+
+``imf`` Image filtered as 2D Numpy array
+
+
+filter_2d_tanh_lp
+-----------------
+
+imf = **filter_2d_tanh_lp** (im, a, fc)
+
+*Apply a 2D lowpass hyperbolic tangent filter to image*
+
+**Parameters**
+
+``im`` 2D Numpy array as image
+
+``a`` Smooth factor of the slope
+
+``fc`` Cut-off frequency (Nyquist frequency)
+
+**Return**
+
+``imf`` Image filtered as 2D Numpy array
+
+**Notes**
+
+See function filter_build_3d_tanh_lp for a plot of transfert function with different values of *a*.
+
+
 filter_3d_Butterworth_lp
 ------------------------
 

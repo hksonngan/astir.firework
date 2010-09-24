@@ -279,7 +279,7 @@ __global__ void pet3D_SRM_DDA_F_ON(unsigned int* d_F, int wim, int nx1, int nim,
 
 	int length, n, diffx, diffy, diffz, step;
 	float flength, x, y, z, lx, ly, lz, xinc, yinc, zinc, Qi;
-	unsigned short int x1, y1, z1, x2, y2, z2;
+	unsigned short int x1, y1, z1;
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	step = wim*wim;
 	
@@ -288,22 +288,19 @@ __global__ void pet3D_SRM_DDA_F_ON(unsigned int* d_F, int wim, int nx1, int nim,
 		x1 = tex1Dfetch(tex_x1, idx);
 		y1 = tex1Dfetch(tex_y1, idx);
 		z1 = tex1Dfetch(tex_z1, idx);
-		x2 = tex1Dfetch(tex_x2, idx);
-		y2 = tex1Dfetch(tex_y2, idx);
-		z2 = tex1Dfetch(tex_z2, idx);
-		diffx = x2-x1;
-		diffy = y2-y1;
-		diffz = z2-z1;
+		diffx = tex1Dfetch(tex_x2, idx)-x1;
+		diffy = tex1Dfetch(tex_y2, idx)-y1;
+		diffz = tex1Dfetch(tex_z2, idx)-z1;
 		lx = abs(diffx);
 		ly = abs(diffy);
 		lz = abs(diffz);
 		length = ly;
 		if (lx > length) {length = lx;}
 		if (lz > length) {length = lz;}
-		flength = (float)length;
-		xinc = diffx / flength;
-		yinc = diffy / flength;
-		zinc = diffz / flength;
+		flength = 1.0f / (float)length;
+		xinc = diffx * flength;
+		yinc = diffy * flength;
+		zinc = diffz * flength;
 		x = x1 + 0.5f;
 		y = y1 + 0.5f;
 		z = z1 + 0.5f;
@@ -335,7 +332,7 @@ __global__ void pet3D_SRM_DDA_F_ATT_ON(unsigned int* d_F, int wim, int nx1, int 
 
 	int length, n, diffx, diffy, diffz, step, ind;
 	float flength, x, y, z, lx, ly, lz, xinc, yinc, zinc, Qi, Ai;
-	unsigned short int x1, y1, z1, x2, y2, z2;
+	unsigned short int x1, y1, z1;
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	step = wim*wim;
 	
@@ -345,22 +342,19 @@ __global__ void pet3D_SRM_DDA_F_ATT_ON(unsigned int* d_F, int wim, int nx1, int 
 		x1 = tex1Dfetch(tex_x1, idx);
 		y1 = tex1Dfetch(tex_y1, idx);
 		z1 = tex1Dfetch(tex_z1, idx);
-		x2 = tex1Dfetch(tex_x2, idx);
-		y2 = tex1Dfetch(tex_y2, idx);
-		z2 = tex1Dfetch(tex_z2, idx);
-		diffx = x2-x1;
-		diffy = y2-y1;
-		diffz = z2-z1;
+		diffx = tex1Dfetch(tex_x2, idx)-x1;
+		diffy = tex1Dfetch(tex_y2, idx)-y1;
+		diffz = tex1Dfetch(tex_z2, idx)-z1;
 		lx = abs(diffx);
 		ly = abs(diffy);
 		lz = abs(diffz);
 		length = ly;
 		if (lx > length) {length = lx;}
 		if (lz > length) {length = lz;}
-		flength = (float)length;
-		xinc = diffx / flength;
-		yinc = diffy / flength;
-		zinc = diffz / flength;
+		flength = 1.0f / (float)length;
+		xinc = diffx * flength;
+		yinc = diffy * flength;
+		zinc = diffz * flength;
 		x = x1 + 0.5f;
 		y = y1 + 0.5f;
 		z = z1 + 0.5f;
@@ -1392,7 +1386,8 @@ void kernel_pet3D_IM_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int nx1, 
 	pet3D_SRM_DDA_F_ON<<<grid, threads>>>(d_F, wim, nx1, nim, scale);
 	// get back F and convert
 	cudaMemcpy(Fi, d_F, nim*sizeof(float), cudaMemcpyDeviceToHost);
-	for (i=0; i<nim; ++i) {F[i] = (float)Fi[i] / scale;}
+	scale = 1 / scale;
+	for (i=0; i<nim; ++i) {F[i] = (float)Fi[i] * scale;}
 	// Free mem
 	free(Fi);
 	cudaFree(d_im);

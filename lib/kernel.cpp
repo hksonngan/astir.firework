@@ -5925,7 +5925,7 @@ void kernel_SRM_to_HD(int isub) {
 	float xinc, yinc, zinc;
 	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
 	int step;
-	int ID, ptr, size;
+	long long int ID, ptr, size;
 	int ind;
 	int id1, id2;
 	unsigned char buf;
@@ -5940,10 +5940,12 @@ void kernel_SRM_to_HD(int isub) {
 	char nametoc [20];
 	char namesrm [20];
 	char nameID [20];
-	sprintf(nametoc, "toc.bin");
+	//sprintf(nametoc, "toc.bin");
+	sprintf(nametoc, "toctmp.bin");
 	sprintf(namesrm, "srm.bin");
 	sprintf(nameID, "lors_%i.bin", isub);
-	pfile_toc = fopen(nametoc, "rb+");
+	//pfile_toc = fopen(nametoc, "rb+");
+	pfile_toc = fopen(nametoc, "ab+");
 	pfile_srm = fopen(namesrm, "ab+");
 	pfile_ID = fopen(nameID, "rb");
 
@@ -5954,8 +5956,6 @@ void kernel_SRM_to_HD(int isub) {
 	nid /= 14;
 
 	fseek(pfile_srm, 0, SEEK_END);
-	//printf("id %i\n", nid);
-	//int debug = 0;
 	
 	for (i=0; i<nid; ++i) {
 		fread(&id1, 1, sizeof(int), pfile_ID);
@@ -5984,20 +5984,22 @@ void kernel_SRM_to_HD(int isub) {
 		length = ly;
 		if (lx > length) {length = lx;}
 		if (lz > length) {length = lz;}
-		flength = (float)length;
-		xinc = diffx / flength;
-		yinc = diffy / flength;
-		zinc = diffz / flength;
+		flength = 1 / (float)length;
+		xinc = diffx * flength;
+		yinc = diffy * flength;
+		zinc = diffz * flength;
 
 		// save info to toc file
 		ID = inkernel_mono(id1, id2);
 		ptr = ftell(pfile_srm);
-		//printf("ptr %i\n", ptr);
-		fseek(pfile_toc, (3*ID + 1)*sizeof(int), SEEK_SET);
-		fwrite(&ptr, sizeof(int), 1, pfile_toc);
-		fseek(pfile_toc, (3*ID + 2)*sizeof(int), SEEK_SET);
+		fwrite(&ID, sizeof(long long int), 1, pfile_toc);
+		//fseek(pfile_toc, (3*ID + 1)*sizeof(int), SEEK_SET);
+		fwrite(&ptr, sizeof(long long int), 1, pfile_toc);
+		//fseek(pfile_toc, (3*ID + 2)*sizeof(int), SEEK_SET);
 		size = length + 1;
-		fwrite(&size, sizeof(int), 1, pfile_toc);
+		fwrite(&size, sizeof(long long int), 1, pfile_toc);
+
+		//printf("ID %i ptr %i size %i\n", ID, ptr, size);
 		x = x1 + 0.5;
 		y = y1 + 0.5;
 		z = z1 + 0.5;

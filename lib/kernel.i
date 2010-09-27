@@ -185,3 +185,4 @@ void kernel_allegro_save_all_LOR(int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int D
 								 int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1,
 								 int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1);
 
+void kernel_pet3D_IM_SRM_HD(int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1,	float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, char* nametoc, char* namesrm);

@@ -1,3 +1,5 @@
+<!-- Local IspellDict: american -->
+
 Image
 =====
 

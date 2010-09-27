@@ -229,3 +229,6 @@ void kernel_SRM_to_HD(int isub);
 void kernel_allegro_save_all_LOR(int* id1, int n1, int* id2, int n2,
 								 int* x1, int nx1, int* y1, int ny1, int* z1, int nz1,
 								 int* x2, int nx2, int* y2, int ny2, int* z2, int nz2);
+
+void kernel_pet3D_IM_SRM_HD(int* idc1, int nc1, int* idd1, int nd1, int* idc2, int nc2, int* idd2, int nd2,
+							float* im, int nz, int ny, int nx, char* nametoc, char* namesrm);

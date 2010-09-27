@@ -6020,3 +6020,116 @@ void kernel_SRM_to_HD(int isub) {
 	//printf("tot %i\n", debug);
 
 }
+
+
+// Draw first image from pre-calculate SRM save on the hard drive
+#define SWAP(a, b) {int tmp=(a); (a)=(b); (b)=tmp;}
+void kernel_pet3D_IM_SRM_HD_(int* idc1, int nc1, int* idd1, int nd1, int* idc2, int nc2, int* idd2, int nd2,
+							float* im, int nz, int ny, int nx, char* nametoc, char* namesrm) {
+	int id1, id2, id, n, ind;
+	long long int ptr, size;
+	long long int i;
+	int idmax = 22*29;
+
+	// init file
+	FILE * pfile_toc;
+	FILE * pfile_srm;
+	//char nametoc [20];
+	//char namesrm [20];
+	//sprintf(nametoc, "toc.bin");
+	//sprintf(namesrm, "srm.bin");
+	pfile_toc = fopen(nametoc, "rb");
+	pfile_srm = fopen(namesrm, "rb");
+
+	for (n=0; n<nc1; ++n) {
+		id1 = idc1[n] + (idmax * idd1[n]);
+		id2 = idc2[n] + (idmax * idd2[n]);
+		if (id2 > id1) {SWAP(id1, id2);} // only the lower triangular matrix was stored
+		id = inkernel_mono(id1, id2);
+		//printf("id %i\n", id);
+		
+		fseek(pfile_toc, id*16, SEEK_SET); // ptr, and size in 64bits
+		fread(&ptr, 1, sizeof(long long int), pfile_toc);
+		fread(&size, 1, sizeof(long long int), pfile_toc);
+
+		//printf("ptr %lli size %lli\n", ptr, size);
+		fseek(pfile_srm, ptr, SEEK_SET);
+		for (i=0; i<size; ++i) {
+			fread(&ind, 1, sizeof(int), pfile_srm);
+			im[ind] += 1.0f;
+		}
+
+	}
+	fclose(pfile_toc);
+	fclose(pfile_srm);
+
+}
+#undef SWAP
+
+// Draw first image from pre-calculate SRM save on the hard drive
+#define SWAP(a, b) {int tmp=(a); (a)=(b); (b)=tmp;}
+void kernel_pet3D_IM_SRM_HD(int* idc1, int nc1, int* idd1, int nd1, int* idc2, int nc2, int* idd2, int nd2,
+							float* im, int nz, int ny, int nx, char* nametoc, char* namesrm) {
+	int id1, id2, id, idi, n, ind;
+	long long int ptr, size;
+	long long int i;
+	int idmax = 22*29;
+
+	// init file
+	FILE * pfile_toc;
+	FILE * pfile_srm;
+	//char nametoc [20];
+	//char namesrm [20];
+	//sprintf(nametoc, "toc.bin");
+	//sprintf(namesrm, "srm.bin");
+	pfile_toc = fopen(nametoc, "rb");
+	pfile_srm = fopen(namesrm, "rb");
+	n=0;
+	for (id=0; id<159552316; ++id) {
+		id1 = idc1[n] + (idmax * idd1[n]);
+		id2 = idc2[n] + (idmax * idd2[n]);
+		if (id2 > id1) {SWAP(id1, id2);} // only the lower triangular matrix was stored
+		idi = inkernel_mono(id1, id2);
+
+		fseek(pfile_toc, id*16, SEEK_SET); // ptr, and size in 64bits
+		fread(&ptr, 1, sizeof(long long int), pfile_toc);
+		fread(&size, 1, sizeof(long long int), pfile_toc);
+		fseek(pfile_srm, ptr, SEEK_SET);
+		for (i=0; i<size; ++i) {
+			fread(&ind, 1, sizeof(int), pfile_srm);
+			im[ind] += 1.0f;
+		}
+
+
+		if (fmod(id, 1000000.0) == 0) {printf("%i\n", int((float)id/1000000.0f));}
+	}
+	//
+	//printf("ptr %lli size %lli\n", ptr, size);
+
+	/*
+
+	for (n=0; n<nc1; ++n) {
+		id1 = idc1[n] + (idmax * idd1[n]);
+		id2 = idc2[n] + (idmax * idd2[n]);
+		if (id2 > id1) {SWAP(id1, id2);} // only the lower triangular matrix was stored
+		id = inkernel_mono(id1, id2);
+		//printf("id %i\n", id);
+		
+		fseek(pfile_toc, id*16, SEEK_SET); // ptr, and size in 64bits
+		fread(&ptr, 1, sizeof(long long int), pfile_toc);
+		fread(&size, 1, sizeof(long long int), pfile_toc);
+
+		//printf("ptr %lli size %lli\n", ptr, size);
+		fseek(pfile_srm, ptr, SEEK_SET);
+		for (i=0; i<size; ++i) {
+			fread(&ind, 1, sizeof(int), pfile_srm);
+			im[ind] += 1.0f;
+		}
+
+	}
+	*/
+	fclose(pfile_toc);
+	fclose(pfile_srm);
+
+}
+#undef SWAP

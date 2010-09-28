@@ -1530,9 +1530,11 @@ void kernel_pet3D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic,
 }
 
 // Compute the first image with DDA algorithm
-void kernel_pet3D_IM_SRM_DDA( unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1, unsigned short int* Z1, int nz1,
-							  unsigned short int* X2, int nx2, unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
-							  float* im, int nim, int wim) {
+void kernel_pet3D_IM_SRM_DDA(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+							 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+							 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+							 float* im, int nim1, int nim2, int nim3, int wim) {
+	
 	int length, lengthy, lengthz, i, n;
 	float flength, val;
 	float x, y, z, lx, ly, lz;
@@ -1570,6 +1572,117 @@ void kernel_pet3D_IM_SRM_DDA( unsigned short int* X1, int nx1, unsigned short in
 			x = x + xinc;
 			y = y + yinc;
 			z = z + zinc;
+		}
+	}
+}
+
+// Compute the first image with BLA algorithm
+void kernel_pet3D_IM_SRM_BLA(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+							 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+							 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+							 float* im, int nim1, int nim2, int nim3, int wim) {
+
+	float val = 1.0f;
+	int x, y, z;
+	int x1, y1, z1, x2, y2, z2;
+	int dx, dy, dz;
+	int xinc, yinc, zinc;
+	int balance1, balance2;
+	int step = wim*wim;
+	int i;
+
+	for (i=0; i< nx1; ++i) {
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		z1 = Z1[i];
+		z2 = Z2[i];
+
+		dx = x2 - x1;
+		dy = y2 - y1;
+		dz = z2 - z1;
+		if (dx < 0) {
+			xinc = -1;
+			dx = -dx;
+		} else {xinc = 1;}
+		if (dy < 0) {
+			yinc = -1;
+			dy = -dy;
+		} else {yinc = 1;}
+		if (dz < 0) {
+			zinc = -1;
+			dz = -dz;
+		} else {zinc = 1;}
+
+		x = x1;
+		y = y1;
+		z = z1;
+		if (dx >= dy && dx >= dz) {
+			dy <<= 1;
+			dz <<= 1;
+			balance1 = dy - dx;
+			balance2 = dz - dx;
+			dx <<= 1;
+			while (x != x2) {
+				im[z * step + y * wim + x] += val;
+				if (balance1 >= 0) {
+					y = y + yinc;
+					balance1 = balance1 - dx;
+				}
+				if (balance2 >= 0) {
+					z = z + zinc;
+					balance2 = balance2 - dx;
+				}
+				balance1 = balance1 + dy;
+				balance2 = balance2 + dz;
+				x = x + xinc;
+			}
+			im[z * step + y * wim + x] += val;
+		} else {
+			if (dy >= dx && dy >= dz) {
+				dx <<= 1;
+				dz <<= 1;
+				balance1 = dx - dy;
+				balance2 = dz - dy;
+				dy <<= 1;
+				while (y != y2) {
+					im[z * step + y * wim + x] += val;
+					if (balance1 >= 0) {
+						x = x + xinc;
+						balance1 = balance1 - dy;
+					}
+					if (balance2 >= 0) {
+						z = z + zinc;
+						balance2 = balance2 - dy;
+					}
+					balance1 = balance1 + dx;
+					balance2 = balance2 + dz;
+					y = y + yinc;
+				}
+				im[z * step + y * wim + x] += val;
+			} else {
+				dx <<= 1;
+				dy <<= 1;
+				balance1 = dx - dz;
+				balance2 = dy - dz;
+				dz <<= 1;
+				while (z != z2) {
+					im[z * step + y * wim + x] += val;
+					if (balance1 >= 0) {
+						x = x + xinc;
+						balance1 = balance1 - dz;
+					}
+					if (balance2 >= 0) {
+						y = y + yinc;
+						balance2 = balance2 - dz;
+					}
+					balance1 = balance1 + dx;
+					balance2 = balance2 + dy;
+					z = z + zinc;
+				}
+				im[z * step + y * wim + x] += val;
+			}
 		}
 	}
 }
@@ -1668,9 +1781,12 @@ void kernel_pet3D_IM_SRM_ELL_DDA_iter(unsigned short int* X1, int nx1, unsigned 
 
 
 // Update image online, SRM is build with DDA's Line Algorithm, store in ELL format and update with LM-OSEM
-void kernel_pet3D_IM_SRM_ELL_DDA_iter_vec(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1, unsigned short int* Z1, int nz1,
-									  unsigned short int* X2, int nx2, unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
-									  float* im, int nim, float* F, int nf, int wim, int ndata) {
+void kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+										 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+										 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+										 float* im, int nim1, int nim2, int nim3,
+										 float* F, int nf1, int nf2, int nf3, int wim, int ndata) {
+	
 	int length, lengthy, lengthz, i, j, n;
 	float flength, val;
 	float x, y, z, lx, ly, lz;
@@ -3599,6 +3715,102 @@ void kernel_draw_3D_line_DDA(float* mat, int wz, int wy, int wx, int x1, int y1,
 		z = z + zinc;
 	}
 }
+
+// Draw a line in 3D space by Bresenham's Line Algorithm (modified version 1D)
+void kernel_draw_3D_line_BLA(float* mat, int wz, int wy, int wx, int x1, int y1, int z1, int x2, int y2, int z2, float val) {
+	int x, y, z;
+	int dx, dy, dz;
+	int xinc, yinc, zinc;
+	int balance1, balance2;
+	int step = wx*wy;
+
+	dx = x2 - x1;
+	dy = y2 - y1;
+	dz = z2 - z1;
+	if (dx < 0) {
+		xinc = -1;
+		dx = -dx;
+	} else {xinc = 1;}
+	if (dy < 0) {
+		yinc = -1;
+		dy = -dy;
+	} else {yinc = 1;}
+	if (dz < 0) {
+		zinc = -1;
+		dz = -dz;
+	} else {zinc = 1;}
+
+	x = x1;
+	y = y1;
+	z = z1;
+	if (dx >= dy && dx >= dz) {
+		dy <<= 1;
+		dz <<= 1;
+		balance1 = dy - dx;
+		balance2 = dz - dx;
+		dx <<= 1;
+		while (x != x2) {
+			mat[z * step + y * wx + x] += val;
+			if (balance1 >= 0) {
+				y = y + yinc;
+				balance1 = balance1 - dx;
+			}
+			if (balance2 >= 0) {
+				z = z + zinc;
+				balance2 = balance2 - dx;
+			}
+			balance1 = balance1 + dy;
+			balance2 = balance2 + dz;
+			x = x + xinc;
+		}
+		mat[z * step + y * wx + x] += val;
+	} else {
+		if (dy >= dx && dy >= dz) {
+			dx <<= 1;
+			dz <<= 1;
+			balance1 = dx - dy;
+			balance2 = dz - dy;
+			dy <<= 1;
+			while (y != y2) {
+				mat[z * step + y * wx + x] += val;
+				if (balance1 >= 0) {
+					x = x + xinc;
+					balance1 = balance1 - dy;
+				}
+				if (balance2 >= 0) {
+					z = z + zinc;
+					balance2 = balance2 - dy;
+				}
+				balance1 = balance1 + dx;
+				balance2 = balance2 + dz;
+				y = y + yinc;
+			}
+			mat[z * step + y * wx + x] += val;
+		} else {
+			dx <<= 1;
+			dy <<= 1;
+			balance1 = dx - dz;
+			balance2 = dy - dz;
+			dz <<= 1;
+			while (z != z2) {
+				mat[z * step + y * wx + x] += val;
+				if (balance1 >= 0) {
+					x = x + xinc;
+					balance1 = balance1 - dz;
+				}
+				if (balance2 >= 0) {
+					y = y + yinc;
+					balance2 = balance2 - dz;
+				}
+				balance1 = balance1 + dx;
+				balance2 = balance2 + dy;
+				z = z + zinc;
+			}
+			mat[z * step + y * wx + x] += val;
+		}
+	}
+}
+
 
 // THIS MUST BE CHANGE!!!!!!!!!
 // Draw a line in 2D space by DDA with my antialiaser

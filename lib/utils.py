@@ -241,22 +241,37 @@ def image_periodogram(im):
     
     return imf
 
-# create image noise (gauss model)
-def image_noise(ny, nx, sigma):
+# create image noise (gauss or poisson model)
+def image_noise(ny, nx, sigma, model='gauss'):
     from numpy import zeros
     from random import gauss
 
-    mu = 0.0
-    im = zeros((ny, nx), 'float32')
-    for i in xrange(ny):
-        for j in xrange(nx):
-            im[i, j] = gauss(mu, sigma)
+    if model=='gauss':
+        im = zeros((ny, nx), 'float32')
+        mu = 0.0
+        for i in xrange(ny):
+            for j in xrange(nx):
+                im[i, j] = gauss(mu, sigma)
 
-    #im -= im.min()
-    #im /= im.max()
-    #im -= im.mean()
+        return im
     
-    return im
+    elif model=='poisson':
+        '''
+        from numpy.random import poisson
+        v = poisson(lam=1000, size=(nx*ny)) / 1000.0
+        v = 10 * sigma * (v - 1)
+        v = v.astype('float32')
+        v = v.reshape((ny, nx))
+        '''
+        from random import random
+        from math   import log
+
+        im = zeros((ny, nx), 'float32')
+        for i in xrange(ny):
+            for j in xrange(nx):
+                im[i, j] = sigma * -log(random())
+        
+        return im
             
 # Compute RAPS, radial averaging power spectrum
 def image_raps(im):
@@ -314,7 +329,7 @@ def image_frc(im1, im2):
     nf1    = zeros((rmax + 1), 'float32')
     nf2    = zeros((rmax + 1), 'float32')
     # center
-    fsc[0] = imf1[c, c] * imf2c[c, c]
+    fsc[0] = abs(imf1[c, c] * imf2c[c, c])
     nf1[0] = abs(imf1[c, c])**2
     nf2[0] = abs(imf2[c, c])**2
     # over all rings
@@ -879,6 +894,62 @@ def plot(x, y):
     plt.plot(x, y)
     plt.show()
 
+# plot points distribution
+def plot_dist(x, y):
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from matplotlib.ticker import NullFormatter
+
+    nullfmt   = NullFormatter()         # no labels
+
+    # definitions for the axes
+    left, width = 0.1, 0.65
+    bottom, height = 0.1, 0.65
+    bottom_h = left_h = left+width+0.02
+
+    rect_scatter = [left, bottom, width, height]
+    rect_histx = [left, bottom_h, width, 0.2]
+    rect_histy = [left_h, bottom, 0.2, height]
+
+    # start with a rectangular Figure
+    plt.figure(1, figsize=(8,8))
+
+    axScatter = plt.axes(rect_scatter)
+    axHistx = plt.axes(rect_histx)
+    axHisty = plt.axes(rect_histy)
+
+    # no labels
+    axHistx.xaxis.set_major_formatter(nullfmt)
+    axHisty.yaxis.set_major_formatter(nullfmt)
+
+    # the scatter plot:
+    axScatter.scatter(x, y)
+    
+    # now determine nice limits by hand:
+    xmin, xmax = min(x), max(x)
+    ymin, ymax = min(y), max(y)
+    
+    binwidth = (xmax - xmin) / 100.0
+    binheight = (ymax - ymin) / 100.0
+    
+    #xymax = np.max( [np.max(np.fabs(x)), np.max(np.fabs(y))] )
+    #lim = ( int(xymax/binwidth) + 1) * binwidth
+
+    #axScatter.set_xlim( (-lim, lim) )
+    axScatter.set_xlim((xmin, xmax))
+    #axScatter.set_ylim( (-lim, lim) )
+    axScatter.set_ylim(ymin, ymax)
+    
+    binsw = np.arange(xmin, xmax + binwidth, binwidth)
+    binsh  = np.arange(ymin, ymax + binheight, binheight)
+    axHistx.hist(x, bins=binsw)
+    axHisty.hist(y, bins=binsh, orientation='horizontal')
+
+    axHistx.set_xlim( axScatter.get_xlim() )
+    axHisty.set_ylim( axScatter.get_ylim() )
+
+    plt.show()
+    
 # plot RAPS curve
 def plot_raps(im):
     import matplotlib.pyplot as plt
@@ -900,6 +971,8 @@ def plot_frc(im1, im2):
     plt.plot(freq, frc)
     plt.xlabel('Nyquist frequency')
     plt.ylabel('FRC')
+    plt.axis([0, 0.5, 0, 1.0])
+    plt.grid(True)
     plt.show()
 
 # plot profil of any filter

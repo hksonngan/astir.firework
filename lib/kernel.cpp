@@ -145,7 +145,7 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		// add flunctuation (to avoid moire pattern in DDA)
 		if (rnd) {
 			e = (float)rand() / (float)RAND_MAX;
-			e = e * 1.0f - 0.5f; // rnd number between -0.25 to 0.25
+			e = e * 2.0f - 1.0f; // rnd number between -1.0 to 1.0
 			newx += e;
 			newy += e;
 			newz += e;

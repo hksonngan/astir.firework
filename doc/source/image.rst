@@ -136,19 +136,75 @@ mask = **image_mask_circle** (ny, nx, rad)
 
 ``mask`` 2D Numpy array as image which contains the mask
 
+image_mask_edge_square
+----------------------
+
+mask = **image_mask_edge_square** (ny, nx, c)
+
+*Create a 2D mask compose of edge square of 1 pix thin*
+
+**Parameters**
+
+``ny, nx`` Size of the image
+
+``c`` The half size of the larger square
+
+**Returns**
+
+``mask`` A 2D Numpy array
+
+image_mask_square
+-----------------
+
+mask = **image_mask_square** (ny, nx, c)
+
+*Create a 2D mask compose of square center to the image*
+
+**Parameters**
+
+``ny, nx`` Size of the image
+
+``c`` The half size of the larger square
+
+**Returns**
+
+``mask`` A 2D Numpy array
+
+image_mire_edge_square
+----------------------
+
+mire = **image_mire_edge_square** (ny, nx, step)
+
+*Create a mire compose of a set of square edge*
+
+**Parameters**
+
+``ny, nx`` Size of the image
+
+``step`` Step between each repeat edge
+
+**Returns**
+
+``mire`` A 2D Numpy array
+
+**Notes**
+
+Build base on image_mask_edge_square function
 
 image_noise
 -----------
 
-noise = **image_noise** (ny, nx, sigma)
+noise = **image_noise** (ny, nx, sigma, [model])
 
-*Build a 2D zero mean Gaussian noise (white noise)*
+*Build a 2D noise (white noise) according a model (Gaussian or Poisson)*
 
 **Parameters**
 
 ``ny, nx`` Size of noise image
 
-``sigma`` Sigma value of Gaussian noise, define the delta value around zeros. Small sigma will generate noise with values between [-small value:small value], and if sigma is large, between [-large:large].
+``sigma`` Sigma value, define the delta value around zeros i.e. how large is the distribution, and how strong is the noise.
+
+``model`` Gaussian model or Poisson model (default is Gaussian)
 
 **Returns**
 
@@ -240,6 +296,21 @@ pows = **image_pows** (im)
 **Returns**
 
 ``pows`` A 2D Numpy array
+
+image_ra
+--------
+
+val = **image_ra** (im)
+
+*Compute the Radial Average of an image*
+
+**Parameters**
+
+``im`` A 2D Numpy array as image
+
+**Returns**
+
+``val`` 1D array, which contains the values of RA
 
 
 image_raps

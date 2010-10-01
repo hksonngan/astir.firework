@@ -33,6 +33,16 @@ plot
 
 ``x, y`` Two 1D Numpy array, with the values of x and y respectively (must be the same length size)
 
+plot_dist
+---------
+
+**plot_dist** (x, y)
+
+*Plot the scatter points on a graphic and display the two histogramms along horizontal and vertical axis*
+
+**Parameters**
+
+``x, y`` Two 1D Numpy array, with the values of x and y respectively (must be the same length size)
 
 
 plot_filter_profil

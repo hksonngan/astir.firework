@@ -295,10 +295,10 @@ def image_raps(im):
             frac  = r  - ir
             cfrac = 1  - frac
             val[ir] += (cfrac * im[j, i])
-            if cfrac != 0.0: ct[ir] += 1.0
+            if cfrac != 0.0: ct[ir] += cfrac
             if cir <= rmax:
                 val[cir] += (frac * im[j, i])
-                if frac != 0.0: ct[cir] += 1.0
+                if frac != 0.0: ct[cir] += frac
 
     val /= ct
     
@@ -307,6 +307,39 @@ def image_raps(im):
     freq /= float(wo)
     
     return val, freq
+
+# Compute RA, radial average of image
+def image_ra(im):
+    from numpy import zeros, array
+
+    toto = zeros(im.shape, im.dtype)
+    
+    l, w   = im.shape
+    c      = (w - 1) // 2
+    rmax   = c
+    val    = zeros((rmax + 1), 'float32')
+    ct     = zeros((rmax + 1), 'float32')
+    val[0] = im[c, c] # central value
+    ct[0]  = 1.0
+    for i in xrange(c - rmax, c + rmax + 1):
+        for j in xrange(c - rmax, c + rmax + 1):
+            di = i - c
+            dj = j - c
+            r = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5)
+            if r > rmax: continue
+            ir    = int(r)
+            cir   = ir + 1
+            frac  = r  - ir
+            cfrac = 1  - frac
+            val[ir] += (cfrac * im[j, i])
+            if cfrac != 0.0: ct[ir] += cfrac
+            if cir <= rmax:
+                val[cir] += (frac * im[j, i])
+                if frac != 0.0: ct[cir] += frac
+
+    val /= ct
+    
+    return val
 
 # Compute FRC curve (Fourier Ring Correlation)
 def image_frc(im1, im2):
@@ -491,6 +524,40 @@ def image_mask_circle(ny, nx, rad):
             m[y, x] = 1.0
 
     return m
+
+# Create a 2D mask square
+def image_mask_square(ny, nx, c):
+    from numpy import zeros
+    
+    cy = ny // 2
+    cx = nx // 2
+    m  = zeros((ny, nx), 'float32')
+    for y in xrange(ny):
+        for x in xrange(nx):
+            if abs(y-cy) > c or abs(x-cx) > c: continue
+            m[y, x] = 1.0
+
+    return m
+
+# Create a 2D mask with edge of a square
+def image_mask_edge_square(ny, nx, c):
+    m1 = image_mask_square(ny, nx, c)
+    m2 = image_mask_square(ny, nx, max((c-1), 0))
+
+    return m1 - m2
+
+# Create a 2D mire based on edge square
+def image_mire_edge_square(ny, nx, step):
+    from numpy import zeros
+
+    im = zeros((ny, nx), 'float32')
+    n  = min(ny, nx)
+    hn = n // 2
+    im[ny//2, nx//2] = 1.0
+    for i in xrange(step, hn, step):
+        im += image_mask_edge_square(ny, nx, i)
+
+    return im
 
 # Get statistics values from a circle ROI on an image
 def image_stats_ROI_circle(im, cx, cy, rad):
@@ -1066,6 +1133,12 @@ def filter_2d_Metz(im, N, sig):
 def filter_2d_tanh_lp(im, a, fc):
     smax = max(im.shape)
     H    = filter_build_2d_tanh_lp(smax, a, fc)
+
+    return image_ifft(image_fft(im) * H)
+
+def filter_2d_Gaussian(im, sig):
+    smax = max(im.shape)
+    H    = filter_build_2d_Gaussian(smax, sig)
 
     return image_ifft(image_fft(im) * H)
 

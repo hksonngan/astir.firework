@@ -1,12 +1,29 @@
 Filter
 ======
 
+filter_2d_Gaussian
+------------------
+
+imf = **filter_2d_Gaussian** (im, sig)
+
+*Aplly a 2D Gaussian filter to an image*
+
+**Parameters**
+
+``im`` 2D Numpy array as image
+
+``sig`` Sigma value of the filter
+
+**Returns**
+
+``imf`` Image filtered as 2D Numpy array
+
 filter_2d_Metz
 --------------
 
 imf = **filter_2d_Metz** (im, N, sig)
 
-*Apply a 2D Metz filter to image*
+*Apply a 2D Metz filter to an image*
 
 **Parameters**
 

@@ -24,6 +24,7 @@
 #include <omp.h>
 #include <GL/gl.h>
 #include "kernel_cuda.h"
+#include <assert.h>
 
 /**************************************************************
  * Utils (functions know ony by the kernel)
@@ -1560,21 +1561,75 @@ void kernel_pet3D_IM_SRM_DDA(unsigned short int* X1, int nx1, unsigned short int
 		length = ly;
 		if (lx > length) {length = lx;}
 		if (lz > length) {length = lz;}
-		flength = (float)length;
-		xinc = diffx / flength;
-		yinc = diffy / flength;
-		zinc = diffz / flength;
-		x = x1 + 0.5;
-		y = y1 + 0.5;
-		z = z1 + 0.5;
+		flength = 1.0f / (float)length;
+		xinc = diffx * flength;
+		yinc = diffy * flength;
+		zinc = diffz * flength;
+		x = x1;
+		y = y1;
+		z = z1;
 		for (n=0; n<=length; ++n) {
-			im[(int)z * step + (int)y * wim + (int)x] += val;
+			im[(int)z * step + (int)y * wim + (int)x] += 1.0f;
 			x = x + xinc;
 			y = y + yinc;
 			z = z + zinc;
 		}
 	}
 }
+
+// Compute the first image with DDA algorithm and fixed point
+#define CONST int(pow(2, 23))
+#define float2fixed(X) ((int) X * CONST)
+#define intfixed(X) (X >> 23)
+void kernel_pet3D_IM_SRM_DDA_fixed(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+								   unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+								   unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+								   float* im, int nim1, int nim2, int nim3, int wim) {
+	
+	int length, lengthy, lengthz, i, n;
+	float flength, val;
+	float lx, ly, lz;
+	//float xinc, yinc, zinc;
+	int fxinc, fyinc, fzinc, fx, fy, fz;
+	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
+	int step;
+	val = 1.0f;
+	step = wim*wim;
+	
+	for (i=0; i< nx1; ++i) {
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		z1 = Z1[i];
+		z2 = Z2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = 1.0f / (float)length;
+		fxinc = float2fixed(diffx * flength);
+		fyinc = float2fixed(diffy * flength);
+		fzinc = float2fixed(diffz * flength);
+		fx = float2fixed(x1);
+		fy = float2fixed(y1);
+		fz = float2fixed(z1);
+		for (n=0; n<length; ++n) {  // change <= to < to avoid a bug
+			im[intfixed(fz) * step + intfixed(fy) * wim + intfixed(fx)] += 1.0f;
+			fx = fx + fxinc;
+			fy = fy + fyinc;
+			fz = fz + fzinc;
+		}
+	}
+}
+#undef CONST
+#undef float2fixed
+#undef intfixed
 
 // Compute the first image with BLA algorithm
 void kernel_pet3D_IM_SRM_BLA(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
@@ -1726,13 +1781,13 @@ void kernel_pet3D_IM_SRM_ELL_DDA_iter(unsigned short int* X1, int nx1, unsigned 
 		length = ly;
 		if (lx > length) {length = lx;}
 		if (lz > length) {length = lz;}
-		flength = (float)length;
-		xinc = diffx / flength;
-		yinc = diffy / flength;
-		zinc = diffz / flength;
-		x = x1 + 0.5;
-		y = y1 + 0.5;
-		z = z1 + 0.5;
+		flength = 1.0f / (float)length;
+		xinc = diffx * flength;
+		yinc = diffy * flength;
+		zinc = diffz * flength;
+		x = x1;
+		y = y1;
+		z = z1;
 		for (n=0; n<=length; ++n) {
 			vals[LOR_ind + n] = val;
 			cols[LOR_ind + n] = (int)z * step + (int)y * wim + (int)x;
@@ -1821,13 +1876,13 @@ void kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(unsigned short int* X1, int nx1, unsign
 		length = ly;
 		if (lx > length) {length = lx;}
 		if (lz > length) {length = lz;}
-		flength = (float)length;
-		xinc = diffx / flength;
-		yinc = diffy / flength;
-		zinc = diffz / flength;
-		x = x1 + 0.5;
-		y = y1 + 0.5;
-		z = z1 + 0.5;
+		flength = 1.0f / (float)length;
+		xinc = diffx * flength;
+		yinc = diffy * flength;
+		zinc = diffz * flength;
+		x = x1;
+		y = y1;
+		z = z1;
 		for (n=0; n<=length; ++n) {
 			vals[n] = val;
 			vcol = (int)z * step + (int)y * wim + (int)x;
@@ -1842,10 +1897,11 @@ void kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(unsigned short int* X1, int nx1, unsign
 		cols[n] = -1;
 		// compute F
 		if (Qi==0.0f) {continue;}
+		Qi = 1.0f / Qi;
 		vcol = cols[0];
 		j = 0;
 		while (vcol != -1) {
-			F[vcol] += (vals[j] / Qi);
+			F[vcol] += (vals[j] * Qi);
 			++j;
 			vcol = cols[j];
 		}
@@ -1853,6 +1909,226 @@ void kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(unsigned short int* X1, int nx1, unsign
 	free(vals);
 	free(cols);
 }
+
+// Update image online, SRM is build with DDA's Line Algorithm in fixed point, store in ELL format and update with LM-OSEM
+#define CONST int(pow(2, 23))
+#define float2fixed(X) ((int) X * CONST)
+#define intfixed(X) (X >> 23)
+void kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+											   unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+											   unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+											   float* im, int nim1, int nim2, int nim3,
+											   float* F, int nf1, int nf2, int nf3, int wim, int ndata) {
+	
+	int length, lengthy, lengthz, i, j, n;
+	float flength, val;
+	float x, y, z, lx, ly, lz;
+	int fxinc, fyinc, fzinc, fx, fy, fz;
+	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
+	int step;
+	val = 1.0f;
+	step = wim*wim;
+
+	// alloc mem
+	float* vals = (float*)malloc(ndata * sizeof(float));
+	int* cols = (int*)malloc(ndata * sizeof(int));
+	int LOR_ind;
+	// to compute F
+	int vcol;
+	float buf, sum, Qi;
+
+	for (i=0; i< nx1; ++i) {
+		Qi = 0.0f;
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		z1 = Z1[i];
+		z2 = Z2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = 1.0f / (float)length;
+		fxinc = float2fixed(diffx * flength);
+		fyinc = float2fixed(diffy * flength);
+		fzinc = float2fixed(diffz * flength);
+		fx = float2fixed(x1);
+		fy = float2fixed(y1);
+		fz = float2fixed(z1);
+		for (n=0; n<length; ++n) {
+			vals[n] = val;
+			vcol = intfixed(fz) * step + intfixed(fy) * wim + intfixed(fx);
+			cols[n] = vcol;
+			Qi += (val * im[vcol]);
+			fx = fx + fxinc;
+			fy = fy + fyinc;
+			fz = fz + fzinc;
+		}
+		// eof
+		vals[n] = -1;
+		cols[n] = -1;
+		// compute F
+		if (Qi==0.0f) {continue;}
+		Qi = 1.0f / Qi;
+		vcol = cols[0];
+		j = 0;
+		while (vcol != -1) {
+			F[vcol] += (vals[j] * Qi);
+			++j;
+			vcol = cols[j];
+			}
+	}
+	free(vals);
+	free(cols);
+}
+#undef CONST
+#undef float2fixed
+#undef intfixed
+
+// Update image online, SRM is build with DDA's Line Algorithm, store in COO format and update with LM-OSEM
+void kernel_pet3D_IM_SRM_COO_DDA_ON_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+										 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+										 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+										 float* im, int nim1, int nim2, int nim3,
+										 float* F, int nf1, int nf2, int nf3, int wim) {
+	
+	int length, lengthy, lengthz, i, j, n, ct;
+	float flength, val;
+	float x, y, z, lx, ly, lz;
+	float xinc, yinc, zinc;
+	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
+	int step;
+	val = 1.0f;
+	step = wim*wim;
+
+	// alloc mem
+	int LOR_ind;
+	// to compute F
+	int vcol;
+	float buf, sum, Qi;
+
+	for (i=0; i< nx1; ++i) {
+		float* vals = NULL;
+		int* cols = NULL;
+		Qi = 0.0f;
+		ct = 0;
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		z1 = Z1[i];
+		z2 = Z2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = 1.0f / (float)length;
+		xinc = diffx * flength;
+		yinc = diffy * flength;
+		zinc = diffz * flength;
+		x = x1;
+		y = y1;
+		z = z1;
+		for (n=0; n<=length; ++n) {
+			++ct;
+			vals = (float*)realloc(vals, ct*sizeof(float));
+			cols = (int*)realloc(cols, ct*sizeof(int));
+			vals[ct-1] = val;
+			vcol = (int)z * step + (int)y * wim + (int)x;
+			cols[ct-1] = vcol;
+			Qi += (val * im[vcol]);
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+		// compute F
+		if (Qi==0.0f) {continue;}
+		for(j=0; j<ct; ++j) {
+			if (im[cols[j]] != 0.0f) {
+				F[cols[j]] += (vals[j] / Qi);
+			}
+		}
+		free(vals);
+		free(cols);
+	}
+}
+
+// Update image online, SRM is build with DDA's Line Algorithm, store in raw format and update with LM-OSEM
+void kernel_pet3D_IM_SRM_RAW_DDA_ON_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+										 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+										 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+										 float* im, int nim1, int nim2, int nim3,
+										 float* F, int nf1, int nf2, int nf3, int wim) {
+	
+	int length, lengthy, lengthz, i, j, n;
+	float flength, val;
+	float x, y, z, lx, ly, lz;
+	float xinc, yinc, zinc;
+	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
+	int step;
+	val = 1.0f;
+	step = wim*wim;
+	int ntot = nim1*nim2*nim3;
+	int LOR_ind;
+	// to compute F
+	int vcol;
+	float buf, sum, Qi;
+
+	for (i=0; i< nx1; ++i) {
+		float* subim = (float*)malloc(ntot * sizeof(float));
+		Qi = 0.0f;
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		z1 = Z1[i];
+		z2 = Z2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = 1.0f / (float)length;
+		xinc = diffx * flength;
+		yinc = diffy * flength;
+		zinc = diffz * flength;
+		x = x1;
+		y = y1;
+		z = z1;
+		for (n=0; n<=length; ++n) {
+			vcol = (int)z * step + (int)y * wim + (int)x;
+			subim[vcol] = val;
+			Qi += (val * im[vcol]);
+			x = x + xinc;
+			y = y + yinc;
+			z = z + zinc;
+		}
+		// compute F
+		if (Qi==0.0f) {continue;}
+		for(j=0; j<ntot; ++j) {
+			if (im[j] != 0.0f) {
+				F[j] += (subim[j] / Qi);
+			}
+		}
+		free(subim);
+	}
+}
+
 
 // Compute first image ionline by Siddon's Line Algorithm
 void kernel_pet3D_IM_SRM_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
@@ -3571,9 +3847,43 @@ void kernel_draw_2D_line_DDA(float* mat, int wy, int wx, int x1, int y1, int x2,
 // Draw lines in 2D space with DDA
 void kernel_draw_2D_lines_DDA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
 	int length, i, n;
-	float flength, val;
+	float flength;
 	float x, y, lx, ly;
 	float xinc, yinc;
+	int x1, y1, x2, y2, diffx, diffy;
+	for (i=0; i< nx1; ++i) {
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		length = ly;
+		if (lx > length) {length = lx;}
+		flength = 1.0f / (float)length;
+		xinc = diffx * flength;
+		yinc = diffy * flength;
+		x = x1;
+		y = y1;
+		for (n=0; n<=length; ++n) {
+			mat[(int)y * wx + (int)x] += 1.0f;
+			x = x + xinc;
+			y = y + yinc;
+		}
+	}
+}
+
+// Draw lines in 2D space with fixed point DDA
+#define CONST int(pow(2, 23))
+#define float2fixed(X) ((int) X * CONST)
+#define intfixed(X) (X >> 23)
+void kernel_draw_2D_lines_DDA_fixed(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
+	int length, i, n;
+	float flength;
+	float lx, ly;
+	int fxinc, fyinc, fx, fy;
 	int x1, y1, x2, y2, diffx, diffy;
 
 	for (i=0; i< nx1; ++i) {
@@ -3588,18 +3898,20 @@ void kernel_draw_2D_lines_DDA(float* mat, int wy, int wx, int* X1, int nx1, int*
 		length = ly;
 		if (lx > length) {length = lx;}
 		flength = (float)length;
-		xinc = diffx / flength;
-		yinc = diffy / flength;
-		val  = 1 / flength;
-		x = x1 + 0.5;
-		y = y1 + 0.5;
+		fxinc = float2fixed(diffx / flength);
+		fyinc = float2fixed(diffy / flength);
+		fx = float2fixed(x1);
+		fy = float2fixed(y1);
 		for (n=0; n<=length; ++n) {
-			mat[(int)y * wx + (int)x] += val;
-			x = x + xinc;
-			y = y + yinc;
+			mat[intfixed(fy) * wx + intfixed(fx)] = 1.0f;
+			fx = fx + fxinc;
+			fy = fy + fyinc;
 		}
 	}
 }
+#undef CONST
+#undef float2fixed
+#undef intfixed
 
 // Draw lines in 2D space with DDA anti-aliased version 1 pix
 void kernel_draw_2D_lines_DDAA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
@@ -3913,7 +4225,7 @@ void kernel_draw_2D_lines_BLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 	int dx, dy;
 	int xinc, yinc;
 	int balance;
-	float val;
+	float val = 1.0f;
 
 	for (n=0; n<nx1; ++n) {
 		x1 = X1[n];
@@ -3939,12 +4251,12 @@ void kernel_draw_2D_lines_BLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 		x = x1;
 		y = y1;
 		if (dx >= dy) {
-			val = 1 / (float)dx;
+			//val = 1 / (float)dx;
 			dy <<= 1;
 			balance = dy - dx;
 			dx <<= 1;
 			while (x != x2) {
-				mat[y * wx + x] += val;
+				mat[y * wx + x] = val;
 				if (balance >= 0) {
 					y = y + yinc;
 					balance = balance - dx;
@@ -3952,14 +4264,14 @@ void kernel_draw_2D_lines_BLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 				balance = balance + dy;
 				x = x + xinc;
 			}
-			mat[y * wx + x] += val;
+			mat[y * wx + x] = val;
 		} else {
-			val = 1 / (float)dy;
+			//val = 1 / (float)dy;
 			dx <<= 1;
 			balance = dx - dy;
 			dy <<= 1;
 			while (y != y2) {
-				mat[y * wx + x] += val;
+				mat[y * wx + x] = val;
 				if (balance >= 0) {
 					x = x + xinc;
 					balance = balance - dy;
@@ -3967,7 +4279,7 @@ void kernel_draw_2D_lines_BLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 				balance = balance + dx;
 				y = y + yinc;
 			}
-			mat[y * wx + x] += val;
+			mat[y * wx + x] = val;
 		}
 	}
 }
@@ -3976,17 +4288,20 @@ void kernel_draw_2D_lines_BLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1, float* Y1, int ny1, float* X2, int nx2, float* Y2, int ny2, int res, int b, int matsize) {
 	int n;
 	float tx, ty, px, qx, py, qy;
-	int ei, ej, u, v, i, j;
+	int ei, ej, u, v, i, j, oldi, oldj;
 	int stepi, stepj;
 	float divx, divy, runx, runy, oldv, newv, val, valmax;
-	float axstart, aystart, astart, pq, stepx, stepy, startl;
+	float axstart, aystart, astart, pq, stepx, stepy, startl, initl;
+	srand(time(NULL));
 	for (n=0; n<nx1; ++n) {
 		px = X2[n];
 		py = Y2[n];
 		qx = X1[n];
 		qy = Y1[n];
-		tx = (px-qx) * 0.4 + qx; // not 0.5 to avoid an image artefact
-		ty = (py-qy) * 0.4 + qy;
+		initl = (float)rand() / (float)RAND_MAX;
+		initl = initl * 0.4 + 0.1;
+		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
+		ty = (py-qy) * initl + qy;
 		ei = int((tx-b) / (float)res);
 		ej = int((ty-b) / (float)res);
 		
@@ -4046,13 +4361,17 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 			runy += stepy;
 		}
 		oldv = startl;
+		oldi = -1;
+		oldj = -1;
 		while (i>=0 && j>=0 && i<matsize && j<matsize) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
 			if (val > valmax) {val = valmax;}
-			mat[j * wx + i] += val;
+			if (oldi != i || oldj != j) {mat[j * wx + i] += val;}
 			oldv = newv;
+			oldi = i;
+			oldj = j;
 			if (runx == newv) {
 				i += stepi;
 				runx += stepx;
@@ -4081,14 +4400,18 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 			runy += stepy;
 		}
 		oldv = startl;
-		mat[ej * wx + ei] += valmax;
+		mat[ej * wx + ei] += 0.707f;
+		oldi = -1;
+		oldj = -1;
 		while (i>=0 && j>=0 && i<matsize && j<matsize) {
 			newv = runy;
 			if (runx < runy) {newv = runx;}
 			val = fabs(newv - oldv);
 			if (val > valmax) {val = valmax;}
-			mat[j * wx + i] += val;
+			if (oldi != i || oldj != j) {mat[j * wx + i] += val;}
 			oldv = newv;
+			oldi = i;
+			oldj = j;
 			if (runx == newv) {
 				i += stepi;
 				runx += stepx;
@@ -4177,6 +4500,92 @@ void kernel_draw_2D_line_WALA(float* mat, int wy, int wx, int x1, int y1, int x2
 #undef fpart_
 #undef round_
 #undef rfpart_
+
+// Draw a list of line in 2D space by Wu's Antialiasing Line Algorithm (modified version 1D)
+#define ipart_(X) ((int) X)
+#define round_(X) ((int)(((double)(X)) + 0.5))
+#define fpart_(X) ((double)(X) - (double)ipart_(X))
+#define rfpart_(X) (1.0 - fpart_(X))
+#define swap_(a, b) do{ __typeof__(a) tmp; tmp = a; a = b; b = tmp; }while(0)
+void kernel_draw_2D_lines_WALA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
+	double dx, dy, gradient, xend, yend, xgap, ygap, intery, interx;
+	int xpxl1, ypxl1, xpxl2, ypxl2, x, y, n;
+	float x1, y1, x2, y2;
+	float val = 1.0f;
+	
+	for (n=0; n<nx1; ++n) {
+	x1 = X1[n];
+	y1 = Y1[n];
+	x2 = X2[n];
+	y2 = Y2[n];
+	dx = (double)x2 - (double)x1;
+	dy = (double)y2 - (double)y1;
+
+	if (fabs(dx) > fabs(dy)) {
+		if (x2 < x1) {
+			swap_(x1, x2);
+			swap_(y1, y2);
+		}
+		
+	    gradient = dy / dx;
+		xend = round_(x1);
+		yend = y1 + gradient * (xend - x1);
+		xgap = rfpart_(x1 + 0.5);
+		xpxl1 = xend;
+		ypxl1 = ipart_(yend);
+		mat[ypxl1 * wx + xpxl1] += (rfpart_(yend) * xgap * val);
+		mat[(ypxl1 + 1) * wx + xpxl1] += (fpart_(yend) * xgap * val);
+		intery = yend + gradient;
+		
+		xend = round_(x2);
+		yend = y2 + gradient*(xend - x2);
+		xgap = fpart_(x2+0.5);
+		xpxl2 = xend;
+		ypxl2 = ipart_(yend);
+		mat[ypxl2 * wx + xpxl2] += (rfpart_(yend) * xgap * val);
+		mat[(ypxl2 + 1) * wx + xpxl2] += (fpart_(yend) * xgap * val);
+		for (x=xpxl1+1; x <= (xpxl2-1); x++) {
+			mat[ipart_(intery) * wx + x] += (rfpart_(intery) * val);
+			mat[(ipart_(intery) + 1) * wx + x] += (fpart_(intery) * val);
+			intery += gradient;
+		}
+	} else {
+		if (y2 < y1) {
+			swap_(x1, x2);
+			swap_(y1, y2);
+		}
+		gradient = dx / dy;
+		yend = round_(y1);
+		xend = x1 + gradient*(yend - y1);
+		ygap = rfpart_(y1 + 0.5);
+		ypxl1 = yend;
+		xpxl1 = ipart_(xend);
+		mat[ypxl1 * wx + xpxl1] += (rfpart_(xend) * ygap * val);
+		mat[(ypxl1 + 1) * wx + xpxl1] += (fpart_(xend) * ygap * val);
+		interx = xend + gradient;
+
+		yend = round_(y2);
+		xend = x2 + gradient*(yend - y2);
+		ygap = fpart_(y2+0.5);
+		ypxl2 = yend;
+		xpxl2 = ipart_(xend);
+		mat[ypxl2 * wx + xpxl2] += (rfpart_(xend) * ygap * val);
+		mat[(ypxl2 + 1) * wx + xpxl2] += (fpart_(xend) * ygap * val);
+
+		for(y=ypxl1+1; y <= (ypxl2-1); y++) {
+			mat[y * wx + ipart_(interx)] += (rfpart_(interx) * val);
+			mat[y * wx + ipart_(interx) + 1] += (fpart_(interx) * val);
+			interx += gradient;
+		}
+	}
+	} // for n
+}
+#undef swap_
+#undef ipart_
+#undef fpart_
+#undef round_
+#undef rfpart_
+
 
 // Draw a line in 2D space by Wu's Line Algorithm (modified version 1D)
 void kernel_draw_2D_line_WLA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val) {
@@ -4544,7 +4953,7 @@ void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 	int dx, dy, stepx, stepy, n;
 	int length, extras, incr2, incr1, c, d, i;
 	int x1, y1, x2, y2;
-	float val;
+	float val=1.0f;
 	for (n=0; n<nx1; ++n) {
 		x1 = X1[n];
 		y1 = Y1[n];
@@ -4555,11 +4964,11 @@ void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 	
 		if (dy < 0) { dy = -dy;  stepy = -1; } else { stepy = 1; }
 		if (dx < 0) { dx = -dx;  stepx = -1; } else { stepx = 1; }
-		if (dx > dy) {val = 1 / float(dx);}
-		else {val = 1 / float(dy);}
+		//if (dx > dy) {val = 1 / float(dx);}
+		//else {val = 1 / float(dy);}
 	
-		mat[y1 * wx + x1] += val;
-		mat[y2 * wx + x2] += val;
+		mat[y1 * wx + x1] = val;
+		mat[y2 * wx + x2] = val;
 		if (dx > dy) {
 			length = (dx - 1) >> 2;
 			extras = (dx - 1) & 3;
@@ -4572,33 +4981,33 @@ void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 					x1 = x1 + stepx;
 					x2 = x2 - stepx;
 					if (d < 0) {                    // Pattern:
-						mat[y1 * wx + x1] += val;   //
+						mat[y1 * wx + x1] = val;   //
 						x1 = x1 + stepx;            // x o o
-						mat[y1 * wx + x1] += val;
-						mat[y2 * wx + x2] += val;
+						mat[y1 * wx + x1] = val;
+						mat[y2 * wx + x2] = val;
 						x2 = x2 - stepx;
-						mat[y2 * wx + x2] += val;
+						mat[y2 * wx + x2] = val;
 						d += incr1;
 					} else {
 						if (d < c) {                                 // Pattern:
-							mat[y1 * wx + x1] += val;                //       o
+							mat[y1 * wx + x1] = val;                //       o
 							x1 = x1 + stepx;                         //   x o
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
-							mat[y2 * wx + x2] += val;
+							mat[y1 * wx + x1] = val;
+							mat[y2 * wx + x2] = val;
 							x2 = x2 - stepx;
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 							
 						} else {
 							y1 = y1 + stepy;                      // Pattern
-							mat[y1 * wx + x1] += val;             //    o o
+							mat[y1 * wx + x1] = val;             //    o o
 							x1 = x1 + stepx;                      //  x
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 							x2 = x2 - stepx;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 						d += incr2;
 					}
@@ -4606,40 +5015,40 @@ void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 				if (extras > 0) {
 					if (d < 0) {
 						x1 = x1 + stepx;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						if (extras > 1) {
 							x1 = x1 + stepx;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 						}
 						if (extras > 2) {
 							x2 = x2 - stepx;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 					} else 
 	                if (d < c) {
 						x1 = x1 + stepx;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						if (extras > 1) {
 							x1 = x1 + stepx;
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 						}
 						if (extras > 2) {
 							x2 = x2 - stepx;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 					} else {
 						x1 = x1 + stepx;
 						y1 = y1 + stepy;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						if (extras > 1) {
 							x1 = x1 + stepx;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 						}
 						if (extras > 2) {
 							x2 = x2 - stepx;
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 	                }
 				}
@@ -4652,35 +5061,35 @@ void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 					x2 = x2 - stepx;
 					if (d > 0) {
 						y1 = y1 + stepy;           // Pattern
-						mat[y1 * wx + x1] += val;  //      o
+						mat[y1 * wx + x1] = val;  //      o
 						x1 = x1 + stepx;           //    o
 						y1 = y1 + stepy;           //   x
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						y2 = y2 - stepy;
-						mat[y2 * wx + x2] += val;
+						mat[y2 * wx + x2] = val;
 						x2 = x2 - stepx;
 						y2 = y2 - stepy;
-						mat[y2 * wx + x2] += val;
+						mat[y2 * wx + x2] = val;
 						d += incr1;
 					} else {
 						if (d < c) {
-							mat[y1 * wx + x1] += val;  // Pattern
+							mat[y1 * wx + x1] = val;  // Pattern
 							x1 = x1 + stepx;           //      o
 							y1 = y1 + stepy;           //  x o
-							mat[y1 * wx + x1] += val;
-							mat[y2 * wx + x2] += val;
+							mat[y1 * wx + x1] = val;
+							mat[y2 * wx + x2] = val;
 							x2 = x2 - stepx;
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						} else {
 							y1 = y1 + stepy;          // Pattern
-							mat[y1 * wx + x1] += val; //    o  o
+							mat[y1 * wx + x1] = val; //    o  o
 							x1 = x1 + stepx;          //  x
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 							x2 = x2 - stepx;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 						d += incr2;
 					}
@@ -4689,46 +5098,46 @@ void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 					if (d > 0) {
 						x1 = x1 + stepx;
 						y1 = y1 + stepy;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						if (extras > 1) {
 							x1 = x1 + stepx;
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 						}
 						if (extras > 2) {
 							x2 = x2 - stepx;
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 					} else 
 	                if (d < c) {
 						x1 = x1 + stepx;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						if (extras > 1) {
 							x1 = x1 + stepx;
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 						}
 						if (extras > 2) {
 							x2 = x2 - stepx;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 					} else {
 						x1 = x1 + stepx;
 						y1 = y1 + stepy;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						if (extras > 1) {
 							x1 = x1 + stepx;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 						}
 						if (extras > 2) {
 							if (d > c) {
 								x2 = x2 - stepx;
 								y2 = y2 - stepy;
-								mat[y2 * wx + x2] += val;
+								mat[y2 * wx + x2] = val;
 							} else {
 								x2 = x2 - stepx;
-								mat[y2 * wx + x2] += val;
+								mat[y2 * wx + x2] = val;
 							}
 						}
 					}
@@ -4746,32 +5155,32 @@ void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 					y1 = y1 + stepy;
 					y2 = y2 - stepy;
 					if (d < 0) {
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						y1 = y1 + stepy;
-						mat[y1 * wx + x1] += val;
-						mat[y2 * wx + x2] += val;
+						mat[y1 * wx + x1] = val;
+						mat[y2 * wx + x2] = val;
 						y2 = y2 - stepy;
-						mat[y2 * wx + x2] += val;
+						mat[y2 * wx + x2] = val;
 						d += incr1;
 					} else {
 						if (d < c) {
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 							x1 = x1 + stepx;
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
-							mat[y2 * wx + x2] += val;
+							mat[y1 * wx + x1] = val;
+							mat[y2 * wx + x2] = val;
 							x2 = x2 - stepx;
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						} else {
 							x1 = x1 + stepx;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 							x2 = x2 - stepx;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 						d += incr2;
 					}
@@ -4779,40 +5188,40 @@ void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 				if (extras > 0) {
 					if (d < 0) {
 						y1 = y1 + stepy;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						if (extras > 1) {
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 						}
 						if (extras > 2) {
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 					} else 
 	                if (d < c) {
 						y1 = y1 + stepy;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						if (extras > 1) {
 							x1 = x1 + stepx;
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 						}
 						if (extras > 2) {
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 	                } else {
 						x1 = x1 + stepx;
 						y1 = y1 + stepy;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						if (extras > 1) {
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 						}
 						if (extras > 2) {
 							x2 = x2 - stepx;
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 	                }
 				}
@@ -4825,35 +5234,35 @@ void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 					y2 = y2 - stepy;
 					if (d > 0) {
 						x1 = x1 + stepx;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						x1 = x1 + stepx;
 						y1 = y1 + stepy;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						x2 = x2 - stepx;
-						mat[y2 * wx + x2] += val;
+						mat[y2 * wx + x2] = val;
 						x2 = x2 - stepx;
 						y2 = y2 - stepy;
-						mat[y2 * wx + x2] += val;
+						mat[y2 * wx + x2] = val;
 						d += incr1;
 					} else {
 						if (d < c) {
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 							x1 = x1 + stepx;
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
-							mat[y2 * wx + x2] += val; 
+							mat[y1 * wx + x1] = val;
+							mat[y2 * wx + x2] = val; 
 							x2 = x2 - stepx;
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						} else {
 							x1 = x1 + stepx;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 							x2 = x2 - stepx;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 						d += incr2;
 					}
@@ -4862,46 +5271,46 @@ void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 					if (d > 0) {
 						x1 = x1 + stepx;
 						y1 = y1 + stepy;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						if (extras > 1) {
 							x1 = x1 + stepx;
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 						}
 						if (extras > 2) {
 							x2 = x2 - stepx;
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 					} else
 	                if (d < c) {
 						y1 = y1 + stepy;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						if (extras > 1) {
 							x1 = x1 + stepx;
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 						}
 	                    if (extras > 2) {
 							y2 = y2 - stepy;
-							mat[y2 * wx + x2] += val;
+							mat[y2 * wx + x2] = val;
 						}
 					} else {
 						x1 = x1 + stepx;
 						y1 = y1 + stepy;
-						mat[y1 * wx + x1] += val;
+						mat[y1 * wx + x1] = val;
 						if (extras > 1) {
 							y1 = y1 + stepy;
-							mat[y1 * wx + x1] += val;
+							mat[y1 * wx + x1] = val;
 						}
 						if (extras > 2) {
 							if (d > c)  {
 								x2 = x2 - stepx;
 								y2 = y2 - stepy;
-								mat[y2 * wx + x2] += val;
+								mat[y2 * wx + x2] = val;
 							} else {
 								y2 = y2 - stepy;
-								mat[y2 * wx + x2] += val;
+								mat[y2 * wx + x2] = val;
 							}
 						}
 					}

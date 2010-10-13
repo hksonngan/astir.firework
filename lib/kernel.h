@@ -33,6 +33,7 @@ void kernel_color_image(float* im, int him, int wim,
 // 2D drawing line
 void kernel_draw_2D_line_DDA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val);
 void kernel_draw_2D_lines_DDA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2);
+void kernel_draw_2D_lines_DDA_fixed(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2);
 void kernel_draw_2D_lines_DDAA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2);
 void kernel_draw_2D_lines_DDAA2(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2);
 void kernel_draw_2D_line_BLA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val);
@@ -40,6 +41,7 @@ void kernel_draw_2D_lines_BLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 void kernel_draw_2D_line_WLA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val);
 void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2);
 void kernel_draw_2D_line_WALA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val);
+void kernel_draw_2D_lines_WALA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2);
 void kernel_draw_2D_line_DDAA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val);
 void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1, float* Y1, int ny1, float* X2, int nx2, float* Y2, int ny2, int res, int b, int matsize);
 
@@ -151,12 +153,39 @@ void kernel_pet3D_IM_SRM_DDA( unsigned short int* X1, int nx1, unsigned short in
 							  unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
 							  unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
 							  float* im, int nim1, int nim2, int nim3, int wim);
+// to test
+void kernel_pet3D_IM_SRM_DDA_fixed(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+								   unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+								   unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+								   float* im, int nim1, int nim2, int nim3, int wim);
+
 // used
 void kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
 										 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
 										 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
 										 float* im, int nim1, int nim2, int nim3,
 										 float* F, int nf1, int nf2, int nf3, int wim, int ndata);
+
+// the best one
+void kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+										 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+										 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+										 float* im, int nim1, int nim2, int nim3,
+										 float* F, int nf1, int nf2, int nf3, int wim, int ndata);
+
+// to compare
+void kernel_pet3D_IM_SRM_COO_DDA_ON_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+										 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+										 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+										 float* im, int nim1, int nim2, int nim3,
+										 float* F, int nf1, int nf2, int nf3, int wim);
+
+// to compare
+void kernel_pet3D_IM_SRM_RAW_DDA_ON_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+										 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+										 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+										 float* im, int nim1, int nim2, int nim3,
+										 float* F, int nf1, int nf2, int nf3, int wim);
 
 // option
 void kernel_pet3D_IM_SRM_BLA(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,

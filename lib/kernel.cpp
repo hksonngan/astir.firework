@@ -81,6 +81,44 @@ int inkernel_mono(int i, int j) {
 	return mi + ma * (ma - 1) / 2;
 }
 
+// Float uniform random generator
+float inkernel_randf() {
+	return (float)rand() / (float)(RAND_MAX+1.0f);
+}
+
+// Float Gauss random generator
+#define pi 3.141592653589793238462643383279
+float inkernel_randgf(float mean, float std) {
+	float u1 = (float)rand() / (float)(RAND_MAX+1.0f);
+	float u2 = (float)rand() / (float)(RAND_MAX+1.0f);
+	float r1 = sqrt(-2.0f * log(u1));
+	float r2 = 2.0f * pi * u2;
+	float z0 = r1 * cos(r2);
+	//float z1 = r1 * sin(r2);  // 2D Case
+	z0 *= std;
+	z0 += mean;
+
+	return z0;
+}
+#undef pi
+
+// Float Gauss random generator 2D Case
+#define pi 3.141592653589793238462643383279
+void inkernel_randg2f(float mean, float std, float* z0, float* z1) {
+	float u1 = (float)rand() / (float)(RAND_MAX+1.0f);
+	float u2 = (float)rand() / (float)(RAND_MAX+1.0f);
+	float r1 = sqrt(-2.0f * log(u1));
+	float r2 = 2.0f * pi * u2;
+	*z0 = r1 * cos(r2);
+	*z1 = r1 * sin(r2);
+	*z0 *= std;
+	*z0 += mean;
+	*z1 *= std;
+	*z1 += mean;
+}
+#undef pi
+
+
 /********************************************************************************
  * PET Scan Allegro      
  ********************************************************************************/
@@ -117,7 +155,7 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 	float czimage = (float)sizespacez / 2.0f;
 	float xi, yi, zi, a, newx, newy, newz;
 	float cosa, sina;
-	float e;
+	float dex, dez;
 	int n, ID;
 	// to add fluctuation (due to DDA line drawing)
 	if (rnd) {srand(rnd);}
@@ -129,7 +167,12 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		zi = float(ID / nic) * dcz - rcz;
 		xi = float(ID % nic) * dcx - rcx;
 		yi = tsc;
-		//printf("%f %f\n", zi, xi);
+		// random position to the crystal aera
+		if (rnd) {
+			inkernel_randg2f(0.0, 2.0, &dex, &dez);
+			xi += dex;
+			zi += dez;
+		}
 		// rotation accoring ID detector
 		a = (float)id_detector1[n] * (-twopi / (float)nd) - pi / 2.0f;
 		cosa = cos(a);
@@ -143,15 +186,6 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		newx /= respix;             // scale factor to match with ROI (image)
 		newy /= respix;
 		newz /= respix;
-		// add flunctuation (to avoid moire pattern in DDA)
-		if (rnd) {
-			e = (float)rand() / (float)RAND_MAX;
-			e = e * 2.0f - 1.0f; // rnd number between -1.0 to 1.0
-			newx += e;
-			newy += e;
-			newz += e;
-			if (n==0) {printf("Rnd\n");}
-		}
 		x1[n] = newx;
 		y1[n] = newy;
 		z1[n] = newz;
@@ -162,7 +196,12 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		zi = float(ID / nic) * dcz - rcz;
 		xi = float(ID % nic) * dcx - rcx;
 		yi = tsc;
-		//printf("%f %f\n", zi, xi);
+		// random position to the crystal aera
+		if (rnd) {
+			inkernel_randg2f(0.0, 2.0, &dex, &dez);
+			xi += dex;
+			zi += dez;
+		}
 		// rotation accoring ID detector
 		a = (float)id_detector2[n] * (-twopi / (float)nd) - pi / 2.0f;
 		cosa = cos(a);
@@ -176,12 +215,6 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		newx /= respix;             // scale factor to match with ROI (image)
 		newy /= respix;
 		newz /= respix;
-		// add flunctuation (to avoid moire pattern in DDA)
-		if (rnd) {
-			newx += e;
-			newy += e;
-			newz += e;
-		}
 		x2[n] = newx;
 		y2[n] = newy;
 		z2[n] = newz;

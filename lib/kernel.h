@@ -274,6 +274,10 @@ void kernel_filter_3d_adaptive_median(float* im, int nz, int ny, int nx,
 // Utils function
 void inkernel_quicksort(float* vec, int m, int n);
 void inkernel_bubblesort(float* vec, int n);
+int inkernel_mono(int i, int j);
+float inkernel_randf();
+float inkernel_randgf(float mean, float std);
+void inkernel_randg2f(float mean, float std, float* z0, float* z1);
 
 // dev
 void kernel_3Dconv_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c);

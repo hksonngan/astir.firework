@@ -76,7 +76,7 @@ scaleim      = 1e-6
 ntot         = cutoff-cuton
 
 # read Sensibility matrix
-SM  = volume_open('/home/julien/recherche/Projet_reconstruction/FIREwork/bin/3d_sm_dda_2.vol')
+SM  = volume_open('/home/julien/recherche/Projet_reconstruction/FIREwork/bin/3d_sm_dda.vol')
 #SM /= 6.0
 SM /= SM.max()
 SM  = 1 / SM

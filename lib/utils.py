@@ -139,12 +139,12 @@ def image_write_mapcolor(im, name, color='jet'):
     pilImage.save(name)
     
 # get the 1D projection of an image
-def image_1D_projection(im, axe = 'x'):
-    if   axe == 'x': return im.sum(axis = 1)
-    elif axe == 'y': return im.sum(axis = 0)
+def image_projection(im, axe = 'x'):
+    if   axe == 'y': return im.sum(axis = 1)
+    elif axe == 'x': return im.sum(axis = 0)
     
 # get the 1D slice of an image
-def image_1D_slice(im, x1, y1, x2, y2):
+def image_slice(im, x1, y1, x2, y2):
     from numpy import array
     
     # line based on DDA algorithm

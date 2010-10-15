@@ -23,9 +23,9 @@ progname = os.path.basename(sys.argv[0])
 usage    = progname + ' source_name.bin target_name'
 topic    = 'Convert LOR binary data (ID crystals and modules) to position in space according PET geometry'
 p        = optparse.OptionParser(usage, description=topic)
-p.add_option('--convert', action='store', type='choice', choices=['int', 'float'], default='int', help='[int or float] Convert in integer for DDA projector or in float point to Siddon projector (default int)')
+p.add_option('--convert', action='store', type='choice', choices=['int', 'float'], default='int', help='["int" or "float"] Convert in integer for DDA projector or in float point to Siddon projector (default int)')
 p.add_option('--Nstep',    type='int',    default=1,       help='Split the job in Nstep iteration to avoid overloading memory (default 1)')
-p.add_option('--rnd',    type='int',    default=10,       help='Seed random number to determine random position on the crystal (default 10)')
+p.add_option('--rnd',    type='int',    default=10,       help='Seed random number to determine random position on the crystal (default 10). If set to 0 no random process')
 
 (options, args) = p.parse_args()
 if len(args) < 2:
@@ -49,6 +49,7 @@ from time     import time
 sizexy_space = 1004 # xy scanner inside im of 251 pix * respix
 sizez_space  = 180  # z scanner inside im of 45 pix * respix
 respix       = 565.0/141.0
+#respix = 4.0
 sizexy_im    = 141  # gantry of 565 mm / respix
 sizez_im     = 45   # depth of 176.4 mm / respix thus 45 pix, but we use a cube bounding box
 size_border  = 55

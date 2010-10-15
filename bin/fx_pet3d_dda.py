@@ -27,6 +27,7 @@ p.add_option('--Nite',    type='int',    default=1,       help='Number of iterat
 p.add_option('--Nsub',    type='int',    default=1,       help='Number of subsets (default 1)')
 p.add_option('--cuton',   type='int',    default=0,       help='Starting number in LOR file (default 0)')
 p.add_option('--cutoff',  type='int',    default=1000000, help='Stoping number in LOR file (default 1000000)')
+p.add_option('--NM',      type='string', default='None',  help='Normalize matrix path and name (.vol) (default None meaning not normalize)')
 
 (options, args) = p.parse_args()
 if len(args) < 2:
@@ -43,6 +44,7 @@ Nite      = options.Nite
 Nsub      = options.Nsub
 cuton     = options.cuton
 cutoff    = options.cutoff
+NMname    = options.NM
 
 from firework import *
 from numpy    import *
@@ -59,6 +61,7 @@ print 'Nite', Nite
 print 'Nsub', Nsub
 print 'cuton', cuton
 print 'cutoff', cutoff
+print 'NMname', NMname
 
 # Cst
 sizexy_im    = 141 # gantry of 565 mm / respix
@@ -74,12 +77,14 @@ ndata        = 250 # larger of ELL sparse matrix
 # Vars
 ntot         = cutoff-cuton
 
-# read Sensibility matrix
-SM  = volume_open('/home/julien/recherche/Projet_reconstruction/FIREwork/bin/3d_sm_dda.vol')
-#SM /= 6.0
-#SM  = 1 / SM
-SM /= SM.max()
-SM  = 1 / SM
+# read normalize matrix
+if NMname == 'None':
+    SM = ones((sizez_im, sizexy_im, sizexy_im), 'float32')
+else:
+    SM  = volume_open(NMname)
+    SM /= 6.0
+    #SM /= SM.max()
+    SM  = 1 / SM
 
 # create directory
 os.mkdir(output)
@@ -103,7 +108,7 @@ for isub in xrange(Nsub):
     n_start = int(float(ntot) / Nsub * isub + 0.5)
     n_stop  = int(float(ntot) / Nsub * (isub+1) + 0.5)
     n       = n_stop - n_start
-    kernel_pet3D_IM_SRM_DDA_fixed(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, sizexy_im)
+    kernel_pet3D_IM_SRM_DDA(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, sizexy_im)
     print '... sub %i / %i' % (isub, Nsub)
 
 print '...', time_format(time()-t)
@@ -111,7 +116,7 @@ mip = volume_mip(imsub)
 image_write(mip, output + '/init_image.png')
 volume_write(imsub, output + '/volume_init.vol')
 print '... export to volume_init.vol'
-
+exit()
 # init im
 tg = time()
 F = zeros((sizez_im, sizexy_im, sizexy_im), 'float32')

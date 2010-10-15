@@ -157,6 +157,8 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 	float cosa, sina;
 	float dex, dez;
 	int n, ID;
+	if (rnd) {printf("Random pos\n");}
+	else {printf("No random pos\n");}
 	// to add fluctuation (due to DDA line drawing)
 	if (rnd) {srand(rnd);}
 	for (n=0;n<nidc1; ++n) {
@@ -167,12 +169,16 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		zi = float(ID / nic) * dcz - rcz;
 		xi = float(ID % nic) * dcx - rcx;
 		yi = tsc;
+		/*
 		// random position to the crystal aera
 		if (rnd) {
-			inkernel_randg2f(0.0, 2.0, &dex, &dez);
+			//inkernel_randg2f(0.0, 0.25, &dex, &dez);
+			dex = 2.0f * inkernel_randf() - 1.0f;
+			dez = 2.0f * inkernel_randf() - 1.0f;
 			xi += dex;
 			zi += dez;
 		}
+		*/
 		// rotation accoring ID detector
 		a = (float)id_detector1[n] * (-twopi / (float)nd) - pi / 2.0f;
 		cosa = cos(a);
@@ -186,6 +192,13 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		newx /= respix;             // scale factor to match with ROI (image)
 		newy /= respix;
 		newz /= respix;
+		if (rnd) {
+			dex = (float)rand() / (float)RAND_MAX;
+			dex = dex * 1.0f - 0.5f;
+			newx += dex;
+			newy += dex;
+			newz += dex;
+		}
 		x1[n] = newx;
 		y1[n] = newy;
 		z1[n] = newz;
@@ -196,12 +209,16 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		zi = float(ID / nic) * dcz - rcz;
 		xi = float(ID % nic) * dcx - rcx;
 		yi = tsc;
+		/*
 		// random position to the crystal aera
 		if (rnd) {
-			inkernel_randg2f(0.0, 2.0, &dex, &dez);
+			//inkernel_randg2f(0.0, 0.25, &dex, &dez);
+			dex = 2.0f * inkernel_randf() - 1.0f;
+			dez = 2.0f * inkernel_randf() - 1.0f;
 			xi += dex;
 			zi += dez;
 		}
+		*/
 		// rotation accoring ID detector
 		a = (float)id_detector2[n] * (-twopi / (float)nd) - pi / 2.0f;
 		cosa = cos(a);
@@ -215,6 +232,11 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		newx /= respix;             // scale factor to match with ROI (image)
 		newy /= respix;
 		newz /= respix;
+		if (rnd) {
+			newx += dex;
+			newy += dex;
+			newz += dex;
+		}
 		x2[n] = newx;
 		y2[n] = newy;
 		z2[n] = newz;

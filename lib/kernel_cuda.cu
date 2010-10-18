@@ -258,13 +258,13 @@ __global__ void pet3D_SRM_DDA_ON(int* d_im, int wim, int nx1, int nim) {
 		length = ly;
 		if (lx > length) {length = lx;}
 		if (lz > length) {length = lz;}
-		flength = (float)length;
-		xinc = diffx / flength;
-		yinc = diffy / flength;
-		zinc = diffz / flength;
-		x = x1 + 0.5f;
-		y = y1 + 0.5f;
-		z = z1 + 0.5f;
+		flength = 1.0f / (float)length;
+		xinc = diffx * flength;
+		yinc = diffy * flength;
+		zinc = diffz * flength;
+		x = x1;
+		y = y1;
+		z = z1;
 		for (n=0; n<=length; ++n) {
 			atomicAdd(&d_im[(int)z * step + (int)y * wim + (int)x], 1);
 			x = x + xinc;

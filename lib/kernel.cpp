@@ -1592,12 +1592,11 @@ void kernel_pet3D_IM_SRM_DDA(unsigned short int* X1, int nx1, unsigned short int
 							 float* im, int nim1, int nim2, int nim3, int wim) {
 	
 	int length, lengthy, lengthz, i, n;
-	float flength, val;
+	float flength;
 	float x, y, z, lx, ly, lz;
 	float xinc, yinc, zinc;
 	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
 	int step;
-	val = 1.0f;
 	step = wim*wim;
 	
 	for (i=0; i< nx1; ++i) {
@@ -1648,7 +1647,6 @@ void kernel_pet3D_IM_SRM_DDA_fixed(unsigned short int* X1, int nx1, unsigned sho
 	int fxinc, fyinc, fzinc, fx, fy, fz;
 	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
 	int step;
-	val = 1.0f;
 	step = wim*wim;
 	
 	for (i=0; i< nx1; ++i) {
@@ -1898,12 +1896,11 @@ void kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(unsigned short int* X1, int nx1, unsign
 										 float* F, int nf1, int nf2, int nf3, int wim, int ndata) {
 	
 	int length, lengthy, lengthz, i, j, n;
-	float flength, val;
+	float flength;
 	float x, y, z, lx, ly, lz;
 	float xinc, yinc, zinc;
 	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
 	int step;
-	val = 1.0f;
 	step = wim*wim;
 
 	// alloc mem
@@ -1939,10 +1936,10 @@ void kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(unsigned short int* X1, int nx1, unsign
 		y = y1;
 		z = z1;
 		for (n=0; n<=length; ++n) {
-			vals[n] = val;
+			vals[n] = 1.0f;
 			vcol = (int)z * step + (int)y * wim + (int)x;
 			cols[n] = vcol;
-			Qi += (val * im[vcol]);
+			Qi += im[vcol];
 			x = x + xinc;
 			y = y + yinc;
 			z = z + zinc;
@@ -1981,7 +1978,6 @@ void kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(unsigned short int* X1, int nx1, 
 	int fxinc, fyinc, fzinc, fx, fy, fz;
 	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
 	int step;
-	val = 1.0f;
 	step = wim*wim;
 
 	// alloc mem
@@ -2017,10 +2013,10 @@ void kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(unsigned short int* X1, int nx1, 
 		fy = float2fixed(y1);
 		fz = float2fixed(z1);
 		for (n=0; n<length; ++n) {
-			vals[n] = val;
+			vals[n] = 1.0f;
 			vcol = intfixed(fz) * step + intfixed(fy) * wim + intfixed(fx);
 			cols[n] = vcol;
-			Qi += (val * im[vcol]);
+			Qi += im[vcol];
 			fx = fx + fxinc;
 			fy = fy + fyinc;
 			fz = fz + fzinc;
@@ -2205,15 +2201,23 @@ void kernel_pet3D_IM_SRM_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z
 		qx = X1[n];
 		qy = Y1[n];
 		qz = Z1[n];
-		initl = (float)rand() / (float)RAND_MAX;
+		px -= 55.0f;
+		py -= 55.0f;
+		qx -= 55.0f;
+		qy -= 55.0f;
+		initl = inkernel_randf();
 		//initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
-		initl = initl * 0.4 + 0.1;
+		//initl = initl * 0.4 + 0.1; // rnd number between 0.1 to 0.5
+		initl = initl * 0.4 + 0.3; // rnd number between 0.3 to 0.7
+		//initl = 0.5f;
 		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
 		ty = (py-qy) * initl + qy;
 		tz = (pz-qz) * initl + qz;
 		ei = int(tx);
 		ej = int(ty);
 		ek = int(tz);
+		if (ei < 0.0f || ei >= wim || ej < 0.0f || ej >= wim || ek < 0.0f || ek >= dim) {continue;}
+		
 		if (qx-tx>0) {
 			u=ei+1;
 			stepi=1;

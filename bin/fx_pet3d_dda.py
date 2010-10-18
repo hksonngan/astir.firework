@@ -82,8 +82,8 @@ if NMname == 'None':
     SM = ones((sizez_im, sizexy_im, sizexy_im), 'float32')
 else:
     SM  = volume_open(NMname)
-    SM /= 6.0
-    #SM /= SM.max()
+    #SM /= 6.0
+    SM /= SM.max()
     SM  = 1 / SM
 
 # create directory
@@ -116,7 +116,7 @@ mip = volume_mip(imsub)
 image_write(mip, output + '/init_image.png')
 volume_write(imsub, output + '/volume_init.vol')
 print '... export to volume_init.vol'
-exit()
+
 # init im
 tg = time()
 F = zeros((sizez_im, sizexy_im, sizexy_im), 'float32')
@@ -137,9 +137,9 @@ for ite in xrange(Nite):
         
         # Compute F
         F *= 0.0 # init
-        kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, sizexy_im, ndata)
+        #kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, sizexy_im, ndata)
 
-        #kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, sizexy_im, ndata)
+        kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, sizexy_im, ndata)
         
         print '...... compute EM', time_format(time()-tsub)
 

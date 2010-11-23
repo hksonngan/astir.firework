@@ -46,6 +46,7 @@ from firework import *
 from numpy    import *
 from time     import time
 
+
 sizexy_space = 1004 # xy scanner inside im of 251 pix * respix
 sizez_space  = 180  # z scanner inside im of 45 pix * respix
 respix       = 565.0/141.0
@@ -53,6 +54,17 @@ respix       = 565.0/141.0
 sizexy_im    = 141  # gantry of 565 mm / respix
 sizez_im     = 45   # depth of 176.4 mm / respix thus 45 pix, but we use a cube bounding box
 size_border  = 55
+
+
+'''
+sizexy_space = 1002 # xy scanner inside im of 501 pix * respix
+sizez_space  = 178  # z scanner inside im of 89 pix * respix
+respix       = 565.0/283.0
+#respix = 4.0
+sizexy_im    = 283  # gantry of 565 mm / respix
+sizez_im     = 89   # depth of 176.4 mm / respix thus 45 pix, but we use a cube bounding box
+size_border  = 109
+'''
 
 #src   = 'toto.bin'
 #trg   = 'mire'
@@ -108,7 +120,17 @@ for istep in xrange(Nstep):
     # precompute all entry-exit SRM point
     t = time()
     enable = zeros((n), 'int32')
-    kernel_pet3D_SRM_raycasting(x1, y1, z1, x2, y2, z2, enable, size_border, sizexy_im, sizez_im)
+    if kind == 'int':
+        kernel_pet3D_SRM_raycasting(x1, y1, z1, x2, y2, z2, enable, size_border, sizexy_im, sizez_im)
+    elif kind == 'float':
+        x1dum = x1.copy()
+        y1dum = y1.copy()
+        z1dum = z1.copy()
+        x2dum = x2.copy()
+        y2dum = y2.copy()
+        z2dum = z2.copy()
+        kernel_pet3D_SRM_raycasting(x1dum, y1dum, z1dum, x2dum, y2dum, z2dum, enable, size_border, sizexy_im, sizez_im)
+        del x1dum, y1dum, z1dum, x2dum, y2dum, z2dum
     print 'Compute SRM entry-exit points', time_format(time()-t)
 
     # clean all LORs

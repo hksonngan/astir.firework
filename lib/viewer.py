@@ -89,7 +89,7 @@ def volume_show(vol):
         vol = volume_pack_cube(vol)
         wz, wy, wx = vol.shape
     cz, cy, cx       = wz//2, wy//2, wx//2
-    w, h             = 800, 500
+    w, h             = 320, 240
     scale            = 3.0
     lmouse, rmouse   = 0, 0
     xmouse, ymouse   = 0.0, 0.0

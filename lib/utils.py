@@ -275,34 +275,15 @@ def image_noise(ny, nx, sigma, model='gauss'):
             
 # Compute RAPS, radial averaging power spectrum
 def image_raps(im):
-    from numpy import zeros, array
+    from numpy import array
 
     lo, wo = im.shape
     im     = image_pows(im)
     l, w   = im.shape
     c      = (w - 1) // 2
-    rmax   = c
-    val    = zeros((rmax + 1), 'float32')
-    ct     = zeros((rmax + 1), 'float32')
-    val[0] = im[c, c] # fundamental
-    ct[0]  = 1.0
-    for i in xrange(c - rmax, c + rmax + 1):
-        for j in xrange(c - rmax, c + rmax + 1):
-            r = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5)
-            if r >= rmax: continue
-            ir    = int(r)
-            cir   = ir + 1
-            frac  = r  - ir
-            cfrac = 1  - frac
-            val[ir] += (cfrac * im[j, i])
-            if cfrac != 0.0: ct[ir] += cfrac
-            if cir <= rmax:
-                val[cir] += (frac * im[j, i])
-                if frac != 0.0: ct[cir] += frac
-
-    val /= ct
+    val    = image_ra(im)
     
-    freq  = range(0, rmax + 1) # should be wo // 2 + 1 coefficient need to fix!!
+    freq  = range(0, c + 1) # should be wo // 2 + 1 coefficient need to fix!!
     freq  = array(freq, 'float32')
     freq /= float(wo)
     
@@ -310,10 +291,8 @@ def image_raps(im):
 
 # Compute RA, radial average of image
 def image_ra(im):
-    from numpy import zeros, array
+    from numpy import zeros
 
-    toto = zeros(im.shape, im.dtype)
-    
     l, w   = im.shape
     c      = (w - 1) // 2
     rmax   = c
@@ -322,20 +301,29 @@ def image_ra(im):
     val[0] = im[c, c] # central value
     ct[0]  = 1.0
     for i in xrange(c - rmax, c + rmax + 1):
+        di = i - c
+        if abs(di) > rmax: continue
         for j in xrange(c - rmax, c + rmax + 1):
-            di = i - c
             dj = j - c
-            r = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5)
-            if r > rmax: continue
-            ir    = int(r)
+            r = (di*di + dj*dj)**(0.5)
+            ir = int(r)
+            if ir > rmax: continue
             cir   = ir + 1
             frac  = r  - ir
             cfrac = 1  - frac
+
+            val[ir]  += (cfrac * im[j, i])
+            ct[ir]   += cfrac
+            if cir <= rmax:
+                val[cir] += (frac  * im[j, i])
+                ct[cir]  += frac
+            '''
             val[ir] += (cfrac * im[j, i])
             if cfrac != 0.0: ct[ir] += cfrac
             if cir <= rmax:
                 val[cir] += (frac * im[j, i])
                 if frac != 0.0: ct[cir] += frac
+            '''
 
     val /= ct
     
@@ -369,8 +357,8 @@ def image_frc(im1, im2):
     for i in xrange(c-rmax, c+rmax+1):
         for j in xrange(c-rmax, c+rmax+1):
             r = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5)
-            if r >= rmax: continue
             ir    = int(r)
+            if ir > rmax: continue
             cir   = ir + 1
             frac  = r - ir
             cfrac = 1 - frac
@@ -387,7 +375,7 @@ def image_frc(im1, im2):
     
     fsc = fsc / (nf1 * nf2)**0.5
 
-    freq  = range(len(fsc))  # should be 0, wo // 2 + 1) need to fix!!
+    freq  = range(rmax + 1)  # should be 0, wo // 2 + 1) need to fix!!
     freq  = array(freq, 'float32')
     freq /= float(wo)
 
@@ -490,9 +478,11 @@ def image_flip_ud(im):
     return flipud(im)
 
 # Compute ZNCC between 2 images
-def image_zncc(im1, im2):
+def image_zncc(i1, i2):
     from numpy import sqrt, sum
-    
+
+    im1   = i1.copy()
+    im2   = i2.copy()
     im1  -= im1.mean()
     im2  -= im2.mean()
     s1    = sqrt(sum(im1*im1))
@@ -500,11 +490,35 @@ def image_zncc(im1, im2):
     
     return sum(im1 * im2) / (s1 * s2)
 
+# Compute ZNCC between 2 images under a mask
+def image_zncc_mask(i1, i2, mask):
+    from numpy import sqrt, sum
+
+    im1  = i1.copy()
+    im2  = i2.copy()
+    v1   = image_pick_undermask(im1, mask)
+    v2   = image_pick_undermask(im2, mask)
+    b1   = v1 - v1.mean()
+    b2   = v2 - v2.mean()
+    s1   = sqrt(sum(b1*b1))
+    s2   = sqrt(sum(b2*b2))
+
+    return sum(b1 * b2) / (s1 * s2)
+
 # Compute SNR based on ZNCC
 def image_snr_from_zncc(signal, noise):
     from math import sqrt
     
     ccc = image_zncc(signal, noise)
+    snr = sqrt(ccc / (1 - ccc))
+
+    return snr
+
+# Compute SNR based on ZNCC under a mask
+def image_snr_from_zncc_mask(signal, noise, mask):
+    from math import sqrt
+
+    ccc = image_zncc_mask(signal, noise, mask)
     snr = sqrt(ccc / (1 - ccc))
 
     return snr
@@ -591,7 +605,37 @@ def image_stats_mask(im, mask):
                 val[ct] = im[y, x]
                 ct     += 1
 
-    return val.min(), val.max(), val.mean(), val.std()
+    return val.min(), val.max(), val.mean(), val.std(), val.sum(), npix
+
+# Get values under a mask
+def image_pick_undermask(im, mask):
+    from numpy import zeros
+
+    npix   = mask.sum()
+    val    = zeros((npix), 'float32')
+    ny, nx = mask.shape
+    ct     = 0
+    for y in xrange(ny):
+        for x in xrange(nx):
+            if mask[y, x] == 1.0:
+                val[ct] = im[y, x]
+                ct     += 1
+
+    return val
+
+# Compute image centroid
+def image_centroid(im):
+    ny, nx = im.shape
+
+    M00, M01, M10 = 0, 0, 0
+    for y in xrange(ny):
+        for x in xrange(nx):
+            i    = im[y, x]
+            M00 += i
+            M01 += (y * i)
+            M10 += (x * i)
+
+    return M10 / float(M00), M01 / float(M00)
 
 # Stitch two images in one
 def image_stitch(im1, im2):
@@ -774,7 +818,7 @@ def volume_fft(vol):
     from numpy import fft
     z, y, x = vol.shape
     if z != y or z != x or x != y:
-        print 'Volume must be square!'
+        print 'Volume must be cube!'
         return -1
     volf = fft.fftn(vol)
     volf = fft.fftshift(volf)
@@ -786,11 +830,12 @@ def volume_ifft(volf):
     from numpy import fft
     z, y, x = volf.shape
     if z != y or z != x or x != y:    
-        print 'Volume must be square!'
+        print 'Volume must be cube!'
         return -1
     vol = fft.ifftn(volf)
-
-    return abs(vol)
+    vol = abs(vol)
+    
+    return vol.astype('float32')
 
 # Low pass filter
 def volume_lp_filter(vol, fc, order):
@@ -924,6 +969,143 @@ def volume_infos(vol):
     sh = vol.shape
     print 'size: %ix%ix%i min %f max %f mean %f std %f' % (sh[0], sh[1], sh[2], vol.min(), vol.max(), vol.mean(), vol.std())
 
+# Compute volume RA (radial average)
+def volume_ra(vol):
+    from numpy import zeros
+
+    nz, ny, nx = vol.shape
+    c          = (nx - 1) // 2
+    rmax       = c
+    val        = zeros((rmax + 1), 'float32')
+    ct         = zeros((rmax + 1), 'float32')
+    val[0]     = vol[c, c, c] # central value
+    ct[0]      = 1.0
+    for k in xrange(c - rmax, c + rmax + 1):
+        dk = k - c
+        if abs(dk) > rmax: continue
+        for i in xrange(c - rmax, c + rmax + 1):
+            di = i - c
+            if abs(di) > rmax: continue
+            for j in xrange(c - rmax, c + rmax + 1):
+                dj = j - c
+                r = (di*di + dj*dj + dk*dk)**(0.5)
+                ir = int(r)
+                if ir > rmax: continue
+                cir   = ir + 1
+                frac  = r  - ir
+                cfrac = 1  - frac
+
+                val[ir]  += (cfrac * vol[k, j, i])
+                ct[ir]   += cfrac
+                if cir <= rmax:
+                    val[cir] += (frac  * vol[k, j, i])
+                    ct[cir]  += frac
+
+    val /= ct
+    
+    return val
+
+# Compute volume RAPS (radial averaging power spectrum)
+def volume_raps(vol):
+    from numpy import array
+
+    nzo, nyo, nxo = vol.shape
+    vol           = volume_pows(vol)
+    nz, ny, nx    = vol.shape
+    c      = (nx - 1) // 2
+    val    = volume_ra(vol)
+    
+    freq  = range(0, c + 1) # should be wo // 2 + 1 coefficient need to fix!!
+    freq  = array(freq, 'float32')
+    freq /= float(nxo)
+    
+    return val, freq
+
+# compute power spectrum of volume
+def volume_pows(vol):
+    volf   = volume_fft(vol)
+    volf   = volf * volf.conj()
+    volf   = volf.real
+    nz, ny, nx = vol.shape
+    volf  /= (float(nz * ny * nx))
+    
+    return volf
+
+# Compute FSC curve (Fourier Shell Correlation)
+def volume_fsc(vol1, vol2):
+    from numpy import zeros, array
+
+    nzo, nyo, nxo = vol1.shape
+    volf1   = volume_fft(vol1)
+    volf2   = volume_fft(vol2)
+    volf2c  = volf2.conj()
+    nz, ny, nx = volf1.shape
+    c      = (nx - 1) // 2
+    rmax   = c
+    fsc    = zeros((rmax + 1), 'float32')
+    nf1    = zeros((rmax + 1), 'float32')
+    nf2    = zeros((rmax + 1), 'float32')
+    
+    # center
+    fsc[0] = abs(volf1[c, c, c] * volf2c[c, c, c])
+    nf1[0] = abs(volf1[c, c, c])**2
+    nf2[0] = abs(volf2[c, c, c])**2
+    
+    # over all shells
+    for k in xrange(c-rmax, c+rmax+1):
+        dk = k-c
+        if abs(dk) > rmax: continue
+        for i in xrange(c-rmax, c+rmax+1):
+            di = i-c
+            if abs(di) > rmax: continue
+            for j in xrange(c-rmax, c+rmax+1):
+                dj = j-c
+                r = (di*di + dj*dj + dk*dk)**(0.5)
+                ir    = int(r)
+                if ir > rmax: continue
+                cir      = ir + 1
+                frac     = r - ir
+                cfrac    = 1 - frac
+                ifsc     = volf1[k, j, i] * volf2c[k, j, i]
+                inf1     = abs(volf1[k, j, i])**2
+                inf2     = abs(volf2[k, j, i])**2
+                fsc[ir] += (cfrac * ifsc)
+                nf1[ir] += (cfrac * inf1)
+                nf2[ir] += (cfrac * inf2)
+                if cir <= rmax:
+                    fsc[cir] += (frac * ifsc)
+                    nf1[cir] += (frac * inf1)
+                    nf2[cir] += (frac * inf2)
+    
+    fsc = fsc / (nf1 * nf2)**0.5
+
+    freq  = range(rmax + 1)  # should be 0, wo // 2 + 1) need to fix!!
+    freq  = array(freq, 'float32')
+    freq /= float(nxo)
+
+    return fsc, freq
+
+# Compute ZNCC between 2 volumes
+def volume_zncc(vol1, vol2):
+    from numpy import sqrt, sum
+    
+    vol1 -= vol1.mean()
+    vol2 -= vol2.mean()
+    s1    = sqrt(sum(vol1*vol1))
+    s2    = sqrt(sum(vol2*vol2))
+    
+    return sum(vol1 * vol2) / (s1 * s2)
+
+# Compute SNR based on ZNCC
+def volume_snr_from_zncc(signal, noise):
+    from math import sqrt
+    
+    ccc = volume_zncc(signal, noise)
+    snr = sqrt(ccc / (1 - ccc))
+
+    return snr
+
+
 
 # ==== Misc =================================
 # ===========================================
@@ -1047,6 +1229,7 @@ def plot_filter_profil(H):
     import matplotlib.pyplot as plt
     p, f = filter_profil(H)
     plt.plot(f, p)
+    plt.axhline(y=0.707, c='r', ls=':')
     plt.xlabel('Nyquist frequency')
     plt.ylabel('Gain')
     plt.grid(True)

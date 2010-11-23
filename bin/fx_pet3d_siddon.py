@@ -83,10 +83,10 @@ if NMname == 'None':
 else:
     SM  = volume_open(NMname)
     SM  = SM.reshape(SM.size)
-    SM /= 6.0
-    #SM /= SM.max()
+    #SM /= 6.0
+    SM /= SM.max()
     SM  = 1 / SM
-
+    
 # create directory
 os.mkdir(output)
 

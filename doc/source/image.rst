@@ -33,6 +33,39 @@ imf = **image_fft** (im)
 
 ``imf`` 2D Numpy array of FFT complexe values ('complex'). The spectrum is already shift.
 
+**Notes**
+
+An even image as coefficients order like that: [f3* f2* f1* f0 f1 f2] and for odd image is: [f2* f1* f0 f1 f2]
+
+image_flip_lr
+-------------
+
+newim = **image_flip_lr** (im)
+
+*Flip left to right the image*
+
+**Parameters**
+
+``im`` A 2D Numpy array as image
+
+**Returns**
+
+``newim`` Result image, 2D Numpy array
+
+image_flip_ud
+-------------
+
+newim = **image_flip_ud** (im)
+
+*Flip up to down the image*
+
+**Parameters**
+
+``im`` A 2D Numpy array as image
+
+**Returns**
+
+``newim`` Result image, 2D Numpy array
 
 image_frc
 ---------
@@ -204,7 +237,7 @@ noise = **image_noise** (ny, nx, sigma, [model])
 
 ``sigma`` Sigma value, define the delta value around zeros i.e. how large is the distribution, and how strong is the noise.
 
-``model`` Gaussian model or Poisson model (default is Gaussian)
+``model`` Gaussian model 'gauss' (mu=0) or Poisson model 'poisson' (default is Gaussian)
 
 **Returns**
 
@@ -297,6 +330,23 @@ pows = **image_pows** (im)
 
 ``pows`` A 2D Numpy array
 
+image_projection
+----------------
+
+vec = **image_projection** (im, [axis])
+
+*Compute the 1D projection of an image along x or y axis*
+
+**Parameters**
+
+``im`` A 2D Numpy array as image
+
+``axis`` Direction axis of the projection can be 'x' or 'y' (default is 'x')
+
+**Returns**
+
+``vec`` Values of the projection, 1D Numpy array
+
 image_ra
 --------
 
@@ -332,7 +382,22 @@ val, freq = **image_raps** (im)
 
 **Notes**
 
-The input image is not normalize i.e. the mean is not equal to zeros
+The input image is not normalize i.e. the mean is not equal to zeros. The input must be a square image.
+
+image_rot90
+-----------
+
+newim = **image_rot90** (im)
+
+*Perform a rotation of 90 degree on an image (clockwise I think!)*
+
+**Parameters**
+
+``im`` A 2D Numpy array as image
+
+**Returns**
+
+``newim`` Result image, 2D Numpy array
 
 image_show
 ----------
@@ -360,6 +425,24 @@ viewer.py
 	>>> im = image_open('test.png')
 	>>> image_show(im)
 
+image_slice
+-----------
+
+vec = **image_slice** (im, x1, y1, x2, y2)
+
+*Get the 1D slice of the image along a line*
+
+**Parameters**
+
+``im`` 2D Numpy array as image
+
+``x1, y1`` Coordinate of the first point which define the line
+
+``x2, y2`` Coordinate of the last point, the end of the slice line
+
+**Returns**
+
+``vec`` A 1D Numpy array this values pick up along the slice
 
 image_snr_from_zncc
 -------------------

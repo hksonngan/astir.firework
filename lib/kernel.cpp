@@ -118,7 +118,6 @@ void inkernel_randg2f(float mean, float std, float* z0, float* z1) {
 }
 #undef pi
 
-
 /********************************************************************************
  * PET Scan Allegro      
  ********************************************************************************/
@@ -271,6 +270,85 @@ void kernel_allegro_build_all_LOR(unsigned short int* idc1, int n1, unsigned sho
 	}
 	
 }
+
+/********************************************************************************
+ * PET Scan GE Discovery      
+ ********************************************************************************/
+
+// Convert blf file from GE scanner to ID (crystals and modules)
+// blf format word of 32 bits
+// 0         1         2         3
+// 01234567890123456789012345678901
+// x|        ||   |||   ||        | coincidence (if 0)
+//  xxxxxxxxxx|   |||   ||        | ID 1
+//            xxxxx||   ||        | Ring 1
+//                 x|   ||        | prompt or delay (1 or 0)
+//                  xxxxx|        | Ring 2
+//                       xxxxxxxxxx ID 2
+void kernel_discovery_blftobin(char* blffilename, char* binfilename) {
+	// vars
+	unsigned int word;
+	int M1, R1, C1, ID1;
+	int M2, R2, C2, ID2;
+	int nid;
+	int n, c;
+	int p;
+	// init file
+	FILE * pfile_blf;
+	FILE * pfile_bin;
+	pfile_blf = fopen(blffilename, "rb");
+	pfile_bin = fopen(binfilename, "wb");
+	// Read number of words
+	fseek(pfile_blf, 0, SEEK_END);
+	nid = ftell(pfile_blf);
+	rewind(pfile_blf);
+	nid /= 4;
+	printf("nid %i\n", nid);
+	c = 0;
+	// Reading loop
+	for (n=0; n<nid; ++n) {
+		// read a word
+		fread(&word, sizeof(word), 1, pfile_blf);
+		// check if coincidence
+		if (word & 0x80000000 == 1) {continue;}
+		// extract ID1
+		ID1 = (word << 1) & 0xffc00000;
+		// extract R1
+		R1 = (word << 10) & 0xf8000000;
+		if (R1 >= 24) {continue;}
+		// extract p
+		p = (word << 5) & 0x80000000;
+		// extract ID2;
+		ID2 = (word << 1) & 0xffc00000;
+		// extract R2;
+		R2 = (word << 10) & 0xf8000000;
+		if (R2 >= 24) {continue;}
+		// DEBUG
+		if (n==50000) {printf("%i %i\n", ID1, ID2);}
+		// convert
+		M1 = ID1 / 16;
+		M2 = ID2 / 16;
+		if (M1 >= 35 || M2 >= 35) {continue;}
+		C1 = ID1 - M1 * 16;
+		C2 = ID2 - M2 * 16;
+		if (C1 >= 16 || C2 >= 16) {continue;}
+		C1 += (16 * R1);
+		C2 += (16 * R2);
+		// save in binary format
+		fwrite(&C1, sizeof(int), 1, pfile_bin);
+		fwrite(&M1, sizeof(int), 1, pfile_bin);
+		fwrite(&C2, sizeof(int), 1, pfile_bin);
+		fwrite(&M2, sizeof(int), 1, pfile_bin);
+		c++;
+	}
+	printf("tot %i\n", c);
+	fclose(pfile_blf);
+	fclose(pfile_bin);
+}
+
+/********************************************************************************
+ * PET Scan       
+ ********************************************************************************/
 
 // SRM Raytracing (transversal algorithm), Compute entry and exit point on SRM of the ray
 void kernel_pet2D_SRM_entryexit(float* px, int npx, float* py, int npy, float* qx, int nqx, float* qy, int nqy, int b, int srmsize, int* enable, int nenable) {
@@ -1981,7 +2059,7 @@ void kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(unsigned short int* X1, int nx1, 
 	step = wim*wim;
 
 	// alloc mem
-	float* vals = (float*)malloc(ndata * sizeof(float));
+	//float* vals = (float*)malloc(ndata * sizeof(float));
 	int* cols = (int*)malloc(ndata * sizeof(int));
 	int LOR_ind;
 	// to compute F
@@ -2013,7 +2091,7 @@ void kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(unsigned short int* X1, int nx1, 
 		fy = float2fixed(y1);
 		fz = float2fixed(z1);
 		for (n=0; n<length; ++n) {
-			vals[n] = 1.0f;
+			//vals[n] = 1.0f;
 			vcol = intfixed(fz) * step + intfixed(fy) * wim + intfixed(fx);
 			cols[n] = vcol;
 			Qi += im[vcol];
@@ -2022,7 +2100,7 @@ void kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(unsigned short int* X1, int nx1, 
 			fz = fz + fzinc;
 		}
 		// eof
-		vals[n] = -1;
+		//vals[n] = -1;
 		cols[n] = -1;
 		// compute F
 		if (Qi==0.0f) {continue;}
@@ -2030,12 +2108,12 @@ void kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(unsigned short int* X1, int nx1, 
 		vcol = cols[0];
 		j = 0;
 		while (vcol != -1) {
-			F[vcol] += (vals[j] * Qi);
+			F[vcol] += Qi;
 			++j;
 			vcol = cols[j];
 			}
 	}
-	free(vals);
+	//free(vals);
 	free(cols);
 }
 #undef CONST
@@ -2624,15 +2702,20 @@ void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int n
 		qx = X1[n];
 		qy = Y1[n];
 		qz = Z1[n];
-		initl = (float)rand() / (float)RAND_MAX;
+		px -= 55.0f;
+		py -= 55.0f;
+		qx -= 55.0f;
+		qy -= 55.0f;
+		initl = inkernel_randf();
 		//initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
-		initl = initl * 0.4 + 0.1;
+		initl = initl * 0.4 + 0.3; // rnd number between 0.3 to 0.7
 		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
 		ty = (py-qy) * initl + qy;
 		tz = (pz-qz) * initl + qz;
 		ei = int(tx);
 		ej = int(ty);
 		ek = int(tz);
+		if (ei < 0.0f || ei >= wim || ej < 0.0f || ej >= wim || ek < 0.0f || ek >= dim) {continue;}
 		if (qx-tx>0) {
 			u=ei+1;
 			stepi=1;
@@ -6211,7 +6294,7 @@ void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip,
 			ymax = pady+float(ny);
 			zmin = padz;
 			zmax = padz+float(nz);
-			// Rayscasting Smith's algorithm ray-box AABB intersection
+			// Rayscasting Smits's algorithm ray-box AABB intersection
 			xd = x2 - x1;
 			yd = y2 - y1;
 			zd = z2 - z1;

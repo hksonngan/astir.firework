@@ -103,6 +103,10 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 // used
 void kernel_allegro_build_all_LOR(unsigned short int* idc1, int n1, unsigned short int* idd1, int n2,
 								  unsigned short int* idc2, int n3, unsigned short int* idd2, int n4);
+
+// used
+void kernel_discovery_blftobin(char* blffilename, char* binfilename);
+
 // used
 void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
 								float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,

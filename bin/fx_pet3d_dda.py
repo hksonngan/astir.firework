@@ -108,7 +108,7 @@ for isub in xrange(Nsub):
     n_start = int(float(ntot) / Nsub * isub + 0.5)
     n_stop  = int(float(ntot) / Nsub * (isub+1) + 0.5)
     n       = n_stop - n_start
-    kernel_pet3D_IM_SRM_DDA(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, sizexy_im)
+    kernel_pet3D_IM_SRM_DDA_fixed(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, sizexy_im)
     print '... sub %i / %i' % (isub, Nsub)
 
 print '...', time_format(time()-t)
@@ -139,7 +139,7 @@ for ite in xrange(Nite):
         F *= 0.0 # init
         #kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, sizexy_im, ndata)
 
-        kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, sizexy_im, ndata)
+        kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, sizexy_im, ndata)
         
         print '...... compute EM', time_format(time()-tsub)
 

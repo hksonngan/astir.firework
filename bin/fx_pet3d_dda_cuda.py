@@ -83,8 +83,8 @@ if NMname == 'None':
     SM = ones((sizez_im, sizexy_im, sizexy_im), 'float32')
 else:
     SM  = volume_open(NMname)
-    SM /= 6.0
-    #SM /= SM.max()
+    #SM /= 6.0
+    SM /= SM.max()
     SM  = 1 / SM
 
 # create directory
@@ -137,7 +137,6 @@ F = zeros((sizez_im, sizexy_im, sizexy_im), 'float32')
 for ite in xrange(Nite):
     print 'Iteration %i' % ite
     tite  = time()
-    
     # Subset loop
     for isub in xrange(Nsub):
         tsub    = time()
@@ -180,7 +179,7 @@ for ite in xrange(Nite):
         print '...... Update sub-image', time_format(time()-t)
         
         print '...... Subtime', time_format(time()-tsub)
-        
+
     # save image
     mip = volume_mip(imsub)
     image_write(mip, output + '/%02i_image.png' % ite)

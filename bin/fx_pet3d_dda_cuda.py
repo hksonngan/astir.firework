@@ -28,6 +28,8 @@ p.add_option('--Nsub',    type='int',    default=1,       help='Number of subset
 p.add_option('--cuton',   type='int',    default=0,       help='Starting number in LOR file (default 0)')
 p.add_option('--cutoff',  type='int',    default=1000000, help='Stoping number in LOR file (default 1000000)')
 p.add_option('--NM',      type='string', default='None',  help='Normalize matrix path and name (.vol) (default None meaning not normalize)')
+p.add_option('--nxy',     type='int',    default=141,     help='Volume size on x and y (transaxial)')
+p.add_option('--nz',      type='int',    default=45,      help='Volume size on z (axial)')
 
 (options, args) = p.parse_args()
 if len(args) < 2:
@@ -45,6 +47,8 @@ Nsub      = options.Nsub
 cuton     = options.cuton
 cutoff    = options.cutoff
 NMname    = options.NM
+nxy       = options.nxy
+nz        = options.nz
 
 from firework import *
 from numpy    import *
@@ -62,25 +66,17 @@ print 'Nsub', Nsub
 print 'cuton', cuton
 print 'cutoff', cutoff
 print 'Normalize matrix', NMname
-
-# Cst
-sizexy_im    = 141 # gantry of 565 mm / respix
-sizez_im     = 45  # depth of 176.4 mm / respix
-# Setup
-#Nite         = 1
-#Nsub         = 1
-#cuton        = 0
-#cutoff       = 30000
-#src         = '/home/julien/Big_data_sets/mire'
-#output       = 'LOR_test'
-scaleim      = 1e-6
+print 'Volume %ix%ix%i' % (nxy, nxy, nz)
 
 # Vars
+scaleim      = 1e-6
 ntot         = cutoff-cuton
+ndata = int(1.2 * (2*nxy*nxy + nz*nz)**0.5)
+print 'ELL buffer size', ndata
 
 # read normalize matrix
 if NMname == 'None':
-    SM = ones((sizez_im, sizexy_im, sizexy_im), 'float32')
+    SM = ones((nz, nxy, nxy), 'float32')
 else:
     SM  = volume_open(NMname)
     #SM /= 6.0
@@ -109,30 +105,33 @@ kernel_listmode_open_subset_xyz_int(xi1, yi1, zi1, xi2, yi2, zi2, cuton, cutoff,
 print 'Read data'
 print '...', time_format(time()-t)
 
+'''
 # compute intial image
 t     = time()
-imsub = zeros((sizez_im * sizexy_im * sizexy_im), 'int32')
+imsub = zeros((nz, nxy, nxy), 'int32')
 GPU   = 1
 for isub in xrange(Nsub):
     n_start = int(float(ntot) / Nsub * isub + 0.5)
     n_stop  = int(float(ntot) / Nsub * (isub+1) + 0.5)
     n       = n_stop - n_start
-    kernel_pet3D_IM_DEV_cuda(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, sizexy_im, GPU)
+    kernel_pet3D_IM_SRM_DDA_cuda(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, nxy, GPU)
     print '  sub %i / %i' % (isub, Nsub)
 
 print '...', time_format(time()-t)
 imsub = imsub.astype('float32')
-imsub = imsub.reshape((sizez_im, sizexy_im, sizexy_im))
 mip   = volume_mip(imsub)
 #image_show(buf)
 image_write(mip, output + '/init_image.png')
 volume_write(imsub, output + '/volume_init.vol')
 print '... export to volume_init.vol'
+'''
 
 # init im
-tg = time()
-imsub *= scaleim
-F = zeros((sizez_im, sizexy_im, sizexy_im), 'float32')
+tg    = time()
+GPU   = 1
+imsub = ones((45, 141, 141), 'float32')
+imsub *= 0.01
+F     = zeros((nz, nxy, nxy), 'float32')
 # Iteration loop
 for ite in xrange(Nite):
     print 'Iteration %i' % ite
@@ -148,7 +147,7 @@ for ite in xrange(Nite):
         
         # compute F
         F *= 0.0 # init
-        kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, sizexy_im, GPU)
+        kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, nxy, GPU)
         print '...... compute EM', time_format(time()-tsub)        
 
         # Normalization
@@ -182,6 +181,7 @@ for ite in xrange(Nite):
 
     # save image
     mip = volume_mip(imsub)
+    mip *= image_mask_circle(141, 141, 60)
     image_write(mip, output + '/%02i_image.png' % ite)
     volume_write(imsub, output + '/%02i_volume.vol' % ite)
     print '... Iter time', time_format(time()-tite)

@@ -26,6 +26,7 @@ p        = optparse.OptionParser(usage, description=topic)
 p.add_option('--convert', action='store', type='choice', choices=['int', 'float'], default='int', help='["int" or "float"] Convert in integer for DDA projector or in float point to Siddon projector (default int)')
 p.add_option('--Nstep',    type='int',    default=1,       help='Split the job in Nstep iteration to avoid overloading memory (default 1)')
 p.add_option('--rnd',    type='int',    default=10,       help='Seed random number to determine random position on the crystal (default 10). If set to 0 no random process')
+p.add_option('--model',   action='store', type='choice', choices=['allegro', 'discovery'], default='allegro', help='["allegro" or "discovery"] Geometry scanner available')
 
 (options, args) = p.parse_args()
 if len(args) < 2:
@@ -41,37 +42,32 @@ trg    = args[1]
 kind   = options.convert
 Nstep  = options.Nstep
 rnd    = options.rnd
+model  = options.model
 
 from firework import *
 from numpy    import *
 from time     import time
 
+if model == 'allegro':
+    print 'Allegro geometry'
+    sizexy_space = 1004 # xy scanner inside im of 251 pix * respix
+    sizez_space  = 180  # z scanner inside im of 45 pix * respix
+    respix       = 565.0/141.0
+    #respix = 4.0
+    sizexy_im    = 141  # FOV transaxial of 565 mm
+    sizez_im     = 45   # FOV axial of 176.4 mm
+    size_border  = 55
+elif model == 'discovery':
+    print 'Discovery geometry'
+    sizexy_space = 886 # xy scanner inside im of 251 pix * respix
+    sizez_space  = 183 # z scanner inside im of 45 pix * respix
+    respix       = 495.0/127.0
+    #respix = 3.89
+    sizexy_im    = 127  # FOV transaxial of 495 mm
+    sizez_im     = 47   # FOV axial of 157 mm
+    size_border  = 50
 
-sizexy_space = 1004 # xy scanner inside im of 251 pix * respix
-sizez_space  = 180  # z scanner inside im of 45 pix * respix
-respix       = 565.0/141.0
-#respix = 4.0
-sizexy_im    = 141  # gantry of 565 mm / respix
-sizez_im     = 45   # depth of 176.4 mm / respix thus 45 pix, but we use a cube bounding box
-size_border  = 55
-
-
-'''
-sizexy_space = 1002 # xy scanner inside im of 501 pix * respix
-sizez_space  = 178  # z scanner inside im of 89 pix * respix
-respix       = 565.0/283.0
-#respix = 4.0
-sizexy_im    = 283  # gantry of 565 mm / respix
-sizez_im     = 89   # depth of 176.4 mm / respix thus 45 pix, but we use a cube bounding box
-size_border  = 109
-'''
-
-#src   = 'toto.bin'
-#trg   = 'mire'
-#kind  = 'int' #'int'  # or 'float'
 Ntot  = os.path.getsize(src) // 16
-#Nstep = 2
-#rnd   = 10
 
 nclean = 0
 if kind == 'int':
@@ -113,7 +109,10 @@ for istep in xrange(Nstep):
     x2   = zeros((n), 'float32')
     y2   = zeros((n), 'float32')
     z2   = zeros((n), 'float32')
-    kernel_allegro_idtopos(idc1, idd1, x1, y1, z1, idc2, idd2, x2, y2, z2, respix, sizexy_space, sizez_space, rnd)
+    if model == 'allegro':
+        kernel_allegro_idtopos(idc1, idd1, x1, y1, z1, idc2, idd2, x2, y2, z2, respix, sizexy_space, sizez_space, rnd)
+    elif model == 'discovery':
+        kernel_discovery_idtopos(idc1, idd1, x1, y1, z1, idc2, idd2, x2, y2, z2, respix, sizexy_space, sizez_space, rnd)
     del idc1, idd1, idc2, idd2
     print 'Convert ID to pos', time_format(time()-t)
 

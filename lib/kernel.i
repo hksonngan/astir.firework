@@ -73,6 +73,7 @@ void kernel_allegro_idtopos(int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, 
 void kernel_allegro_build_all_LOR(unsigned short int* INPLACE_ARRAY1, int DIM1, unsigned short int* INPLACE_ARRAY1, int DIM1, unsigned short int* INPLACE_ARRAY1, int DIM1, unsigned short int* INPLACE_ARRAY1, int DIM1);
 
 void kernel_discovery_blftobin(char* blffilename, char* binfilename);
+void kernel_discovery_idtopos(int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float respix, int sizespacexy, int sizespacez, int rnd);
 
 
 void kernel_pet3D_SRM_raycasting(float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int border, int ROIxy, int ROIz);
@@ -168,7 +169,7 @@ void toto(char* name);
 
 
 
-void kernel_pet3D_IM_DEV_cuda(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1, int wim, int ID);
+void kernel_pet3D_IM_SRM_DDA_cuda(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, int* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, int wim, int ID);
 
 void kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1, float* IN_ARRAY3, int DIM1, int DIM2, int DIM3, float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, int wim, int ID);
 
@@ -178,6 +179,13 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* IN_ARRAY1, int
 											  float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
 											  float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
 											  float* IN_ARRAY3, int DIM1, int DIM2, int DIM3, int wim, int ID);
+
+
+void kernel_pet3D_OPLEM_cuda(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
+							 unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
+							 unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
+							 float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
+							 float* IN_ARRAY3, int DIM1, int DIM2, int DIM3, int Nsub, int ID);
 
 void kernel_mip_volume_rendering(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3, float* INPLACE_ARRAY2, int DIM1, int DIM2, float alpha, float beta, float scale);
 

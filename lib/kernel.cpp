@@ -124,15 +124,14 @@ void inkernel_randg2f(float mean, float std, float* z0, float* z1) {
 
 #define pi  3.141592653589
 #define twopi 6.283185307179
-// Convert ID event from GATE to global position in 3D space
+// Convert ID event from allegro scanner to global position in 3D space
 void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int nidd1,
 							float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
 							int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
 							float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
 							float respix, int sizespacexy, int sizespacez, int rnd) {
-	// NOTE: ref system will be change instead of ref GATE system.
-	// We use the image ref system
-	// GATE             IMAGE
+	// NOTE: ref system will be changed, from ref GATE system to image system
+	// GATE             SPACE
 	//    X             Z
 	//    |__ Z         /_ X
 	//   /             |
@@ -160,7 +159,7 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 	else {printf("No random pos\n");}
 	// to add fluctuation (due to DDA line drawing)
 	if (rnd) {srand(rnd);}
-	for (n=0;n<nidc1; ++n) {
+	for (n=0; n<nidc1; ++n) {
 		// ID1
 		////////////////////////////////
 		// global position in GATE space
@@ -279,12 +278,12 @@ void kernel_allegro_build_all_LOR(unsigned short int* idc1, int n1, unsigned sho
 // blf format word of 32 bits
 // 0         1         2         3
 // 01234567890123456789012345678901
-// x|        ||   |||   ||        | coincidence (if 0)
-//  xxxxxxxxxx|   |||   ||        | ID 1
-//            xxxxx||   ||        | Ring 1
-//                 x|   ||        | prompt or delay (1 or 0)
-//                  xxxxx|        | Ring 2
-//                       xxxxxxxxxx ID 2
+// x|        ||   |||        ||   | coincidence (if 0)
+//  xxxxxxxxxx|   |||        ||   | ID 1
+//            xxxxx||        ||   | Ring 1
+//                 x|        ||   | prompt or delay (1 or 0)
+//                  xxxxxxxxxx|   | ID 2
+//                            xxxxx ring 2
 void kernel_discovery_blftobin(char* blffilename, char* binfilename) {
 	// vars
 	unsigned int word;
@@ -310,21 +309,19 @@ void kernel_discovery_blftobin(char* blffilename, char* binfilename) {
 		// read a word
 		fread(&word, sizeof(word), 1, pfile_blf);
 		// check if coincidence
-		if (word & 0x80000000 == 1) {continue;}
+		if ((word & 0x80000000) >> 31 == 1) {continue;}
 		// extract ID1
-		ID1 = (word << 1) & 0xffc00000;
+		ID1 = (word & 0x7fe00000) >> 21;
 		// extract R1
-		R1 = (word << 10) & 0xf8000000;
+		R1 = (word & 0x001f0000) >> 16;
 		if (R1 >= 24) {continue;}
 		// extract p
-		p = (word << 5) & 0x80000000;
-		// extract ID2;
-		ID2 = (word << 1) & 0xffc00000;
-		// extract R2;
-		R2 = (word << 10) & 0xf8000000;
+		p = (word & 0x00008000) >> 15;
+		// extract ID2
+		ID2 = (word & 0x00007ff0) >> 5;
+		// extract R2
+		R2 = (word & 0x0000001f);
 		if (R2 >= 24) {continue;}
-		// DEBUG
-		if (n==50000) {printf("%i %i\n", ID1, ID2);}
 		// convert
 		M1 = ID1 / 16;
 		M2 = ID2 / 16;
@@ -340,11 +337,119 @@ void kernel_discovery_blftobin(char* blffilename, char* binfilename) {
 		fwrite(&C2, sizeof(int), 1, pfile_bin);
 		fwrite(&M2, sizeof(int), 1, pfile_bin);
 		c++;
+
 	}
 	printf("tot %i\n", c);
 	fclose(pfile_blf);
 	fclose(pfile_bin);
 }
+
+#define pi  3.141592653589
+#define twopi 6.283185307179
+// Convert ID event from GE DSTE scanner to global position in 3D space 
+void kernel_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int nidd1,
+							  float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+							  int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
+							  float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+							  float respix, int sizespacexy, int sizespacez, int rnd) {
+	// SPACE
+	//   Z
+	//  /_ X
+	// |
+	// Y 
+	
+	// cst system
+	int nic = 16;      // number of crystals along i
+	int njc = 24;      // number of crystals along j
+	int nd  = 35;      // number of detectors
+	float dcz = 6.52;  // delta position of crystal along z (mm)
+	float dcx = 4.9;   // delta position of crystal along x (mm)
+	float rcz = 78.24; // org translation of coordinate along z (mm)
+	float rcx = 39.2;  // org translation of coordinate along x (mm)
+	float tsc = 440.5; // translation scanner detector along y (mm)
+	float cxyimage = (float)sizespacexy / 2.0f;
+	float czimage = (float)sizespacez / 2.0f;
+	float xi, yi, zi, a, newx, newy, newz;
+	float cosa, sina;
+	float dex, dey;
+	int n, ID;
+	if (rnd) {printf("Random pos\n");}
+	else {printf("No random pos\n");}
+	// to add fluctuation (due to DDA line drawing)
+	if (rnd) {srand(rnd);}
+	for (n=0; n<nidc1; ++n) {
+		// ID1
+		////////////////////////////////
+		// global position in GATE space
+		ID = id_crystal1[n];
+		zi = float(ID / nic) * dcz - rcz;
+		xi = float(ID % nic) * dcx - rcx;
+		yi = tsc;
+		// rotation accoring ID detector
+		//a = (float)id_detector1[n] * (-twopi / (float)nd) - pi / 2.0f;
+		a = (float)id_detector1[n] * (-twopi / (float)nd);
+		cosa = cos(a);
+		sina = sin(a);
+		newx = xi*cosa - yi*sina;
+		newy = xi*sina + yi*cosa;
+		// change to image org
+		newx += cxyimage;           // change origin (left upper corner)
+		newy  = (-newy) + cxyimage; // inverse y axis
+		//newy += cxyimage;
+		newz  = zi + czimage;
+		newx /= respix;             // scale factor to match with ROI (image)
+		newy /= respix;
+		newz /= respix;
+		if (rnd) {
+			dex = (float)rand() / (float)(RAND_MAX+1.0f);
+			dey = (float)rand() / (float)(RAND_MAX+1.0f);
+			dex = dex * 4.0f - 2.0f;
+			dey = dey * 4.0f - 2.0f;
+			newx += dex;
+			newy += dey;
+			//newz += dex;
+		}
+		x1[n] = newx;
+		y1[n] = newy;
+		z1[n] = newz;
+		// ID2
+		////////////////////////////////
+		// global position in GATE space
+		ID = id_crystal2[n];
+		zi = float(ID / nic) * dcz - rcz;
+		xi = float(ID % nic) * dcx - rcx;
+		yi = tsc;
+		// rotation accoring ID detector
+		//a = (float)id_detector2[n] * (-twopi / (float)nd) - pi / 2.0f;
+		a = (float)id_detector2[n] * (-twopi / (float)nd);
+		cosa = cos(a);
+		sina = sin(a);
+		newx = xi*cosa - yi*sina;
+		newy = xi*sina + yi*cosa;
+		// change to image org
+		newx += cxyimage;           // change origin (left upper corner)
+		newy  = (-newy) + cxyimage; // inverse y axis
+		//newy += cxyimage;
+		newz  = zi + czimage;
+		newx /= respix;             // scale factor to match with ROI (image)
+		newy /= respix;
+		newz /= respix;
+		if (rnd) {
+			dex = (float)rand() / (float)(RAND_MAX+1.0f);
+			dey = (float)rand() / (float)(RAND_MAX+1.0f);
+			dex = dex * 4.0f - 2.0f;
+			dey = dey * 4.0f - 2.0f;
+			newx += dex;
+			newy += dey;
+			//newz += dex;
+		}
+		x2[n] = newx;
+		y2[n] = newy;
+		z2[n] = newz;
+	}
+}
+#undef pi
+#undef twopi
 
 /********************************************************************************
  * PET Scan       
@@ -3977,8 +4082,8 @@ void kernel_draw_2D_line_DDA(float* mat, int wy, int wx, int x1, int y1, int x2,
 	if (abs(y2 - y1) > length) {length = abs(y2 - y1);}
 	xinc = (double)(x2 - x1) / (double) length;
 	yinc = (double)(y2 - y1) / (double) length;
-	x    = x1 + 0.5;
-	y    = y1 + 0.5;
+	x    = x1;
+	y    = y1;
 	for (i=0; i<=length; ++i) {
 		mat[(int)y * wx + (int)x] += val;
 		x = x + xinc;
@@ -6195,11 +6300,11 @@ void toto(char* name) {
 
 
 
-void kernel_pet3D_IM_DEV_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
-							  unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
-							  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-							  int* im, int nim, int wim, int ID) {
-	kernel_pet3D_IM_DEV_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim, wim, ID);
+void kernel_pet3D_IM_SRM_DDA_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+								  unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
+								  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+								  int* im, int nim1, int nim2, int nim3, int wim, int ID) {
+	kernel_pet3D_IM_SRM_DDA_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim1, nim2, nim3, wim, ID);
 }
 
 void kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
@@ -6218,6 +6323,18 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, u
 											  float* mumap, int nmu1, int nmu2, int nmu3, int wim, int ID) {
 	kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim1, nim2, nim3, F, nf1, nf2, nf3, mumap, nmu1, nmu2, nmu3, wim, ID);
 }
+
+
+void kernel_pet3D_OPLEM_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+							 unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
+							 unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+							 float* im, int nim1, int nim2, int nim3,
+							 float* NM, int NM1, int NM2, int NM3, int Nsub, int ID){
+	kernel_pet3D_OPLEM_wrap_cuda_V0(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2,
+									im, nim1, nim2, nim3, NM, NM1, NM2, NM3, Nsub, ID);
+}
+
+
 
 #define pi  3.141592653589
 void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int him, int wim, float alpha, float beta, float scale) {

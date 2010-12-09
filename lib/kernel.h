@@ -108,6 +108,13 @@ void kernel_allegro_build_all_LOR(unsigned short int* idc1, int n1, unsigned sho
 void kernel_discovery_blftobin(char* blffilename, char* binfilename);
 
 // used
+void kernel_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int nidd1,
+							  float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+							  int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
+							  float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+							  float respix, int sizespacexy, int sizespacez, int rnd);
+
+// used
 void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
 								float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
 								 int* enable, int nenable, int border, int ROIxy, int ROIz);
@@ -125,11 +132,11 @@ void kernel_pet3D_SRM_clean_LOR_float(int* enable, int ne, float* x1, int nx1, f
 void kernel_pet3D_IM_SRM_SIDDON(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
 								float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
 								float* im, int nim, int wim, int dim);
-// used TODO change this name to kernel_pet3D_IM_SRM_DDA_cuda
-void kernel_pet3D_IM_DEV_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
-							  unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
-							  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-							  int* im, int nim, int wim, int ID);
+// used
+void kernel_pet3D_IM_SRM_DDA_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+								  unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
+								  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+								  int* im, int nim1, int nim2, int nim3, int wim, int ID);
 // used
 void kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
 										  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
@@ -196,6 +203,13 @@ void kernel_pet3D_IM_SRM_BLA(unsigned short int* X1, int nx1, unsigned short int
 							 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
 							 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
 							 float* im, int nim1, int nim2, int nim3, int wim);
+
+// used (in dev)
+void kernel_pet3D_OPLEM_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+							 unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
+							 unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+							 float* im, int nim1, int nim2, int nim3,
+							 float* NM, int NM1, int NM2, int NM3, int Nsub, int ID);
 
 
 

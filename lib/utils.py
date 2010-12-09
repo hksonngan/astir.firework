@@ -667,6 +667,22 @@ def image_threshold_down(im, th, val):
 
     return im
 
+# Lanczos 2D interpolation
+def image_interpolation_Lanczos(im, n):
+    from numpy import zeros
+    
+    n      = int(n)
+    ny, nx = im.shape
+    res    = zeros((ny*n, nx*n), 'float32')
+    H      = filter_build_2d_Lanczos(nx*n, a=2)
+    # resample the image
+    for i in xrange(ny):
+        for j in xrange(nx):
+            res[n*i:n*(i+1), n*j:n*(j+1)] = im[i, j]
+    # interpolation
+    return image_ifft(image_fft(res) * H)
+
+
 # ==== Volume ===============================
 # ===========================================
 
@@ -1250,8 +1266,6 @@ def curve_smooth(a, order):
 
     return a
     
-    
-
 # ==== Filtering ============================
 # ===========================================
 
@@ -1527,6 +1541,37 @@ def filter_build_1d_tanh_hp(size, a, fc):
     filter_build_1d_tanh_lp(size, a, fc)
     H = 1 - H
     
+    return H
+
+def filter_build_2d_Lanczos(size, a=2):
+    from numpy import zeros, sinc
+
+    a  = float(a)
+    c  = size // 2
+    H  = zeros((size, size), 'float32')
+    p  = a / 0.5
+    for i in xrange(size):
+        for j in xrange(size):
+            fi   = i - c
+            fj   = j - c
+            f    = (fi*fi + fj*fj)**(0.5)
+            f   /= size
+            f   *= p
+            H[i, j] = sinc(f)*sinc(f / a)
+                
+    return H
+
+def filter_build_1d_Lanczos(size, a=2):
+    from numpy import zeros, sinc
+
+    a = float(a)
+    c = size // 2
+    H = zeros((size), 'float32')
+    p = a / 0.5
+    for i in xrange(size):
+        f = p * abs((i-c) / float(size))
+        H[i] = sinc(f)*sinc(f / a)
+
     return H
 
 def filter_pad_3d_cuda(H):

@@ -11,10 +11,10 @@ void kernel_pet3D_IM_SRM_DDA_ELL_iter_wrap_cuda(unsigned short int* x1, int nx1,
 												unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
 												float* im, int nim, float* F, int nf, int wsrm, int wim, int ID);
 
-void kernel_pet3D_IM_DEV_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
-								   unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
-								   unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-								   int* im, int nim, int wim, int ID);
+void kernel_pet3D_IM_SRM_DDA_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+									   unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
+									   unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+									   int* im, int nim1, int nim2, int nim3, int wim, int ID);
 
 void kernel_pet3D_IM_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
 											   unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
@@ -31,3 +31,10 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_wrap_cuda(unsigned short int* x1, int n
 
 
 void kernel_3Dconv_wrap_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c);
+
+
+void kernel_pet3D_OPLEM_wrap_cuda_V0(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+									 unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
+									 unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+									 float* im, int nim1, int nim2, int nim3,
+									 float* NM, int NM1, int NM2, int NM3, int Nsub, int ID);

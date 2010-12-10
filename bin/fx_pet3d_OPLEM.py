@@ -28,6 +28,7 @@ p.add_option('--Nsub',    type='int',    default=1,       help='Number of subset
 p.add_option('--cuton',   type='int',    default=0,       help='Starting number in LOR file (default 0)')
 p.add_option('--cutoff',  type='int',    default=1000000, help='Stoping number in LOR file (default 1000000)')
 p.add_option('--NM',      type='string', default='None',  help='Normalize matrix path and name (.vol) (default None meaning not normalize)')
+p.add_option('--AM',      type='string', default='None',  help='Attenuation matrix path and name (.vol) (default None meaning not attenuation correction)')
 p.add_option('--nxy',     type='int',    default=141,     help='Volume size on x and y (transaxial)')
 p.add_option('--nz',      type='int',    default=45,      help='Volume size on z (axial)')
 
@@ -47,6 +48,7 @@ Nsub      = options.Nsub
 cuton     = options.cuton
 cutoff    = options.cutoff
 NMname    = options.NM
+AMname    = options.AM
 nxy       = options.nxy
 nz        = options.nz
 
@@ -65,13 +67,13 @@ print 'output', output
 print 'Nsub', Nsub
 print 'cuton', cuton
 print 'cutoff', cutoff
-print 'Normalize matrix', NMname
 print 'Volume %ix%ix%i' % (nxy, nxy, nz)
+print 'Correction:'
+print '  Normalization:', NMname
+print '  Atenuation:   ', AMname
 
 # Vars
 ntot  = cutoff-cuton
-ndata = int(1.2 * (2*nxy*nxy + nz*nz)**0.5)
-print 'ELL buffer size', ndata
 
 # read normalize matrix
 if NMname == 'None':
@@ -79,6 +81,10 @@ if NMname == 'None':
 else:
     NM  = volume_open(NMname)
     NM /= NM.max()
+
+# read attenuation matrix
+if AMname != 'None':
+    AM = volume_open(AMname)
 
 # create directory
 os.mkdir(output)
@@ -96,11 +102,16 @@ print 'Read data'
 print '...', time_format(time()-t)
 
 # init im
-tg  = time()
+
 GPU = 1
 im  = ones((45, 141, 141), 'float32')
 
-kernel_pet3D_OPLEM_cuda(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, Nsub, GPU)
+tg  = time()
+if AMname == 'None':
+    kernel_pet3D_OPLEM_cuda(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, Nsub, GPU)
+else:
+    kernel_pet3D_OPLEM_att_cuda(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, AM, Nsub, GPU)
+print 'Running time is', time_format(time()-tg)
 
 # save image
 volume_write(im, output + '/res_volume.vol')
@@ -108,4 +119,4 @@ mip = volume_mip(im)
 mip *= image_mask_circle(141, 141, 60)
 image_write(mip, output + '/res_image.png')
 
-print 'Running time is', time_format(time()-tg)
+image_show(mip)

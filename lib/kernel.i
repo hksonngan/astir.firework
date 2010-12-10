@@ -180,12 +180,22 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* IN_ARRAY1, int
 											  float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
 											  float* IN_ARRAY3, int DIM1, int DIM2, int DIM3, int wim, int ID);
 
-
+// new code
 void kernel_pet3D_OPLEM_cuda(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
 							 unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
 							 unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
 							 float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
 							 float* IN_ARRAY3, int DIM1, int DIM2, int DIM3, int Nsub, int ID);
+
+// new code
+void kernel_pet3D_OPLEM_att_cuda(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
+								 unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
+								 unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
+								 float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
+								 float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
+								 float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
+								 int Nsub, int ID);
+
 
 void kernel_mip_volume_rendering(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3, float* INPLACE_ARRAY2, int DIM1, int DIM2, float alpha, float beta, float scale);
 

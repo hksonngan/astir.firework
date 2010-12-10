@@ -16,38 +16,33 @@
 # along with FIREwork.  If not, see <http://www.gnu.org/licenses/>.
 #
 # FIREwork Copyright (C) 2008 - 2010 Julien Bert 
+
 import optparse, os, sys
 
 progname = os.path.basename(sys.argv[0])
-usage    = progname + ' filename'
-topic    = 'Display image and volume in FIREwork format (.png, .im and .vol)'
+usage    = progname + ' vol_in.vol vol_out.vol'
+topic    = 'Masking and filtering volume'
 p        = optparse.OptionParser(usage, description=topic)
-#p.add_option('--nb_crystals', type='int',     default=289,  help='Number of crystals')
+#p.add_option('--Nite',    type='int',    default=1,       help='Number of iterations (default 1)')
 
 (options, args) = p.parse_args()
-if len(args) < 1:
+if len(args) < 2:
     print topic
     print ''
     print 'usage:', usage
     print ''
     print 'please run "' + progname + ' -h" for detailed options'
     sys.exit()
+    
+src = args[0]
+trg = args[1]
 
 from firework import *
-from os.path  import splitext
+from numpy    import *
 
-filename  = args[0]
-name, ext = splitext(filename)
+vol   = volume_open(src)
+mask  = volume_mask_cylinder(45, 141, 141, 45, 60)
+volf  = filter_3d_Metz(vol, 1, 0.106) # ~ 4. mm
+volf *= mask
 
-if ext == '.im':
-    im = image_open(filename)
-    image_show(im)
-elif ext == '.vol':
-    vol = volume_open(filename)
-    volume_show_mip(vol)
-elif ext == '.png':
-    im = image_open(filename)
-    image_show(im)
-else:
-    print 'File format unknow by FIREwork!'
-
+volume_write(volf, trg)

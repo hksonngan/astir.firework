@@ -167,16 +167,14 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		zi = float(ID / nic) * dcz - rcz;
 		xi = float(ID % nic) * dcx - rcx;
 		yi = tsc;
-		/*
 		// random position to the crystal aera
 		if (rnd) {
 			//inkernel_randg2f(0.0, 0.25, &dex, &dez);
-			dex = 2.0f * inkernel_randf() - 1.0f;
-			dez = 2.0f * inkernel_randf() - 1.0f;
+			dex = 4.0f * inkernel_randf() - 2.0f;
+			dez = 4.0f * inkernel_randf() - 2.0f;
 			xi += dex;
 			zi += dez;
 		}
-		*/
 		// rotation accoring ID detector
 		a = (float)id_detector1[n] * (-twopi / (float)nd) - pi / 2.0f;
 		cosa = cos(a);
@@ -207,16 +205,14 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		zi = float(ID / nic) * dcz - rcz;
 		xi = float(ID % nic) * dcx - rcx;
 		yi = tsc;
-		/*
 		// random position to the crystal aera
 		if (rnd) {
 			//inkernel_randg2f(0.0, 0.25, &dex, &dez);
-			dex = 2.0f * inkernel_randf() - 1.0f;
-			dez = 2.0f * inkernel_randf() - 1.0f;
+			dex = 4.0f * inkernel_randf() - 2.0f;
+			dez = 4.0f * inkernel_randf() - 2.0f;
 			xi += dex;
 			zi += dez;
 		}
-		*/
 		// rotation accoring ID detector
 		a = (float)id_detector2[n] * (-twopi / (float)nd) - pi / 2.0f;
 		cosa = cos(a);
@@ -6324,7 +6320,7 @@ void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, u
 	kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_wrap_cuda(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2, im, nim1, nim2, nim3, F, nf1, nf2, nf3, mumap, nmu1, nmu2, nmu3, wim, ID);
 }
 
-
+// new code
 void kernel_pet3D_OPLEM_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
 							 unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
 							 unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
@@ -6332,6 +6328,20 @@ void kernel_pet3D_OPLEM_cuda(unsigned short int* x1, int nx1, unsigned short int
 							 float* NM, int NM1, int NM2, int NM3, int Nsub, int ID){
 	kernel_pet3D_OPLEM_wrap_cuda_V0(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2,
 									im, nim1, nim2, nim3, NM, NM1, NM2, NM3, Nsub, ID);
+}
+
+// new code
+void kernel_pet3D_OPLEM_att_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+								 unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
+								 unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+								 float* im, int nim1, int nim2, int nim3,
+								 float* NM, int NM1, int NM2, int NM3,
+								 float* at, int nat1, int nat2, int nat3,
+								 int Nsub, int ID){
+	kernel_pet3D_OPLEM_wrap_cuda_V1(x1, nx1, y1, ny1, z1, nz1, x2, nx2, y2, ny2, z2, nz2,
+									im, nim1, nim2, nim3, NM, NM1, NM2, NM3,
+									at, nat1, nat2, nat3,
+									Nsub, ID);
 }
 
 

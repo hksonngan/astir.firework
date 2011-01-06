@@ -20,10 +20,9 @@
 import optparse, os, sys
 
 progname = os.path.basename(sys.argv[0])
-usage    = progname + ' vol_in.vol vol_out.vol'
-topic    = 'Masking and filtering volume'
+usage    = progname + ' CT.vol mumap.vol'
+topic    = 'Convert CT to mumap'
 p        = optparse.OptionParser(usage, description=topic)
-#p.add_option('--Nite',    type='int',    default=1,       help='Number of iterations (default 1)')
 
 (options, args) = p.parse_args()
 if len(args) < 2:
@@ -40,11 +39,7 @@ trg = args[1]
 from firework import *
 from numpy    import *
 
-vol   = volume_open(src)
-mask  = volume_mask_cylinder(47, 127, 127, 37, 60)
-#mask  = volume_mask_box(47, 127, 127, 121, 121, 47)
-#volf  = filter_3d_Metz(vol, 2, 0.16) # Ny=0.3
-volf   = filter_3d_Metz(vol, 3, 0.2) # Ny=0.4
-volf *= mask
+CT   = volume_open(src)
+mmap = volume_CT_to_mumap(CT)
+volume_write(mmap, trg)
 
-volume_write(volf, trg)

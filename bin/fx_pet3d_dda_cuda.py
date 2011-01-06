@@ -129,8 +129,8 @@ print '... export to volume_init.vol'
 # init im
 tg    = time()
 GPU   = 1
-imsub = ones((45, 141, 141), 'float32')
-imsub *= 0.01
+imsub = ones((nz, nxy, nxy), 'float32')
+#imsub *= 0.01
 F     = zeros((nz, nxy, nxy), 'float32')
 # Iteration loop
 for ite in xrange(Nite):
@@ -181,8 +181,9 @@ for ite in xrange(Nite):
 
     # save image
     mip = volume_mip(imsub)
-    mip *= image_mask_circle(141, 141, 60)
+    mask = image_mask_circle(127, 127, 60)
     image_write(mip, output + '/%02i_image.png' % ite)
+    #image_write(imsub[13]*mask, output + '/%02i_image.png' % ite)
     volume_write(imsub, output + '/%02i_volume.vol' % ite)
     print '... Iter time', time_format(time()-tite)
 

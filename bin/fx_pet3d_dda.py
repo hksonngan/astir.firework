@@ -137,9 +137,7 @@ for ite in xrange(Nite):
         # Compute F
         F *= 0.0 # init
         #kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, nxy, ndata)
-
         kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, nxy, ndata)
-        
         print '...... compute EM', time_format(time()-tsub)
 
         # Normalization
@@ -156,7 +154,6 @@ for ite in xrange(Nite):
     
     # save image
     mip = volume_mip(imsub)
-    mip *= image_mask_circle(141, 141, 60)
     image_write(mip, output + '/%02i_image.png' % ite)
     volume_write(imsub, output + '/%02i_volume.vol' % ite)
     print '... Iter time', time_format(time()-tite)

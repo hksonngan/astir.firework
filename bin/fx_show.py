@@ -22,6 +22,8 @@ progname = os.path.basename(sys.argv[0])
 usage    = progname + ' filename'
 topic    = 'Display image and volume in FIREwork format (.png, .im and .vol)'
 p        = optparse.OptionParser(usage, description=topic)
+p.add_option('--slices', action='store_true', default=False, help='Slices viewer mode')
+p.add_option('--mip',    action='store_true', default=False, help='Mip viewer mode')
 #p.add_option('--nb_crystals', type='int',     default=289,  help='Number of crystals')
 
 (options, args) = p.parse_args()
@@ -39,15 +41,37 @@ from os.path  import splitext
 filename  = args[0]
 name, ext = splitext(filename)
 
-if ext == '.im':
-    im = image_open(filename)
-    image_show(im)
-elif ext == '.vol':
-    vol = volume_open(filename)
-    volume_show_mip(vol)
-elif ext == '.png':
-    im = image_open(filename)
-    image_show(im)
-else:
-    print 'File format unknow by FIREwork!'
+if options.mip:
+    if ext == '.im':
+        im = image_open(filename)
+        image_show(im)
+    elif ext == '.vol':
+        vol = volume_open(filename)
+        volume_show_mip(vol)
+    elif ext == '.png':
+        im = image_open(filename)
+        image_show(im)
+    else:
+        print 'File format unknow by FIREwork!'
+elif options.slices:
+    if ext == '.vol':
+        vol   = volume_open(filename)
+        minv  = vol.min()
+        scale = float(vol.max()) - minv
+        vol   = (vol - minv) / scale
+        vol   = volume_flip_ud(vol)
+        volume_show_slices(vol)
+    else:
+        print 'File format unknow by FIREwork!'
 
+else:
+    if ext == '.vol':
+        vol   = volume_open(filename)
+        minv  = vol.min()
+        scale = float(vol.max()) - minv
+        vol   = (vol - minv) / scale
+        vol   = volume_flip_ud(vol)
+        volume_show_ct(vol)
+    else:
+        print 'File format unknow by FIREwork!'
+    

@@ -20,13 +20,14 @@
 import optparse, os, sys
 
 progname = os.path.basename(sys.argv[0])
-usage    = progname + ' vol_in.vol vol_out.vol'
-topic    = 'Masking and filtering volume'
+usage    = progname + ' vol_src.vol vol_trg.vol nz ny nx --method'
+topic    = 'Resampling a volume'
 p        = optparse.OptionParser(usage, description=topic)
-#p.add_option('--Nite',    type='int',    default=1,       help='Number of iterations (default 1)')
+p.add_option('--method',  action='store', type='choice', choices=['L3', 'L2'], default='L3',
+             help='"L3" Lancsoz3, "L2" Lancsoz2 (default is L3)')
 
 (options, args) = p.parse_args()
-if len(args) < 2:
+if len(args) < 5:
     print topic
     print ''
     print 'usage:', usage
@@ -36,15 +37,15 @@ if len(args) < 2:
     
 src = args[0]
 trg = args[1]
+nz  = int(args[2])
+ny  = int(args[3])
+nx  = int(args[4])
 
 from firework import *
 from numpy    import *
 
-vol   = volume_open(src)
-mask  = volume_mask_cylinder(47, 127, 127, 37, 60)
-#mask  = volume_mask_box(47, 127, 127, 121, 121, 47)
-#volf  = filter_3d_Metz(vol, 2, 0.16) # Ny=0.3
-volf   = filter_3d_Metz(vol, 3, 0.2) # Ny=0.4
-volf *= mask
-
-volume_write(volf, trg)
+svol = volume_open(src)
+tvol = zeros((nz, ny, nx), 'float32')
+if   options.method == 'L3': kernel_resampling_3d_Lanczos3(svol, tvol)
+elif options.method == 'L2': kernel_resampling_3d_Lanczos2(svol, tvol)
+volume_write(tvol, trg)

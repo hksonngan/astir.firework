@@ -1614,6 +1614,7 @@ __global__ void	pet3D_OPLEM_update_V0(float* d_im, unsigned int* d_F, float* d_N
 	int idx = blockIdx.x * blockDim.x + threadIdx.x;
 	if (idx < nim) {
 		d_im[idx] = d_im[idx] * (float)d_F[idx] * invscale * d_NM[idx];
+		//if (d_im[idx] > 100.0f) {d_im[idx] = 100.0f;}
 		d_F[idx] = 0;
 	}
 }
@@ -1777,7 +1778,7 @@ void kernel_pet3D_OPLEM_wrap_cuda_V0(unsigned short int* x1, int nx1, unsigned s
 			sublor_start = int(float(nlor) / nsub * isub + 0.5f);
 			sublor_stop = int(float(nlor) / nsub * (isub+1) + 0.5f);
 			nsublor = sublor_stop - sublor_start;
-			printf("   isub: %i sublor: %i to %i\n", isub, sublor_start, sublor_stop);
+			//printf("   isub: %i sublor: %i to %i\n", isub, sublor_start, sublor_stop);
 
 			// Compute corrector subset
 			block_size = 256;
@@ -1791,7 +1792,7 @@ void kernel_pet3D_OPLEM_wrap_cuda_V0(unsigned short int* x1, int nx1, unsigned s
 			
 			// Update the volume
 			block_size = 128;
-			grid_size = (nim + block_size - 1) / block_size; // CODE IS LIMITED TO < 16e6 lines
+			grid_size = (nim + block_size - 1) / block_size;
 			threads.x = block_size;
 			grid.x = grid_size;
 			pet3D_OPLEM_update_V0<<<grid, threads>>>(d_im, d_F, d_NM, invscale, nim);
@@ -1869,9 +1870,7 @@ __global__ void pet3D_OPLEM_DDA_V1(unsigned int* d_F, int sublor_start, int subl
 		}
 		// compute F
 		if (Qf==0.0f) {return;}
-		Af = Af * 10.0;
-		if (Af < -10.0f) {Af = -10.0f;}
-		Qf = Qf * __expf(Af);
+		Qf = Qf * __expf(Af/2.0);
 		Qf = 1 / Qf;
 		Qf = Qf * scale;
 		Qi = (unsigned int)Qf;
@@ -2012,10 +2011,19 @@ void kernel_pet3D_OPLEM_wrap_cuda_V1(unsigned short int* x1, int nx1, unsigned s
 			
 			// Update the volume
 			block_size = 128;
-			grid_size = (nim + block_size - 1) / block_size; // CODE IS LIMITED TO < 16e6 lines
+			grid_size = (nim + block_size - 1) / block_size;
 			threads.x = block_size;
 			grid.x = grid_size;
 			pet3D_OPLEM_update_V0<<<grid, threads>>>(d_im, d_F, d_NM, invscale, nim);
+
+			/*
+			// to debug
+			cudaMemcpy(im, d_im, mem_size_im, cudaMemcpyDeviceToHost);
+			float imean = 0;
+			for (i=0; i<nim; ++i) {imean += im[i];}
+			imean /= float(nim);
+			printf("imean: %f\n", imean);
+			*/
 
 		} // isub
 		// Unbind textures

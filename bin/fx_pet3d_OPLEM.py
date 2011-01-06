@@ -80,7 +80,7 @@ if NMname == 'None':
     NM = ones((nz, nxy, nxy), 'float32')
 else:
     NM  = volume_open(NMname)
-    NM /= NM.max()
+    #NM /= NM.max()
 
 # read attenuation matrix
 if AMname != 'None':
@@ -101,11 +101,9 @@ kernel_listmode_open_subset_xyz_int(xi1, yi1, zi1, xi2, yi2, zi2, cuton, cutoff,
 print 'Read data'
 print '...', time_format(time()-t)
 
-# init im
-
+# OPLEM
 GPU = 1
-im  = ones((45, 141, 141), 'float32')
-
+im  = ones((nz, nxy, nxy), 'float32')
 tg  = time()
 if AMname == 'None':
     kernel_pet3D_OPLEM_cuda(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, Nsub, GPU)
@@ -114,9 +112,14 @@ else:
 print 'Running time is', time_format(time()-tg)
 
 # save image
+mask = volume_mask_cylinder(47, 127, 127, 47, 60)
+im *= mask
 volume_write(im, output + '/res_volume.vol')
 mip = volume_mip(im)
-mip *= image_mask_circle(141, 141, 60)
-image_write(mip, output + '/res_image.png')
+#mip *= image_mask_circle(127, 127, 55)
+image_write(mip, output + '/mip_t.png')
+
+mip = volume_mip(im, 'y')
+image_write(mip, output + '/mip_c.png')
 
 image_show(mip)

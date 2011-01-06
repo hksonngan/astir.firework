@@ -1121,7 +1121,40 @@ def volume_snr_from_zncc(signal, noise):
 
     return snr
 
+# flip up to down a volume
+def volume_flip_ud(vol):
+    from numpy import flipud, zeros
+    
+    nz, ny, nx = vol.shape
+    newv       = zeros(vol.shape, vol.dtype)
+    for n in xrange(nz):
+        newv[n, :, :] = flipud(vol[n, :, :])
 
+    return newv
+
+def volume_CT_to_mumap(CT):
+    from numpy import zeros
+
+    nz, ny, nx = CT.shape
+    mmap = zeros((nz, ny, nx), 'float32')
+
+    mu_pet_water = 0.096
+    mu_pet_bone  = 0.172
+    mu_ct_water  = 0.184
+    mu_ct_bone   = 0.428
+
+    a = mu_ct_water * (mu_pet_bone - mu_pet_water)
+    b = 1000 * (mu_ct_bone - mu_ct_water)
+
+    for z in xrange(nz):
+        for y in xrange(ny):
+            for x in xrange(nx):
+                ict = CT[z, y, x]
+                if ict <= 0: mu = mu_pet_water * (ict + 1000) / 1000.0
+                else:        mu = mu_pet_water + ict * (a / b)
+                mmap[z, y, x] = mu
+
+    return mmap
 
 # ==== Misc =================================
 # ===========================================
@@ -1246,9 +1279,11 @@ def plot_filter_profil(H):
     p, f = filter_profil(H)
     plt.plot(f, p)
     plt.axhline(y=0.707, c='r', ls=':')
+    plt.axhline(y=0.5, c='r', ls=':')
     plt.xlabel('Nyquist frequency')
     plt.ylabel('Gain')
     plt.grid(True)
+    plt.axis([0, 0.5, 0, p.max()])
     plt.show()
     
 # smooth curve

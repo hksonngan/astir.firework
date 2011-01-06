@@ -67,9 +67,17 @@ elif model == 'discovery':
     sizez_im     = 47   # FOV axial of 157 mm
     size_border  = 50
 
+fx1 = open('%s.x1' % trg, 'wb')
+fy1 = open('%s.y1' % trg, 'wb')
+fz1 = open('%s.z1' % trg, 'wb')
+fx2 = open('%s.x2' % trg, 'wb')
+fy2 = open('%s.y2' % trg, 'wb')
+fz2 = open('%s.z2' % trg, 'wb')
+    
 Ntot  = os.path.getsize(src) // 16
 
 nclean = 0
+'''
 if kind == 'int':
     xg1 = array([], 'uint16')
     yg1 = array([], 'uint16')
@@ -84,7 +92,11 @@ elif kind == 'float':
     xg2 = array([], 'float32')
     yg2 = array([], 'float32')
     zg2 = array([], 'float32')
-
+'''
+tg = time()
+ti = 0
+tr = 0
+tc = 0
 # main loop
 for istep in xrange(Nstep):
     n_start = int(float(Ntot) / Nstep * istep + 0.5)
@@ -114,7 +126,9 @@ for istep in xrange(Nstep):
     elif model == 'discovery':
         kernel_discovery_idtopos(idc1, idd1, x1, y1, z1, idc2, idd2, x2, y2, z2, respix, sizexy_space, sizez_space, rnd)
     del idc1, idd1, idc2, idd2
-    print 'Convert ID to pos', time_format(time()-t)
+    d = time()-t
+    ti += d
+    print 'Convert ID to pos', time_format(d)
 
     # precompute all entry-exit SRM point
     t = time()
@@ -130,7 +144,9 @@ for istep in xrange(Nstep):
         z2dum = z2.copy()
         kernel_pet3D_SRM_raycasting(x1dum, y1dum, z1dum, x2dum, y2dum, z2dum, enable, size_border, sizexy_im, sizez_im)
         del x1dum, y1dum, z1dum, x2dum, y2dum, z2dum
-    print 'Compute SRM entry-exit points', time_format(time()-t)
+    d = time()-t
+    tr += d
+    print 'Compute SRM entry-exit points', time_format(d)
 
     # clean all LORs
     t = time()
@@ -160,25 +176,40 @@ for istep in xrange(Nstep):
         kernel_pet3D_SRM_clean_LOR_float(enable, x1, y1, z1, x2, y2, z2, xi1, yi1, zi1, xi2, yi2, zi2)
     
     del x1, y1, z1, x2, y2, z2
-    print 'Clean outliers LORs', time_format(time()-t)
+    d = time()-t
+    tc+=d
+    print 'Clean outliers LORs', time_format(d)
     
     # append data
-    xg1 = concatenate((xg1, xi1))
-    yg1 = concatenate((yg1, yi1))
-    zg1 = concatenate((zg1, zi1))
-    xg2 = concatenate((xg2, xi2))
-    yg2 = concatenate((yg2, yi2))
-    zg2 = concatenate((zg2, zi2))
+    xi1.tofile(fx1)
+    yi1.tofile(fy1)
+    zi1.tofile(fz1)
+    xi2.tofile(fx2)
+    yi2.tofile(fy2)
+    zi2.tofile(fz2)
+    #xg1 = concatenate((xg1, xi1))
+    #yg1 = concatenate((yg1, yi1))
+    #zg1 = concatenate((zg1, zi1))
+    #xg2 = concatenate((xg2, xi2))
+    #yg2 = concatenate((yg2, yi2))
+    #zg2 = concatenate((zg2, zi2))
     del xi1, yi1, zi1, xi2, yi2, zi2
-    
-t = time()
-xg1.tofile('%s.x1' % trg)
-yg1.tofile('%s.y1' % trg)
-zg1.tofile('%s.z1' % trg)
-xg2.tofile('%s.x2' % trg)
-yg2.tofile('%s.y2' % trg)
-zg2.tofile('%s.z2' % trg)
 
-print 'Save data', time_format(time()-t), nclean, 'lines'
+fx1.close()
+fy1.close()
+fz1.close()
+fx2.close()
+fy2.close()
+fz2.close()
 
+#xg1.tofile('%s.x1' % trg)
+#yg1.tofile('%s.y1' % trg)
+#zg1.tofile('%s.z1' % trg)
+#xg2.tofile('%s.x2' % trg)
+#yg2.tofile('%s.y2' % trg)
+#zg2.tofile('%s.z2' % trg)
 
+print 'Total time', time_format(time()-tg), nclean, 'lines'
+print '      time spent to ID', time_format(ti)
+print '      time spent to Ray', time_format(tr)
+print '      time spent to clean', time_format(tc)

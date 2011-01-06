@@ -105,6 +105,9 @@ void kernel_allegro_build_all_LOR(unsigned short int* idc1, int n1, unsigned sho
 								  unsigned short int* idc2, int n3, unsigned short int* idd2, int n4);
 
 // used
+void kernel_allegro_save_rnd_LOR(char* savename, int nlor);
+
+// used
 void kernel_discovery_blftobin(char* blffilename, char* binfilename);
 
 // used
@@ -113,6 +116,9 @@ void kernel_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, in
 							  int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
 							  float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
 							  float respix, int sizespacexy, int sizespacez, int rnd);
+
+// used
+void kernel_discovery_save_rnd_LOR(char* savename, int nlor);
 
 // used
 void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
@@ -145,7 +151,7 @@ void kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsig
 										  int wim, int ID);
 // used
 void kernel_pet3D_IM_ATT_SRM_DDA_ON_iter_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
-											  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
+											  unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
 											  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
 											  float* im, int nim1, int nim2, int nim3,
 											  float* F, int nf1, int nf2, int nf3,
@@ -158,7 +164,7 @@ void kernel_pet3D_IM_ATT_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, i
 // used
 void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
 											float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
-											float* im, int nim, float* F, int nf, int wim, int dim);
+											float* im, int nim, float* F, int nf, int wim, int dim, int border);
 // used
 void kernel_pet3D_IM_SRM_DDA( unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
 							  unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
@@ -290,6 +296,12 @@ void kernel_listmode_open_subset_ID_int(int* idc1, int n1, int* idd1, int n2, in
 void toto(char* name);
 
 void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int wim, int him, float alpha, float beta, float scale);
+void kernel_ct_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int him, int wim, float alpha, float beta, float scale, float th);
+
+// interpolation
+void kernel_resampling_3d_Lanczos3(float* org, int noz, int noy, int nox, float* trg, int nz, int ny, int nx);
+void kernel_resampling_3d_Lanczos2(float* org, int noz, int noy, int nox, float* trg, int nz, int ny, int nx);
+void kernel_resampling_2d_Lanczos2(float* org, int noy, int nox, float* trg, int ny, int nx);
 
 // filter
 void kernel_filter_2d_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w);

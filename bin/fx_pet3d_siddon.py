@@ -28,6 +28,8 @@ p.add_option('--Nsub',    type='int',    default=1,       help='Number of subset
 p.add_option('--cuton',   type='int',    default=0,       help='Starting number in LOR file (default 0)')
 p.add_option('--cutoff',  type='int',    default=1000000, help='Stoping number in LOR file (default 1000000)')
 p.add_option('--NM',      type='string', default='None',  help='Normalize matrix path and name (.vol) (default None meaning not normalize)')
+p.add_option('--nxy',     type='int',    default=141,     help='Volume size on x and y (transaxial)')
+p.add_option('--nz',      type='int',    default=45,      help='Volume size on z (axial)')
 
 (options, args) = p.parse_args()
 if len(args) < 2:
@@ -45,6 +47,8 @@ Nsub      = options.Nsub
 cuton     = options.cuton
 cutoff    = options.cutoff
 NMname    = options.NM
+nxy       = options.nxy
+nz        = options.nz
 
 from firework import *
 from numpy    import *
@@ -62,10 +66,14 @@ print 'Nsub', Nsub
 print 'cuton', cuton
 print 'cutoff', cutoff
 print 'NMname', NMname
+print 'Volume %ix%ix%i' % (nxy, nxy, nz)
+
+#border = 55 # Allegro
+border = 50 # Discovery
 
 # Cst
-sizexy_im    = 141 # gantry of 565 mm / respix
-sizez_im     = 45 # depth of 176.4 mm / respix
+#sizexy_im    = 141 # gantry of 565 mm / respix
+#sizez_im     = 45 # depth of 176.4 mm / respix
 #Nite         = 40
 #Nsub         = 1
 #cuton        = 0
@@ -74,12 +82,12 @@ sizez_im     = 45 # depth of 176.4 mm / respix
 #output       = 'Siddon_sub_1'
 
 # Vars
-nvox         = sizexy_im*sizexy_im*sizez_im
+nvox         = nxy*nxy*nz
 ntot         = cutoff-cuton
 
 # read normalize matrix
 if NMname == 'None':
-    SM = ones((sizez_im * sizexy_im * sizexy_im), 'float32')
+    SM = ones((nz * nxy * nxy), 'float32')
 else:
     SM  = volume_open(NMname)
     SM  = SM.reshape(SM.size)
@@ -102,6 +110,7 @@ kernel_listmode_open_subset_xyz_float(xf1, yf1, zf1, xf2, yf2, zf2, cuton, cutof
 print 'Read data'
 print '...', time_format(time()-t)
 
+'''
 # compute intial image
 t     = time()
 imsub = zeros((nvox), 'float32')
@@ -110,18 +119,22 @@ for isub in xrange(Nsub):
     n_start = int(float(ntot) / Nsub * isub + 0.5)
     n_stop  = int(float(ntot) / Nsub * (isub+1) + 0.5)
     n       = n_stop - n_start
-    kernel_pet3D_IM_SRM_SIDDON(xf1[n_start:n_stop], yf1[n_start:n_stop], zf1[n_start:n_stop], xf2[n_start:n_stop], yf2[n_start:n_stop], zf2[n_start:n_stop], imsub, sizexy_im, sizez_im)
+    kernel_pet3D_IM_SRM_SIDDON(xf1[n_start:n_stop], yf1[n_start:n_stop], zf1[n_start:n_stop], xf2[n_start:n_stop], yf2[n_start:n_stop], zf2[n_start:n_stop], imsub, nxy, nz)
     print '  sub %i / %i' % (isub, Nsub)
     
 print '...', time_format(time()-t)
-buf = imsub.reshape((sizez_im, sizexy_im, sizexy_im))
+buf = imsub.reshape((nz, nxy, nxy))
 mip = volume_mip(buf)
 image_write(mip, output + '/init_image.png')
 volume_write(buf, output + '/volume_init.vol')
 print '... export to volume_init.vol'
+'''
 
+# init im
+tg    = time()
+F     = zeros((nz * nxy * nxy), 'float32')
+imsub = ones((nz * nxy * nxy), 'float32')
 # Iteration loop
-tg   = time()
 for ite in xrange(Nite):
     print 'Iteration %i' % ite
     tite  = time()
@@ -137,7 +150,8 @@ for ite in xrange(Nite):
         print '...... start %i stop %i N %i' % (n_start, n_stop, n)
         
         # Compute F
-        kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(xf1[n_start:n_stop], yf1[n_start:n_stop], zf1[n_start:n_stop], xf2[n_start:n_stop], yf2[n_start:n_stop], zf2[n_start:n_stop], imsub, F, sizexy_im, sizez_im)
+        F *= 0.0 # init
+        kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(xf1[n_start:n_stop], yf1[n_start:n_stop], zf1[n_start:n_stop], xf2[n_start:n_stop], yf2[n_start:n_stop], zf2[n_start:n_stop], imsub, F, nxy, nz, border)
         print '...... compute EM', time_format(time()-tsub)
 
         # Normalization
@@ -154,7 +168,7 @@ for ite in xrange(Nite):
         print '...... Subtime', time_format(time()-tsub)
 
     # save
-    buf = imsub.reshape((sizez_im, sizexy_im, sizexy_im))
+    buf = imsub.reshape((nz, nxy, nxy))
     mip = volume_mip(buf)
     image_write(mip, output + '/%02i_image.png' % ite)
     volume_write(buf, output + '/%02i_volume.vol' % ite)

@@ -149,3 +149,77 @@ kernel_filter_3d_median
 	>>> res = zeros(vol.shape, 'float32')
 	>>> kernel_filter_3d_median(vol, res, 5)
 
+kernel_mip_volume_rendering
+---------------------------
+
+**kernel_mip_volume_rendering** (vol, im_mip, phy, theta, scale)
+
+*Compute the mip (Maximum Intensity Projection) image of a volume for any angle view defined by the two Eulerian angles phy and theta. The mip image is computed by raycasting.*
+
+**Parameters**
+
+``vol`` The input volume (3D Numpy array).
+
+``im_mip`` An empty image in order to collect the mip, its size define the filed-of-view, thus the number of rays used to compute the mip.
+
+``phy, theta`` The two Eulerian angles that define the angle view.
+
+``scale`` The up scale factor, in order to change the magnification of the volume on the mip image.
+
+**Returns**
+
+``im_mip`` The mip image of the volume according the angle view.
+
+	
+kernel_resampling_2d_Lanczos2
+-----------------------------
+
+**kernel_resampling_3d_Lanczos2** (im_in, im_out)
+
+*Proceed a Lanczos2 resampling on image*
+
+**Parameters**
+
+``im_in`` Original image (2D Numpy array).
+
+``im_out`` An empty image with the new dimensions required.
+
+**Returns**
+
+``im_out`` The image is resampled inplace according its dimensions.
+
+	
+kernel_resampling_3d_Lanczos2
+-----------------------------
+
+**kernel_resampling_3d_Lanczos2** (vol_in, vol_out)
+
+*Proceed a Lanczos2 resampling on volume*
+
+**Parameters**
+
+``vol_in`` Original volume (3D Numpy array).
+
+``vol_out`` An empty volume with the new dimensions required.
+
+**Returns**
+
+``vol_out`` The volume is resampled inplace according its dimensions.
+
+	
+kernel_resampling_3d_Lanczos3
+-----------------------------
+
+**kernel_resampling_3d_Lanczos3** (vol_in, vol_out)
+
+*Proceed a Lanczos3 resampling on volume*
+
+**Parameters**
+
+``vol_in`` Original volume (3D Numpy array).
+
+``vol_out`` An empty volume with the new dimensions required.
+
+**Returns**
+
+``vol_out`` The volume is resampled inplace according its dimensions.

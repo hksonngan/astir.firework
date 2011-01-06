@@ -314,7 +314,24 @@ per = **image_periodogram** (im)
 **Notes**
 
 Same as Power Spectrum (image_pows)
-	
+
+image_pick_undermask
+--------------------
+
+val = **image_pick_undermask** (im, mask)
+
+*Return all pixels under the mask to a vector*
+
+**Parameters**
+
+``im`` Original image (2D Numpy array)
+
+``mask`` Mask image, the value must be 1 in order pixels are take in consideration.
+
+**Returns**
+
+``val`` A vector (1D Numpy array) with pixels found under the mask.
+
 image_pows
 ----------
 

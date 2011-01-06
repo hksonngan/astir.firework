@@ -188,13 +188,6 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		newx /= respix;             // scale factor to match with ROI (image)
 		newy /= respix;
 		newz /= respix;
-		if (rnd) {
-			dex = (float)rand() / (float)RAND_MAX;
-			dex = dex * 1.0f - 0.5f;
-			newx += dex;
-			newy += dex;
-			newz += dex;
-		}
 		x1[n] = newx;
 		y1[n] = newy;
 		z1[n] = newz;
@@ -226,11 +219,6 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		newx /= respix;             // scale factor to match with ROI (image)
 		newy /= respix;
 		newz /= respix;
-		if (rnd) {
-			newx += dex;
-			newy += dex;
-			newz += dex;
-		}
 		x2[n] = newx;
 		y2[n] = newy;
 		z2[n] = newz;
@@ -263,8 +251,33 @@ void kernel_allegro_build_all_LOR(unsigned short int* idc1, int n1, unsigned sho
 			++ct;
 		}
 	}
+}
+
+// build a random list of LOR in order to compute normalize matrix of Allegro scanner
+void kernel_allegro_save_rnd_LOR(char* savename, int nlor) {
+	
+	FILE * pfile_lors;
+	int cmax = 22*29;
+	int dmax = 28;
+	int c1, d1, c2, d2;
+	int n;
+	unsigned int sizeint = sizeof(int);
+	
+	pfile_lors = fopen(savename, "wb");
+	for (n=0; n<nlor; ++n) {
+		c1 = (int) (inkernel_randf() * cmax);
+		d1 = (int) (inkernel_randf() * dmax);
+		c2 = (int) (inkernel_randf() * cmax);
+		d2 = (int) (inkernel_randf() * dmax);
+		fwrite(&c1, sizeint, 1, pfile_lors);
+		fwrite(&d1, sizeint, 1, pfile_lors);
+		fwrite(&c2, sizeint, 1, pfile_lors);
+		fwrite(&d2, sizeint, 1, pfile_lors);
+	}
+	fclose(pfile_lors);
 	
 }
+
 
 /********************************************************************************
  * PET Scan GE Discovery      
@@ -367,7 +380,7 @@ void kernel_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, in
 	float czimage = (float)sizespacez / 2.0f;
 	float xi, yi, zi, a, newx, newy, newz;
 	float cosa, sina;
-	float dex, dey;
+	float dex, dez;
 	int n, ID;
 	if (rnd) {printf("Random pos\n");}
 	else {printf("No random pos\n");}
@@ -381,6 +394,14 @@ void kernel_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, in
 		zi = float(ID / nic) * dcz - rcz;
 		xi = float(ID % nic) * dcx - rcx;
 		yi = tsc;
+		// random position to the crystal aera
+		if (rnd) {
+			//inkernel_randg2f(0.0, 0.25, &dex, &dez);
+			dex = 4.0f * inkernel_randf() - 2.0f;
+			dez = 4.0f * inkernel_randf() - 2.0f;
+			xi += dex;
+			zi += dez;
+		}
 		// rotation accoring ID detector
 		//a = (float)id_detector1[n] * (-twopi / (float)nd) - pi / 2.0f;
 		a = (float)id_detector1[n] * (-twopi / (float)nd);
@@ -396,15 +417,6 @@ void kernel_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, in
 		newx /= respix;             // scale factor to match with ROI (image)
 		newy /= respix;
 		newz /= respix;
-		if (rnd) {
-			dex = (float)rand() / (float)(RAND_MAX+1.0f);
-			dey = (float)rand() / (float)(RAND_MAX+1.0f);
-			dex = dex * 4.0f - 2.0f;
-			dey = dey * 4.0f - 2.0f;
-			newx += dex;
-			newy += dey;
-			//newz += dex;
-		}
 		x1[n] = newx;
 		y1[n] = newy;
 		z1[n] = newz;
@@ -415,6 +427,14 @@ void kernel_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, in
 		zi = float(ID / nic) * dcz - rcz;
 		xi = float(ID % nic) * dcx - rcx;
 		yi = tsc;
+		// random position to the crystal aera
+		if (rnd) {
+			//inkernel_randg2f(0.0, 0.25, &dex, &dez);
+			dex = 4.0f * inkernel_randf() - 2.0f;
+			dez = 4.0f * inkernel_randf() - 2.0f;
+			xi += dex;
+			zi += dez;
+		}
 		// rotation accoring ID detector
 		//a = (float)id_detector2[n] * (-twopi / (float)nd) - pi / 2.0f;
 		a = (float)id_detector2[n] * (-twopi / (float)nd);
@@ -430,15 +450,6 @@ void kernel_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, in
 		newx /= respix;             // scale factor to match with ROI (image)
 		newy /= respix;
 		newz /= respix;
-		if (rnd) {
-			dex = (float)rand() / (float)(RAND_MAX+1.0f);
-			dey = (float)rand() / (float)(RAND_MAX+1.0f);
-			dex = dex * 4.0f - 2.0f;
-			dey = dey * 4.0f - 2.0f;
-			newx += dex;
-			newy += dey;
-			//newz += dex;
-		}
 		x2[n] = newx;
 		y2[n] = newy;
 		z2[n] = newz;
@@ -446,6 +457,32 @@ void kernel_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, in
 }
 #undef pi
 #undef twopi
+
+// build a random list of LOR in order to compute normalize matrix of Discovery scanner
+void kernel_discovery_save_rnd_LOR(char* savename, int nlor) {
+	
+	FILE * pfile_lors;
+	int cmax = 16*24;
+	int dmax = 35;
+	int c1, d1, c2, d2;
+	int n;
+	unsigned int sizeint = sizeof(int);
+	
+	pfile_lors = fopen(savename, "wb");
+	for (n=0; n<nlor; ++n) {
+		c1 = (int) (inkernel_randf() * cmax);
+		d1 = (int) (inkernel_randf() * dmax);
+		c2 = (int) (inkernel_randf() * cmax);
+		d2 = (int) (inkernel_randf() * dmax);
+		fwrite(&c1, sizeint, 1, pfile_lors);
+		fwrite(&d1, sizeint, 1, pfile_lors);
+		fwrite(&c2, sizeint, 1, pfile_lors);
+		fwrite(&d2, sizeint, 1, pfile_lors);
+	}
+	fclose(pfile_lors);
+	
+}
+
 
 /********************************************************************************
  * PET Scan       
@@ -2777,7 +2814,7 @@ void kernel_pet3D_IM_SRM_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, flo
 // Update image online, SRM is build with Siddon's Line Algorithm in COO format, and update with LM-OSEM
 void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
 											float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
-											float* im, int nim, float* F, int nf, int wim, int dim) {
+											float* im, int nim, float* F, int nf, int wim, int dim, int border) {
 	int n, ct;
 	float tx, ty, tz, px, qx, py, qy, pz, qz;
 	int ei, ej, ek, u, v, w, i, j, k, oldi, oldj, oldk;
@@ -2803,10 +2840,10 @@ void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int n
 		qx = X1[n];
 		qy = Y1[n];
 		qz = Z1[n];
-		px -= 55.0f;
-		py -= 55.0f;
-		qx -= 55.0f;
-		qy -= 55.0f;
+		px -= border;
+		py -= border;
+		qx -= border;
+		qy -= border;
 		initl = inkernel_randf();
 		//initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
 		initl = initl * 0.4 + 0.3; // rnd number between 0.3 to 0.7
@@ -6531,6 +6568,194 @@ void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip,
 }
 #undef pi
 
+#define pi  3.141592653589
+void kernel_ct_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int him, int wim, float alpha, float beta, float scale, float th) {
+	// first some var
+	float ts = 0.5 * sqrt(nz*nz + nx*nx) + 1;
+	float sizeworld = 2 * wim;
+	float center_world = sizeworld / 2.0;
+	float center_imx = wim / 2.0;
+	float center_imy = him / 2.0;
+	float padx = (sizeworld-nx) / 2.0;
+	float pady = (sizeworld-ny) / 2.0;
+	float padz = (sizeworld-nz) / 2.0;
+	int step = nx*ny;
+	//printf("ts %f size %f center %f imx %f imy %f\n", ts, sizeworld, center_world, center_imx, center_imy);
+	int x, y;
+	float xw, yw, zw, x1, y1, z1, x2, y2, z2;
+	float xd, yd, zd, xmin, ymin, zmin, xmax, ymax, zmax;
+	float tmin, tmax, tymin, tymax, tzmin, tzmax, buf;
+	float xp1, yp1, zp1, xp2, yp2, zp2;
+	int length, lengthy, lengthz, i;
+	float xinc, yinc, zinc, val, newval;
+
+	float ca, sa, cb, sb;
+	ca = cos(alpha);
+	sa = sin(alpha);
+	cb = cos(beta);
+	sb = sin(beta);
+
+	for (y=0; y<him; ++y) {
+		for (x=0; x<wim; ++x) {
+			// init image
+			mip[y*wim + x] = 0.0f;
+			// origin centre in the world
+			xw = x - center_imx;
+			yw = y - center_imy;
+			zw = -ts;
+
+			// magnefication
+			xw = xw * scale;
+			yw = yw * scale;
+			
+			// Rotation 2 axes
+			x1 = xw*ca + zw*sa;
+			y1 = xw*sb*sa + yw*cb - zw*sb*ca;
+			z1 = -xw*sa*cb + yw*sb + zw*cb*ca;
+			zw = ts;
+			x2 = xw*ca + zw*sa;
+			y2 = xw*sb*sa + yw*cb - zw*sb*ca;
+			z2 = -xw*sa*cb + yw*sb + zw*cb*ca;
+			
+			/* One axe
+			x1 = xw*cos(alpha) + zw*sin(alpha);
+			y1 = yw;
+			z1 = -xw*sin(alpha) + zw*cos(alpha);
+			zw = ts;
+			x2 = xw*cos(alpha) + zw*sin(alpha);
+			y2 = yw;
+			z2 = -xw*sin(alpha) + zw*cos(alpha);
+			*/
+
+			//printf("%f %f %f\n", x1, y1, z1);
+			//printf("%f %f %f\n", x2, y2, z2);
+			// change origin to raycasting
+			x1 += center_world;
+			y1 += center_world;
+			z1 += center_world;
+			x2 += center_world;
+			y2 += center_world;
+			z2 += center_world;
+			// define box and ray direction
+			xmin = padx;
+			xmax = padx+float(nx);
+			ymin = pady;
+			ymax = pady+float(ny);
+			zmin = padz;
+			zmax = padz+float(nz);
+			// Rayscasting Smits's algorithm ray-box AABB intersection
+			xd = x2 - x1;
+			yd = y2 - y1;
+			zd = z2 - z1;
+			tmin = -1e9f;
+			tmax = 1e9f;
+			// on x
+			if (xd != 0.0f) {
+				tmin = (xmin - x1) / xd;
+				tmax = (xmax - x1) / xd;
+				if (tmin > tmax) {
+					buf = tmin;
+					tmin = tmax;
+					tmax = buf;
+				}
+			}
+			// on y
+			if (yd != 0.0f) {
+				tymin = (ymin - y1) / yd;
+				tymax = (ymax - y1) / yd;
+				if (tymin > tymax) {
+					buf = tymin;
+					tymin = tymax;
+					tymax = buf;
+				}
+				if (tymin > tmin) {tmin = tymin;}
+				if (tymax < tmax) {tmax = tymax;}
+			}
+			// on z
+			if (zd != 0.0f) {
+				tzmin = (zmin - z1) / zd;
+				tzmax = (zmax - z1) / zd;
+				if (tzmin > tzmax) {
+					buf = tzmin;
+					tzmin = tzmax;
+					tzmax = buf;
+				}
+				if (tzmin > tmin) {tmin = tzmin;}
+				if (tzmax < tmax) {tmax = tzmax;}
+			}
+			// compute points
+			xp1 = x1 + xd * tmin;
+			yp1 = y1 + yd * tmin;
+			zp1 = z1 + zd * tmin;
+			xp2 = x1 + xd * tmax;
+			yp2 = y1 + yd * tmax;
+			zp2 = z1 + zd * tmax;
+			//printf("p1 %f %f %f - p2 %f %f %f\n", xp1, yp1, zp1, xp2, yp2, zp2);
+			// check point p1
+			if (xp1 >= xmin && xp1 <= xmax) {
+				if (yp1 >= ymin && yp1 <= ymax) {
+					if (zp1 >= zmin && zp1 <= zmax) {
+						xp1 -= padx;
+						yp1 -= pady;
+						zp1 -= padz;
+						if (int(xp1+0.5) == nx) {xp1 = nx-1.0f;}
+						if (int(yp1+0.5) == ny) {yp1 = ny-1.0f;}
+						if (int(zp1+0.5) == nz) {zp1 = nz-1.0f;}
+					} else {continue;}
+				} else {continue;}
+			} else {continue;}
+			// check point p2
+			if (xp2 >= xmin && xp2 <= xmax) {
+				if (yp2 >= ymin && yp2 <= ymax) {
+					if (zp2 >= zmin && zp2 <= zmax) {
+						xp2 -= padx;
+						yp2 -= pady;
+						zp2 -= padz;
+						if (int(xp2+0.5) == nx) {xp2 = nx-1.0f;}
+						if (int(yp2+0.5) == ny) {yp2 = ny-1.0f;}
+						if (int(zp2+0.5) == nz) {zp2 = nz-1.0f;}
+					} else {continue;}
+				} else {continue;}
+			} else {continue;}
+
+			//printf("e %f %f %f    s %f %f %f\n", xp1, yp1, zp1, xp2, yp2, zp2);
+
+			// walk the ray and stop of > to the th
+			step = nx * ny;
+			length = abs(xp2 - xp1);
+			lengthy = abs(yp2 - yp1);
+			lengthz = abs(zp2 - zp1);
+			if (lengthy > length) {length = lengthy;}
+			if (lengthz > length) {length = lengthz;}
+			
+			xinc = (xp2 - xp1) / (float)length;
+			yinc = (yp2 - yp1) / (float)length;
+			zinc = (zp2 - zp1) / (float)length;
+			xp1 += 0.5;
+			yp1 += 0.5;
+			zp1 += 0.5;
+			newval = 0.0f;
+			for (i=0; i<=length; ++i) {
+				val = vol[(int)zp1*step + (int)yp1*nx + (int)xp1];
+				if (val > th) {
+					newval = val;
+					break;
+				}
+				xp1 += xinc;
+				yp1 += yinc;
+				zp1 += zinc;
+			}
+			
+			// Assign new value
+			mip[y*wim + x] = newval;
+			
+		} // loop j
+	} // loop i
+
+
+}
+#undef pi
+
 // 2d median filter
 void kernel_filter_2d_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w) {
 	int nwin = w*w;
@@ -6700,8 +6925,202 @@ void kernel_filter_3d_adaptive_median(float* im, int nz, int ny, int nx,
 		} // z
 		if (wa != wmax) {memcpy(im, res, size_mem_im);} 
 	} // wa
+}
+
+// 3D Resampling by Lanczos3 (uses backwarp mapping)
+#define pi 3.141592653589793238462643383279
+#define SINC(x) ((x)==(0)?1:sin(pi*(x))/(pi*(x)))
+void kernel_resampling_3d_Lanczos3(float* org, int noz, int noy, int nox, float* trg, int nz, int ny, int nx) {
+	// scale factor
+	float scalez = noz / float(nz);
+	float scaley = noy / float(ny);
+	float scalex = nox / float(nx);
+	int stepo = nox*noy;
+	int stept = nx*ny;
+	// backward mapping, thus scan from the target
+	int x, y, z;
+	int xi, yi, zi;
+	float xt, yt, zt;
+	int u, v, w;
+	int wz, wy, wx;
+	float p, q, r;
+	float dx, dy, dz;
+	for (z=0; z<nz; ++z) {
+		printf("slice z = %i / %i\n", z+1, nz); 
+		zt = z * scalez;
+		zi = (int)zt;
+		
+		for (y=0; y<ny; ++y) {
+			yt = y * scaley;
+			yi = (int)yt;
+			
+			for (x=0; x<nx; ++x) {
+				xt = x * scalex;
+				xi = (int)xt;
+
+				// window loop
+				r = 0;
+				for (wz = -2; wz < 4; ++wz) {
+					w = zi + wz;
+					if (w >= noz) {continue;}
+					if (w < 0) {continue;}
+					dz = zt - w;
+					if (abs(dz) > 3.0f) {dz = 3.0f;}
+					q = 0;
+					for (wy = -2; wy < 4; ++wy) {
+						v = yi + wy;
+						if (v >= noy) {continue;}
+						if (v < 0) {continue;}
+						dy = yt - v;
+						if (abs(dy) > 3.0f) {dy = 3.0f;}
+						p = 0;
+						for (wx = -2; wx < 4; ++wx) {
+							u = xi + wx;
+							if (u >= nox) {continue;}
+							if (u < 0) {continue;}
+							dx = xt - u;
+							if (abs(dx) > 3.0f) {dx = 3.0f;}
+							p = p + org[w*stepo + v*nox + u] * SINC(dx) * SINC(dx * 0.333333f);
+						} // wx
+						q = q + p * SINC(dy) * SINC(dy * 0.333333f);
+					} // wy
+					r = r + q * SINC(dz) * SINC(dz * 0.333333f);
+				} // wz
+
+				// assign the new value
+				trg[z*stept + y*nx + x] = r;
+				
+			} // x
+		} // y
+	} // z
 
 }
+#undef pi
+#undef SINC
+
+// 3D Resampling by Lanczos2 (uses backwarp mapping)
+#define pi 3.141592653589793238462643383279
+#define SINC(x) ((x)==(0)?1:sin(pi*(x))/(pi*(x)))
+void kernel_resampling_3d_Lanczos2(float* org, int noz, int noy, int nox, float* trg, int nz, int ny, int nx) {
+	// scale factor
+	float scalez = noz / float(nz);
+	float scaley = noy / float(ny);
+	float scalex = nox / float(nx);
+	int stepo = nox*noy;
+	int stept = nx*ny;
+	// backward mapping, thus scan from the target
+	int x, y, z;
+	int xi, yi, zi;
+	float xt, yt, zt;
+	int u, v, w;
+	int wz, wy, wx;
+	float p, q, r;
+	float dx, dy, dz;
+	for (z=0; z<nz; ++z) {
+		printf("slice z = %i / %i\n", z+1, nz); 
+		zt = z * scalez;
+		zi = (int)zt;
+		
+		for (y=0; y<ny; ++y) {
+			yt = y * scaley;
+			yi = (int)yt;
+			
+			for (x=0; x<nx; ++x) {
+				xt = x * scalex;
+				xi = (int)xt;
+
+				// window loop
+				r = 0;
+				for (wz = -1; wz < 3; ++wz) {
+					w = zi + wz;
+					if (w >= noz) {continue;}
+					if (w < 0) {continue;}
+					dz = zt - w;
+					if (abs(dz) > 2.0f) {dz = 2.0f;}
+					q = 0;
+					for (wy = -1; wy < 3; ++wy) {
+						v = yi + wy;
+						if (v >= noy) {continue;}
+						if (v < 0) {continue;}
+						dy = yt - v;
+						if (abs(dy) > 2.0f) {dy = 2.0f;}
+						p = 0;
+						for (wx = -1; wx < 3; ++wx) {
+							u = xi + wx;
+							if (u >= nox) {continue;}
+							if (u < 0) {continue;}
+							dx = xt - u;
+							if (abs(dx) > 2.0f) {dx = 2.0f;}
+							p = p + org[w*stepo + v*nox + u] * SINC(dx) * SINC(dx * 0.5f);
+						} // wx
+						q = q + p * SINC(dy) * SINC(dy * 0.5f);
+					} // wy
+					r = r + q * SINC(dz) * SINC(dz * 0.5f);
+				} // wz
+
+				// assign the new value
+				trg[z*stept + y*nx + x] = r;
+				
+			} // x
+		} // y
+	} // z
+
+}
+#undef pi
+#undef SINC
+
+// 2D Resampling by Lanczos2 (uses backwarp mapping)
+#define pi 3.141592653589793238462643383279
+#define SINC(x) ((x)==(0)?1:sin(pi*(x))/(pi*(x)))
+void kernel_resampling_2d_Lanczos2(float* org, int noy, int nox, float* trg, int ny, int nx) {
+	// scale factor
+	float scaley = noy / float(ny);
+	float scalex = nox / float(nx);
+	// backward mapping, thus scan from the target
+	int x, y;
+	int xi, yi;
+	float xt, yt;
+	int u, v;
+	int wy, wx;
+	float p, q;
+	float dx, dy;
+
+	for (y=0; y<ny; ++y) {
+		yt = y * scaley;
+		yi = (int)yt;
+			
+		for (x=0; x<nx; ++x) {
+			xt = x * scalex;
+			xi = (int)xt;
+
+			// window loop
+			q = 0;
+			for (wy = -1; wy < 3; ++wy) {
+				v = yi + wy;
+				if (v >= noy) {continue;}
+				if (v < 0) {continue;}
+				dy = yt - v;
+				if (abs(dy) > 2.0f) {dy = 2.0f;}
+				p = 0;
+				for (wx = -1; wx < 3; ++wx) {
+					u = xi + wx;
+					if (u >= nox) {continue;}
+					if (u < 0) {continue;}
+					dx = xt - u;
+					if (abs(dx) > 2.0f) {dx = 2.0f;}
+					p = p + org[v*nox+u] * SINC(dx) * SINC(dx * 0.5f);
+				} // wx
+				q = q + p * SINC(dy) * SINC(dy * 0.5f);
+			} // wy
+
+			// assign the new value
+			trg[y*nx + x] += q;
+				
+		} // x
+	} // y
+}
+#undef pi
+#undef SINC
 
 
 /**************************************************************
@@ -6721,8 +7140,8 @@ void kernel_3Dconv_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int
 }
 
 int kernel_pack_id(int* d1, int nd1, int* c1, int nc1,
-					int* d2, int nd2, int* c2, int nc2,
-					unsigned short int* pack, int np, int id, int flag) {
+				   int* d2, int nd2, int* c2, int nc2,
+				   unsigned short int* pack, int np, int id, int flag) {
 	int i;
 	// return only the number of elements
 	if (flag) {

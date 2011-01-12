@@ -375,7 +375,7 @@ def volume_show_mip(vol):
     global xmouse, ymouse, lmouse, rmouse
     global w, h
     global lutr, lutg, lutb
-    global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, gray
+    global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, petb, petr, petg, gray
     global color_flag
 
     wz, wy, wx  = vol.shape
@@ -394,7 +394,7 @@ def volume_show_mip(vol):
     mapb             = zeros((h, w), 'float32')
     
     def build_map_color():
-        global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, gray
+        global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, petb, petr, petg, gray
         global lutr, lutg, lutb
         
         jetr = zeros((256), 'float32')
@@ -405,7 +405,11 @@ def volume_show_mip(vol):
         hotb = zeros((256), 'float32')
         hsvr = zeros((256), 'float32')
         hsvg = zeros((256), 'float32')
+        petb = zeros((256), 'float32')
+        petr = zeros((256), 'float32')
+        petg = zeros((256), 'float32')
         hsvb = zeros((256), 'float32')
+
         gray = zeros((256), 'float32')
 
         # jet
@@ -452,6 +456,29 @@ def volume_show_mip(vol):
         hsvg /= 255.0
         hsvb /= 255.0
 
+        # pet
+        up2 = array(range(0, 255, 4), 'uint8') #  64
+        up3 = array(range(0, 255, 8), 'uint8') #  32
+        dw  = array(range(255, 0, -8), 'uint8') #  32
+        petr[0:64]   = 0
+        petg[0:64]   = 0
+        petb[0:64]   = up2
+        petr[64:128]   = up2
+        petg[64:128]   = 0
+        petb[64:128]   = 255
+        petr[128:160] = 255
+        petg[128:160] = 0
+        petb[128:160] = dw
+        petr[160:224] = 255
+        petg[160:224] = up2
+        petb[160:224] = 0
+        petr[224:256] = 255
+        petg[224:256] = 255
+        petb[224:256] = up3
+        petr /= 255.0
+        petg /= 255.0
+        petb /= 255.0
+
         # gray
         gray = array(range(256), 'float32')
         gray /= 255.0
@@ -476,6 +503,7 @@ def volume_show_mip(vol):
         elif color_flag == 1: txt2 = 'Jet color map'
         elif color_flag == 2: txt2 = 'Hot color map'
         elif color_flag == 3: txt2 = 'HSV color map'
+        elif color_flag == 4: txt2 = 'PET color map'
         glRasterPos2i(0, h-12)
         for char in txt2: glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, ord(char))
 
@@ -515,7 +543,7 @@ def volume_show_mip(vol):
         elif key == 's':   theta -= .5
         elif key == 'c':
             color_flag += 1
-            if color_flag > 3: color_flag = 0
+            if color_flag > 4: color_flag = 0
             if color_flag == 0:
                 lutr = gray.copy()
                 lutg = gray.copy()
@@ -532,6 +560,10 @@ def volume_show_mip(vol):
                 lutr = hsvr.copy()
                 lutg = hsvg.copy()
                 lutb = hsvb.copy()
+            elif color_flag == 4:
+                lutr = petr.copy()
+                lutg = petg.copy()
+                lutb = petb.copy()
                 
         glutPostRedisplay()
 
@@ -602,7 +634,7 @@ def volume_show_slices(vol):
     global islice
     global w, h
     global lutr, lutg, lutb
-    global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, gray
+    global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, petr, petb, petg, gray
     global color_flag
 
     wz, wy, wx  = vol.shape
@@ -620,7 +652,7 @@ def volume_show_slices(vol):
     mapb             = zeros((h, w), 'float32')
     
     def build_map_color():
-        global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, gray
+        global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, petr, petb, petg, gray
         global lutr, lutg, lutb
         
         jetr = zeros((256), 'float32')
@@ -632,6 +664,9 @@ def volume_show_slices(vol):
         hsvr = zeros((256), 'float32')
         hsvg = zeros((256), 'float32')
         hsvb = zeros((256), 'float32')
+        petr = zeros((256), 'float32')
+        petg = zeros((256), 'float32')
+        petb = zeros((256), 'float32')
         gray = zeros((256), 'float32')
 
         # jet
@@ -678,6 +713,29 @@ def volume_show_slices(vol):
         hsvg /= 255.0
         hsvb /= 255.0
 
+        # pet
+        up2 = array(range(0, 255, 4), 'uint8') #  64
+        up3 = array(range(0, 255, 8), 'uint8') #  32
+        dw  = array(range(255, 0, -8), 'uint8') #  32
+        petr[0:64]   = 0
+        petg[0:64]   = 0
+        petb[0:64]   = up2
+        petr[64:128]   = up2
+        petg[64:128]   = 0
+        petb[64:128]   = 255
+        petr[128:160] = 255
+        petg[128:160] = 0
+        petb[128:160] = dw
+        petr[160:224] = 255
+        petg[160:224] = up2
+        petb[160:224] = 0
+        petr[224:256] = 255
+        petg[224:256] = 255
+        petb[224:256] = up3
+        petr /= 255.0
+        petg /= 255.0
+        petb /= 255.0
+
         # gray
         gray = array(range(256), 'float32')
         gray /= 255.0
@@ -702,9 +760,9 @@ def volume_show_slices(vol):
         elif color_flag == 1: txt2 = 'Jet color map'
         elif color_flag == 2: txt2 = 'Hot color map'
         elif color_flag == 3: txt2 = 'HSV color map'
+        elif color_flag == 4: txt2 = 'PET color map'
         glRasterPos2i(0, h-12)
         for char in txt2: glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, ord(char))
-
 
     def display():
         global islice
@@ -733,12 +791,12 @@ def volume_show_slices(vol):
         #glLoadIdentity()
 
     def keyboard(key, x, y):
-        global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, gray
+        global jetr, jetb, jetg, hotr, hotg, hotb, hsvr, hsvb, hsvg, petr, petg, petb, gray
         global lutr, lutg, lutb, color_flag
         if key == chr(27): sys.exit(0)
         elif key == 'c':
             color_flag += 1
-            if color_flag > 3: color_flag = 0
+            if color_flag > 4: color_flag = 0
             if color_flag == 0:
                 lutr = gray.copy()
                 lutg = gray.copy()
@@ -755,6 +813,10 @@ def volume_show_slices(vol):
                 lutr = hsvr.copy()
                 lutg = hsvg.copy()
                 lutb = hsvb.copy()
+            elif color_flag == 4:
+                lutr = petr.copy()
+                lutg = petg.copy()
+                lutb = petb.copy()
                 
         glutPostRedisplay()
 

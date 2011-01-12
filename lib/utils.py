@@ -112,6 +112,26 @@ def image_write_mapcolor(im, name, color='jet'):
         lutg[2*stp:]      = 255
         lutb[2*stp:3*stp] = up
         lutb[3*stp:]      = 255
+    elif color == 'pet':
+        up2 = array(range(0, 255, 4), 'uint8') #  64
+        up3 = array(range(0, 255, 8), 'uint8') #  32
+        dw  = array(range(255, 0, -8), 'uint8') #  32
+        lutr[0:64]   = 0
+        lutg[0:64]   = 0
+        lutb[0:64]   = up2
+        lutr[64:128]   = up2
+        lutg[64:128]   = 0
+        lutb[64:128]   = 255
+        lutr[128:160] = 255
+        lutg[128:160] = 0
+        lutb[128:160] = dw
+        lutr[160:224] = 255
+        lutg[160:224] = up2
+        lutb[160:224] = 0
+        lutr[224:256] = 255
+        lutg[224:256] = 255
+        lutb[224:256] = up3
+        
     else: # hsv kind default
         up  = array(range(0, 255,  5), 'uint8')
         dw  = array(range(255, 0, -5), 'uint8')

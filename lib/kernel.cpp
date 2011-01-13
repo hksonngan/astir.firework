@@ -6386,7 +6386,7 @@ void kernel_pet3D_OPLEM_att_cuda(unsigned short int* x1, int nx1, unsigned short
 #define pi  3.141592653589
 void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int him, int wim, float alpha, float beta, float scale) {
 	// first some var
-	float ts = 0.5 * sqrt(nz*nz + nx*nx) + 1;
+	float ts = sqrt(nz*nz + nx*nx) + 1;
 	float sizeworld = 2 * wim;
 	float center_world = sizeworld / 2.0;
 	float center_imx = wim / 2.0;
@@ -6464,40 +6464,42 @@ void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip,
 			zd = z2 - z1;
 			tmin = -1e9f;
 			tmax = 1e9f;
+			// to fix the singularity  ../xd ../yd ../zd
+			if(xd == 0.0f) {xd=0.0000000001f;}
+			if(yd == 0.0f) {yd=0.0000000001f;}
+			if(zd == 0.0f) {zd=0.0000000001f;}
+
 			// on x
-			if (xd != 0.0f) {
-				tmin = (xmin - x1) / xd;
-				tmax = (xmax - x1) / xd;
-				if (tmin > tmax) {
-					buf = tmin;
-					tmin = tmax;
-					tmax = buf;
-				}
+			tmin = (xmin - x1) / xd;
+			tmax = (xmax - x1) / xd;
+			if (tmin > tmax) {
+				buf = tmin;
+				tmin = tmax;
+				tmax = buf;
 			}
+
 			// on y
-			if (yd != 0.0f) {
-				tymin = (ymin - y1) / yd;
-				tymax = (ymax - y1) / yd;
-				if (tymin > tymax) {
-					buf = tymin;
-					tymin = tymax;
-					tymax = buf;
-				}
-				if (tymin > tmin) {tmin = tymin;}
-				if (tymax < tmax) {tmax = tymax;}
+			tymin = (ymin - y1) / yd;
+			tymax = (ymax - y1) / yd;
+			if (tymin > tymax) {
+				buf = tymin;
+				tymin = tymax;
+				tymax = buf;
 			}
+			if (tymin > tmin) {tmin = tymin;}
+			if (tymax < tmax) {tmax = tymax;}
+
 			// on z
-			if (zd != 0.0f) {
-				tzmin = (zmin - z1) / zd;
-				tzmax = (zmax - z1) / zd;
-				if (tzmin > tzmax) {
-					buf = tzmin;
-					tzmin = tzmax;
-					tzmax = buf;
-				}
-				if (tzmin > tmin) {tmin = tzmin;}
-				if (tzmax < tmax) {tmax = tzmax;}
+			tzmin = (zmin - z1) / zd;
+			tzmax = (zmax - z1) / zd;
+			if (tzmin > tzmax) {
+				buf = tzmin;
+				tzmin = tzmax;
+				tzmax = buf;
 			}
+			if (tzmin > tmin) {tmin = tzmin;}
+			if (tzmax < tmax) {tmax = tzmax;}
+
 			// compute points
 			xp1 = x1 + xd * tmin;
 			yp1 = y1 + yd * tmin;
@@ -6571,7 +6573,7 @@ void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip,
 #define pi  3.141592653589
 void kernel_ct_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int him, int wim, float alpha, float beta, float scale, float th) {
 	// first some var
-	float ts = 0.5 * sqrt(nz*nz + nx*nx) + 1;
+	float ts = sqrt(nz*nz + nx*nx) + 1;
 	float sizeworld = 2 * wim;
 	float center_world = sizeworld / 2.0;
 	float center_imx = wim / 2.0;
@@ -6649,40 +6651,43 @@ void kernel_ct_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, 
 			zd = z2 - z1;
 			tmin = -1e9f;
 			tmax = 1e9f;
+			// to fix the singularity  ../xd ../yd ../zd
+			if(xd == 0.0f) {xd=0.0000000001f;}
+			if(yd == 0.0f) {yd=0.0000000001f;}
+			if(zd == 0.0f) {zd=0.0000000001f;}
+			
 			// on x
-			if (xd != 0.0f) {
-				tmin = (xmin - x1) / xd;
-				tmax = (xmax - x1) / xd;
-				if (tmin > tmax) {
-					buf = tmin;
-					tmin = tmax;
-					tmax = buf;
-				}
+			tmin = (xmin - x1) / xd;
+			tmax = (xmax - x1) / xd;
+			if (tmin > tmax) {
+				buf = tmin;
+				tmin = tmax;
+				tmax = buf;
 			}
+
 			// on y
-			if (yd != 0.0f) {
-				tymin = (ymin - y1) / yd;
-				tymax = (ymax - y1) / yd;
-				if (tymin > tymax) {
-					buf = tymin;
-					tymin = tymax;
-					tymax = buf;
-				}
-				if (tymin > tmin) {tmin = tymin;}
-				if (tymax < tmax) {tmax = tymax;}
+			tymin = (ymin - y1) / yd;
+			tymax = (ymax - y1) / yd;
+			if (tymin > tymax) {
+				buf = tymin;
+				tymin = tymax;
+				tymax = buf;
 			}
+			if (tymin > tmin) {tmin = tymin;}
+			if (tymax < tmax) {tmax = tymax;}
+
 			// on z
-			if (zd != 0.0f) {
-				tzmin = (zmin - z1) / zd;
-				tzmax = (zmax - z1) / zd;
-				if (tzmin > tzmax) {
-					buf = tzmin;
-					tzmin = tzmax;
-					tzmax = buf;
-				}
-				if (tzmin > tmin) {tmin = tzmin;}
-				if (tzmax < tmax) {tmax = tzmax;}
+			tzmin = (zmin - z1) / zd;
+			tzmax = (zmax - z1) / zd;
+			if (tzmin > tzmax) {
+				buf = tzmin;
+				tzmin = tzmax;
+				tzmax = buf;
 			}
+			if (tzmin > tmin) {tmin = tzmin;}
+			if (tzmax < tmax) {tmax = tzmax;}
+			if (tmin > tmax) {continue;}
+			
 			// compute points
 			xp1 = x1 + xd * tmin;
 			yp1 = y1 + yd * tmin;
@@ -6690,7 +6695,7 @@ void kernel_ct_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, 
 			xp2 = x1 + xd * tmax;
 			yp2 = y1 + yd * tmax;
 			zp2 = z1 + zd * tmax;
-			//printf("p1 %f %f %f - p2 %f %f %f\n", xp1, yp1, zp1, xp2, yp2, zp2);
+
 			// check point p1
 			if (xp1 >= xmin && xp1 <= xmax) {
 				if (yp1 >= ymin && yp1 <= ymax) {
@@ -6749,10 +6754,11 @@ void kernel_ct_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, 
 			// Assign new value
 			mip[y*wim + x] = newval;
 			
+			
 		} // loop j
 	} // loop i
 
-
+	//printf("pix: %i", c);
 }
 #undef pi
 

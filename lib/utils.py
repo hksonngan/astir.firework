@@ -936,6 +936,23 @@ def volume_mask_cylinder(nz, ny, nx, dc, rad):
 
     return vol
 
+# create ball mask
+def volume_mask_ball(nz, ny, nx, rad):
+    from numpy import zeros
+    vol = zeros((nz, ny, nx), 'float32')
+    cx  = nx // 2
+    cy  = ny // 2
+    cz  = nz // 2
+    for z in xrange(nz):
+        for y in xrange(ny):
+            for x in xrange(nx):
+                rxyz = ((x-cx)*(x-cx) + (y-cy)*(y-cy) + (z-cz)*(z-cz))**(0.5)
+                if rxyz > rad: continue
+
+                vol[z, y, x] = 1.0
+
+    return vol
+
 # pack a non-isovolume to a cube
 def volume_pack_cube(vol):
     from numpy import zeros

@@ -73,7 +73,7 @@ void inkernel_bubblesort(float* vec, int n) {
 // Mono function
 int inkernel_mono(int i, int j) {
 	int ma, mi;
-	if (i>j) {ma = i;}
+if (i>j) {ma = i;}
 	else {ma = j;}
 	if (i<j) {mi = i;}
 	else {mi = j;}
@@ -681,7 +681,11 @@ void kernel_pet2D_SRM_ELL_DDA(float* vals, int niv, int njv, int* cols, int nic,
 
 // Raytrace SRM matrix with DDA algorithm with GPU
 void kernel_pet2D_SRM_DDA_cuda(float* SRM, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2, int width_image) {
+#ifdef CUDA
 	kernel_pet2D_SRM_DDA_wrap_cuda(SRM, wy, wx, X1, nx1, Y1, ny1, X2, nx2, Y2, ny2, width_image);
+#else
+	printf("CUDA not supported!");
+#endif
 }
 
 // OMP version DOES NOT WORK
@@ -2257,6 +2261,93 @@ void kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(unsigned short int* X1, int nx1, 
 #undef CONST
 #undef float2fixed
 #undef intfixed
+
+// Update image online, SRM is build with DDA's Line Algorithm in fixed point,
+// store in ELL format and update with LM-OSEM and corrected the attenuation
+#define CONST int(pow(2, 23))
+#define float2fixed(X) ((int) X * CONST)
+#define intfixed(X) (X >> 23)
+void kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_ATT_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+												   unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+												   unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+												   float* im, int nim1, int nim2, int nim3,
+												   float* F, int nf1, int nf2, int nf3,
+												   float* A, int na1, int na2, int na3,
+												   int wim, int ndata) {
+	
+	int length, lengthy, lengthz, i, j, n;
+	float flength, val;
+	float x, y, z, lx, ly, lz;
+	int fxinc, fyinc, fzinc, fx, fy, fz;
+	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
+	int step;
+	step = wim*wim;
+
+	// alloc mem
+	//float* vals = (float*)malloc(ndata * sizeof(float));
+	int* cols = (int*)malloc(ndata * sizeof(int));
+	int LOR_ind;
+	// to compute F
+	int vcol;
+	float buf, sum, Qi, Ai;
+
+	for (i=0; i< nx1; ++i) {
+		Qi = 0.0f;
+		Ai = 0.0f;
+		x1 = X1[i];
+		x2 = X2[i];
+		y1 = Y1[i];
+		y2 = Y2[i];
+		z1 = Z1[i];
+		z2 = Z2[i];
+		diffx = x2-x1;
+		diffy = y2-y1;
+		diffz = z2-z1;
+		lx = abs(diffx);
+		ly = abs(diffy);
+		lz = abs(diffz);
+		length = ly;
+		if (lx > length) {length = lx;}
+		if (lz > length) {length = lz;}
+		flength = 1.0f / (float)length;
+		fxinc = float2fixed(diffx * flength);
+		fyinc = float2fixed(diffy * flength);
+		fzinc = float2fixed(diffz * flength);
+		fx = float2fixed(x1);
+		fy = float2fixed(y1);
+		fz = float2fixed(z1);
+		for (n=0; n<length; ++n) {
+			//vals[n] = 1.0f;
+			vcol = intfixed(fz) * step + intfixed(fy) * wim + intfixed(fx);
+			cols[n] = vcol;
+			Qi += im[vcol];
+			Ai -= A[vcol];
+			fx = fx + fxinc;
+			fy = fy + fyinc;
+			fz = fz + fzinc;
+		}
+		// eof
+		//vals[n] = -1;
+		cols[n] = -1;
+		// compute F
+		if (Qi==0.0f) {continue;}
+		Qi = Qi * exp(Ai / 2.0f);
+		Qi = 1.0f / Qi;
+		vcol = cols[0];
+		j = 0;
+		while (vcol != -1) {
+			F[vcol] += Qi;
+			++j;
+			vcol = cols[j];
+			}
+	}
+	//free(vals);
+	free(cols);
+}
+#undef CONST
+#undef float2fixed
+#undef intfixed
+
 
 // Update image online, SRM is build with DDA's Line Algorithm, store in COO format and update with LM-OSEM
 void kernel_pet3D_IM_SRM_COO_DDA_ON_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
@@ -6590,6 +6681,7 @@ void kernel_ct_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, 
 	float xp1, yp1, zp1, xp2, yp2, zp2;
 	int length, lengthy, lengthz, i;
 	float xinc, yinc, zinc, val, newval;
+	float light;
 
 	float ca, sa, cb, sb;
 	ca = cos(alpha);
@@ -6696,6 +6788,9 @@ void kernel_ct_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, 
 			yp2 = y1 + yd * tmax;
 			zp2 = z1 + zd * tmax;
 
+			// light (ray length)
+			light = sqrt((xp1-x1)*(xp1-x1) + (yp1-y1)*(yp1-y1) + (zp1-z1)*(zp1-z1));
+
 			// check point p1
 			if (xp1 >= xmin && xp1 <= xmax) {
 				if (yp1 >= ymin && yp1 <= ymax) {
@@ -6750,9 +6845,14 @@ void kernel_ct_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, 
 				yp1 += yinc;
 				zp1 += zinc;
 			}
+
+			// light (ray distance)
+			light += i;
+			light /= (2*ts);
+			light  = 1 - light;
 			
 			// Assign new value
-			mip[y*wim + x] = newval;
+			mip[y*wim + x] = newval*light;
 			
 			
 		} // loop j

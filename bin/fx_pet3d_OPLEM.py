@@ -112,8 +112,8 @@ else:
 print 'Running time is', time_format(time()-tg)
 
 # save image
-mask = volume_mask_cylinder(47, 127, 127, 47, 60)
-im *= mask
+#mask = volume_mask_cylinder(47, 127, 127, 47, 60)
+#im *= mask
 volume_write(im, output + '/res_volume.vol')
 mip = volume_mip(im)
 #mip *= image_mask_circle(127, 127, 55)

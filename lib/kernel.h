@@ -185,10 +185,19 @@ void kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(unsigned short int* X1, int nx1, unsign
 
 // the best one
 void kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
-										 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
-										 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
-										 float* im, int nim1, int nim2, int nim3,
-										 float* F, int nf1, int nf2, int nf3, int wim, int ndata);
+											   unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+											   unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+											   float* im, int nim1, int nim2, int nim3,
+											   float* F, int nf1, int nf2, int nf3, int wim, int ndata);
+
+// used
+void kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_ATT_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+											   unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+											   unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+											   float* im, int nim1, int nim2, int nim3,
+											   float* F, int nf1, int nf2, int nf3,
+											   float* A, int na1, int na2, int na3,
+											   int wim, int ndata);
 
 // to compare
 void kernel_pet3D_IM_SRM_COO_DDA_ON_iter(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,

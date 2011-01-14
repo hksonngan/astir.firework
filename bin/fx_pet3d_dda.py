@@ -28,6 +28,7 @@ p.add_option('--Nsub',    type='int',    default=1,       help='Number of subset
 p.add_option('--cuton',   type='int',    default=0,       help='Starting number in LOR file (default 0)')
 p.add_option('--cutoff',  type='int',    default=1000000, help='Stoping number in LOR file (default 1000000)')
 p.add_option('--NM',      type='string', default='None',  help='Normalize matrix path and name (.vol) (default None meaning not normalize)')
+p.add_option('--AM',      type='string', default='None',  help='Attenuation matrix path and name (.vol) (default None meaning not attenuation correction)')
 p.add_option('--nxy',     type='int',    default=141,     help='Volume size on x and y (transaxial)')
 p.add_option('--nz',      type='int',    default=45,      help='Volume size on z (axial)')
 
@@ -47,6 +48,7 @@ Nsub      = options.Nsub
 cuton     = options.cuton
 cutoff    = options.cutoff
 NMname    = options.NM
+AMname    = options.AM
 nxy       = options.nxy
 nz        = options.nz
 
@@ -66,6 +68,7 @@ print 'Nsub', Nsub
 print 'cuton', cuton
 print 'cutoff', cutoff
 print 'NMname', NMname
+print 'AMname', AMname
 print 'Volume %ix%ix%i' % (nxy, nxy, nz)
 
 # Vars
@@ -78,10 +81,13 @@ if NMname == 'None':
     SM = ones((nz, nxy, nxy), 'float32')
 else:
     SM  = volume_open(NMname)
-    #SM /= 6.0
     SM /= SM.max()
     SM  = 1 / SM
 
+# read attenuation matrix
+if AMname != 'None':
+    AM = volume_open(AMname)
+    
 # create directory
 os.mkdir(output)
 
@@ -96,24 +102,6 @@ zi2  = zeros((ntot), 'uint16')
 kernel_listmode_open_subset_xyz_int(xi1, yi1, zi1, xi2, yi2, zi2, cuton, cutoff, src)
 print 'Read data'
 print '...', time_format(time()-t)
-
-'''
-# compute intial image
-t     = time()
-imsub = zeros((nz, nxy, nxy), 'float32')
-for isub in xrange(Nsub):
-    n_start = int(float(ntot) / Nsub * isub + 0.5)
-    n_stop  = int(float(ntot) / Nsub * (isub+1) + 0.5)
-    n       = n_stop - n_start
-    kernel_pet3D_IM_SRM_DDA_fixed(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, nxy)
-    print '... sub %i / %i' % (isub, Nsub)
-
-print '...', time_format(time()-t)
-mip = volume_mip(imsub)
-image_write(mip, output + '/init_image.png')
-volume_write(imsub, output + '/volume_init.vol')
-print '... export to volume_init.vol'
-'''
 
 # init im
 tg    = time()
@@ -136,8 +124,11 @@ for ite in xrange(Nite):
         
         # Compute F
         F *= 0.0 # init
-        #kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, nxy, ndata)
-        kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, nxy, ndata)
+        if AMname == 'None':
+            #kernel_pet3D_IM_SRM_ELL_DDA_ON_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, nxy, ndata)
+            kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, nxy, ndata)
+        else:
+            kernel_pet3D_IM_SRM_ELL_DDA_fixed_ON_ATT_iter(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, AM, nxy, ndata)
         print '...... compute EM', time_format(time()-tsub)
 
         # Normalization

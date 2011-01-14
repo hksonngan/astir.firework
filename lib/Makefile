@@ -22,7 +22,7 @@ _kernel.so : kernel.o kernel_wrap.o kernel_cuda.so
 	g++ -o _kernel.so -shared kernel.o kernel_wrap.o kernel_cuda.so -fopenmp -lGL
 
 kernel.o : kernel.cpp
-	g++ -c -fPIC kernel.cpp -fopenmp -lGL
+	g++ -D CUDA -c -fPIC kernel.cpp -fopenmp -lGL
 # not need -fopenmp and -lGL here ??
 
 kernel_wrap.o : kernel_wrap.c

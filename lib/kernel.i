@@ -95,7 +95,7 @@ void kernel_pet3D_IM_SRM_SIDDON_iter(float* IN_ARRAY1, int DIM1, float* IN_ARRAY
 void kernel_pet3D_IM_SRM_COO_SIDDON(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim, int isub);
 void kernel_pet3D_IM_SRM_COO_SIDDON_iter_vec(float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int N, int isub);
 void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim, int dim, int border);
-void kernel_pet3D_IM_ATT_SRM_COO_ON_SIDDON_iter(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, int wim, int dim);
+void kernel_pet3D_IM_ATT_SRM_COO_ON_SIDDON_iter(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, int wim, int dim, int border);
 void kernel_pet3D_IM_SRM_COO_SIDDON_iter_mat(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int N, int isub);
 void kernel_pet3D_IM_SRM_ELL_SIDDON_iter(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int wim, int ndata);
 
@@ -227,3 +227,20 @@ void kernel_allegro_save_all_LOR(int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int D
 								 int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1);
 
 void kernel_pet3D_IM_SRM_HD(int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1,	float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, char* nametoc, char* namesrm);
+
+// new code
+void kernel_pet3D_OPLEM(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
+						unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
+						unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
+						float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
+						float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
+						int Nsub);
+
+// new code
+void kernel_pet3D_OPLEM_att(unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
+							unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
+							unsigned short int* IN_ARRAY1, int DIM1, unsigned short int* IN_ARRAY1, int DIM1,
+							float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
+							float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
+							float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
+							int Nsub);

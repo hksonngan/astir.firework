@@ -1997,7 +1997,7 @@ void kernel_pet3D_OPLEM_wrap_cuda_V1(unsigned short int* x1, int nx1, unsigned s
 			sublor_start = int(float(nlor) / nsub * isub + 0.5f);
 			sublor_stop = int(float(nlor) / nsub * (isub+1) + 0.5f);
 			nsublor = sublor_stop - sublor_start;
-			printf("   isub: %i sublor: %i to %i\n", isub, sublor_start, sublor_stop);
+			//printf("   isub: %i sublor: %i to %i\n", isub, sublor_start, sublor_stop);
 
 			// Compute corrector subset
 			block_size = 256;
@@ -2015,15 +2015,6 @@ void kernel_pet3D_OPLEM_wrap_cuda_V1(unsigned short int* x1, int nx1, unsigned s
 			threads.x = block_size;
 			grid.x = grid_size;
 			pet3D_OPLEM_update_V0<<<grid, threads>>>(d_im, d_F, d_NM, invscale, nim);
-
-			/*
-			// to debug
-			cudaMemcpy(im, d_im, mem_size_im, cudaMemcpyDeviceToHost);
-			float imean = 0;
-			for (i=0; i<nim; ++i) {imean += im[i];}
-			imean /= float(nim);
-			printf("imean: %f\n", imean);
-			*/
 
 		} // isub
 		// Unbind textures

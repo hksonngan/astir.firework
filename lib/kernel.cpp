@@ -3143,7 +3143,8 @@ void kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int n
 void kernel_pet3D_IM_ATT_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
 												float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
 												float* im, int nim, float* F, int nf, float* mumap, int nmu,
-												int wim, int dim) {
+												int wim, int dim, int border) {
+
 	int n, ct;
 	float tx, ty, tz, px, qx, py, qy, pz, qz;
 	int ei, ej, ek, u, v, w, i, j, k, oldi, oldj, oldk;
@@ -3151,8 +3152,7 @@ void kernel_pet3D_IM_ATT_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, i
 	float divx, divy, divz, runx, runy, runz, oldv, newv, val, valmax;
 	float axstart, aystart, azstart, astart, pq, stepx, stepy, stepz, startl, initl;
 	int wim2 = wim*wim;
-	double Qi;
-	double Ai;
+	float Qi, Ai;
 	float* vals = NULL;
 	int* cols = NULL;
 
@@ -3171,15 +3171,20 @@ void kernel_pet3D_IM_ATT_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, i
 		qx = X1[n];
 		qy = Y1[n];
 		qz = Z1[n];
-		initl = (float)rand() / (float)RAND_MAX;
+		px -= border;
+		py -= border;
+		qx -= border;
+		qy -= border;
+		initl = inkernel_randf();
 		//initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
-		initl = initl * 0.4 + 0.1;
+		initl = initl * 0.4 + 0.3; // rnd number between 0.3 to 0.7
 		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
 		ty = (py-qy) * initl + qy;
 		tz = (pz-qz) * initl + qz;
 		ei = int(tx);
 		ej = int(ty);
 		ek = int(tz);
+		if (ei < 0.0f || ei >= wim || ej < 0.0f || ej >= wim || ek < 0.0f || ek >= dim) {continue;}
 		if (qx-tx>0) {
 			u=ei+1;
 			stepi=1;
@@ -3360,22 +3365,18 @@ void kernel_pet3D_IM_ATT_SRM_COO_ON_SIDDON_iter(float* X1, int nx1, float* Y1, i
 		for (i=0; i<ct; ++i) {Qi += (vals[i] * im[cols[i]]);}
 		if (Qi == 0.0f) {continue;}
 		// second compute Ai
-		for (i=0; i<ct; ++i) {Ai += (vals[i] * mumap[cols[i]]);}
-		//printf("%i Ai %f ", n, Ai);
-		if (Ai > 5.0) {Ai = 5.0;}
-		Ai = exp(-Ai);
-		//printf("exp %f\n", Ai);
+		for (i=0; i<ct; ++i) {Ai -= (vals[i] * mumap[cols[i]]);}
+		Qi = Qi * exp(Ai / 2.0f);
 		// accumulate to F
 		for(i=0; i<ct; ++i) {
 			if (im[cols[i]] != 0.0f) {
-				F[cols[i]] += (vals[i] / (Qi * Ai));
+				F[cols[i]] += (vals[i] / Qi);
 			}
 		}
 		free(vals);
 		free(cols);
 		
 	} // LORs loop
-	
 }
 
 
@@ -7548,3 +7549,191 @@ void kernel_pet3D_IM_SRM_HD(int* idc1, int nc1, int* idd1, int nd1, int* idc2, i
 
 }
 #undef SWAP
+
+
+// NEWS
+// OPLEM: DDA's Line Algorithm in fixed point and memory handling with ELLPACK format
+#define CONST int(pow(2, 23))
+#define float2fixed(X) ((int) X * CONST)
+#define intfixed(X) (X >> 23)
+void kernel_pet3D_OPLEM(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+						unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+						unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+						float* im, int nim1, int nim2, int nim3,
+						float* NM, int nm1, int nm2, int nm3,
+						int nsub) {
+	
+	// vars DDA
+	int length, lengthy, lengthz, ilor, n;
+	float flength, Qi;
+	float lx, ly, lz;
+	int fxinc, fyinc, fzinc, fx, fy, fz;
+	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
+	int step = nim2 * nim3;
+	int ndata, ind;
+	if (nim1 > nim2) {ndata = nim1;}
+	if (nim3 > ndata) {ndata = nim3;}
+	ndata += ndata / 3;
+	int* buf = (int*)malloc(ndata * sizeof(int));
+	step = nim2*nim3;
+
+	// vars subset
+	int lor_start, lor_stop, nlor, isub;
+	int nvox = step * nim1;
+	unsigned int mem_size_F = nvox * sizeof(float);
+	float* F = (float*)malloc(mem_size_F);
+
+	// prepare normalize matrix
+	for (n=0; n<nvox; ++n) {NM[n] = 1.0f / NM[n];}
+
+	// sub loop
+	for (isub=0; isub<nsub; ++isub) {
+		// boundary lor
+		lor_start = int(float(nx1) / nsub * isub + 0.5f);
+		lor_stop = int(float(nx1) / nsub * (isub+1) + 0.5f);
+		nlor = lor_stop - lor_start;
+		// init F
+		memset(F, 0, mem_size_F);
+		// DDA-ELL ray-projector
+		for (ilor=lor_start; ilor<lor_stop; ++ilor) {
+			Qi = 0.0f;
+			x1 = X1[ilor];
+			x2 = X2[ilor];
+			y1 = Y1[ilor];
+			y2 = Y2[ilor];
+			z1 = Z1[ilor];
+			z2 = Z2[ilor];
+			diffx = x2-x1;
+			diffy = y2-y1;
+			diffz = z2-z1;
+			lx = abs(diffx);
+			ly = abs(diffy);
+			lz = abs(diffz);
+			length = ly;
+			if (lx > length) {length = lx;}
+			if (lz > length) {length = lz;}
+			flength = 1.0f / (float)length;
+			fxinc = float2fixed(diffx * flength);
+			fyinc = float2fixed(diffy * flength);
+			fzinc = float2fixed(diffz * flength);
+			fx = float2fixed(x1);
+			fy = float2fixed(y1);
+			fz = float2fixed(z1);
+			for (n=0; n<length; ++n) {
+				ind = intfixed(fz) * step + intfixed(fy) * nim3 + intfixed(fx);
+				buf[n] = ind;
+				Qi += im[ind];
+				fx = fx + fxinc;
+				fy = fy + fyinc;
+				fz = fz + fzinc;
+			}
+			// compute F
+			if (Qi==0.0f) {continue;}
+			Qi = 1.0f / Qi;
+			for (n=0; n<length; ++n) {F[buf[n]] += Qi;}
+		} // ilor
+		// update im
+		for (n=0; n<nvox; ++n) {im[n] = im[n] * F[n] * NM[n];}
+	} // isub
+	// release mem
+	free(buf);
+	free(F);
+}
+#undef CONST
+#undef float2fixed
+#undef intfixed
+
+// OPLEM: DDA's Line Algorithm in fixed point, memory handling with ELLPACK format, and attenuation correction
+#define CONST int(pow(2, 23))
+#define float2fixed(X) ((int) X * CONST)
+#define intfixed(X) (X >> 23)
+void kernel_pet3D_OPLEM_att(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+							unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+							unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+							float* im, int nim1, int nim2, int nim3,
+							float* NM, int nm1, int nm2, int nm3,
+							float* AM, int am1, int am2, int am3,
+							int nsub) {
+	
+	// vars DDA
+	int length, lengthy, lengthz, ilor, n;
+	float flength, Qi, Ai;
+	float lx, ly, lz;
+	int fxinc, fyinc, fzinc, fx, fy, fz;
+	int x1, y1, z1, x2, y2, z2, diffx, diffy, diffz;
+	int step = nim2 * nim3;
+	int ndata, ind;
+	if (nim1 > nim2) {ndata = nim1;}
+	if (nim3 > ndata) {ndata = nim3;}
+	ndata += ndata / 3;
+	int* buf = (int*)malloc(ndata * sizeof(int));
+	step = nim2*nim3;
+
+	// vars subset
+	int lor_start, lor_stop, nlor, isub;
+	int nvox = step * nim1;
+	unsigned int mem_size_F = nvox * sizeof(float);
+	float* F = (float*)malloc(mem_size_F);
+
+	// prepare normalize matrix
+	for (n=0; n<nvox; ++n) {NM[n] = 1.0f / NM[n];}
+
+	// sub loop
+	for (isub=0; isub<nsub; ++isub) {
+		// boundary lor
+		lor_start = int(float(nx1) / nsub * isub + 0.5f);
+		lor_stop = int(float(nx1) / nsub * (isub+1) + 0.5f);
+		nlor = lor_stop - lor_start;
+		// init F
+		memset(F, 0, mem_size_F);
+		// DDA-ELL ray-projector
+		for (ilor=lor_start; ilor<lor_stop; ++ilor) {
+			Qi = 0.0f;
+			Ai = 0.0f;
+			x1 = X1[ilor];
+			x2 = X2[ilor];
+			y1 = Y1[ilor];
+			y2 = Y2[ilor];
+			z1 = Z1[ilor];
+			z2 = Z2[ilor];
+			diffx = x2-x1;
+			diffy = y2-y1;
+			diffz = z2-z1;
+			lx = abs(diffx);
+			ly = abs(diffy);
+			lz = abs(diffz);
+			length = ly;
+			if (lx > length) {length = lx;}
+			if (lz > length) {length = lz;}
+			flength = 1.0f / (float)length;
+			fxinc = float2fixed(diffx * flength);
+			fyinc = float2fixed(diffy * flength);
+			fzinc = float2fixed(diffz * flength);
+			fx = float2fixed(x1);
+			fy = float2fixed(y1);
+			fz = float2fixed(z1);
+			for (n=0; n<length; ++n) {
+				ind = intfixed(fz) * step + intfixed(fy) * nim3 + intfixed(fx);
+				buf[n] = ind;
+				Qi += im[ind];
+				Ai -= AM[ind];
+				fx = fx + fxinc;
+				fy = fy + fyinc;
+				fz = fz + fzinc;
+			}
+			// compute F
+			if (Qi==0.0f) {continue;}
+			Qi = Qi * exp(Ai / 2.0f);
+			Qi = 1.0f / Qi;
+			for (n=0; n<length; ++n) {F[buf[n]] += Qi;}
+		} // ilor
+		// update im
+		for (n=0; n<nvox; ++n) {im[n] = im[n] * F[n] * NM[n];}
+	} // isub
+	// release mem
+	free(buf);
+	free(F);
+}
+#undef CONST
+#undef float2fixed
+#undef intfixed

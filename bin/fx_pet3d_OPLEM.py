@@ -31,6 +31,9 @@ p.add_option('--NM',      type='string', default='None',  help='Normalize matrix
 p.add_option('--AM',      type='string', default='None',  help='Attenuation matrix path and name (.vol) (default None meaning not attenuation correction)')
 p.add_option('--nxy',     type='int',    default=141,     help='Volume size on x and y (transaxial)')
 p.add_option('--nz',      type='int',    default=45,      help='Volume size on z (axial)')
+p.add_option('--rayproj', action='store', type='choice',  choices=['siddon', 'ddaell'], default='ddaell',
+             help='"siddon" Siddon ray-projector, "ddaell" DDA-ELL ray-projector')
+p.add_option('--cuda',    action='store_true', default=False, help='Run with GPU support')
 
 (options, args) = p.parse_args()
 if len(args) < 2:
@@ -43,7 +46,6 @@ if len(args) < 2:
     
 src       = args[0]
 output    = args[1]
-#Nite      = options.Nite
 Nsub      = options.Nsub
 cuton     = options.cuton
 cutoff    = options.cutoff
@@ -51,23 +53,26 @@ NMname    = options.NM
 AMname    = options.AM
 nxy       = options.nxy
 nz        = options.nz
+rayproj   = options.rayproj
+cuda      = options.cuda
 
 from firework import *
 from numpy    import *
 from time     import time
 
 print '=========================================='
-print '==   PET 3D Reconstruction DDA CUDA     =='
+print '==       3D OPLEM Reconstruction        =='
 print '=========================================='
 
 print 'parameters:'
 print 'filename', src
 print 'output', output
-#print 'Nite', Nite
 print 'Nsub', Nsub
 print 'cuton', cuton
 print 'cutoff', cutoff
 print 'Volume %ix%ix%i' % (nxy, nxy, nz)
+print 'Rayproj', rayproj
+print 'Cuda', cuda
 print 'Correction:'
 print '  Normalization:', NMname
 print '  Atenuation:   ', AMname
@@ -80,7 +85,6 @@ if NMname == 'None':
     NM = ones((nz, nxy, nxy), 'float32')
 else:
     NM  = volume_open(NMname)
-    #NM /= NM.max()
 
 # read attenuation matrix
 if AMname != 'None':
@@ -101,25 +105,31 @@ kernel_listmode_open_subset_xyz_int(xi1, yi1, zi1, xi2, yi2, zi2, cuton, cutoff,
 print 'Read data'
 print '...', time_format(time()-t)
 
-# OPLEM
-GPU = 1
+# init im
 im  = ones((nz, nxy, nxy), 'float32')
+
 tg  = time()
-if AMname == 'None':
-    kernel_pet3D_OPLEM_cuda(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, Nsub, GPU)
+# OPLEM cuda version
+if cuda:
+    GPU = 1
+    if AMname == 'None':
+        kernel_pet3D_OPLEM_cuda(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, Nsub, GPU)
+    else:
+        kernel_pet3D_OPLEM_att_cuda(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, AM, Nsub, GPU)
 else:
-    kernel_pet3D_OPLEM_att_cuda(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, AM, Nsub, GPU)
+# OPLEM
+    if rayproj == 'ddaell':
+        if AMname == 'None':
+            kernel_pet3D_OPLEM(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, Nsub)
+        else:
+            kernel_pet3D_OPLEM_att(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, AM, Nsub)
+
+
 print 'Running time is', time_format(time()-tg)
 
 # save image
-#mask = volume_mask_cylinder(47, 127, 127, 47, 60)
-#im *= mask
 volume_write(im, output + '/res_volume.vol')
 mip = volume_mip(im)
-#mip *= image_mask_circle(127, 127, 55)
 image_write(mip, output + '/mip_t.png')
-
 mip = volume_mip(im, 'y')
 image_write(mip, output + '/mip_c.png')
-
-image_show(mip)

@@ -1,4 +1,3 @@
-#!/usr/bin/env python
 #
 # This file is part of FIREwork
 # 
@@ -17,28 +16,32 @@
 #
 # FIREwork Copyright (C) 2008 - 2010 Julien Bert 
 
-# Convert a volume from CT to attenuation mumap
-def volume_CT_to_mumap(CT):
-    from numpy import zeros
+all : _firekernel.so
 
-    nz, ny, nx = CT.shape
-    mmap = zeros((nz, ny, nx), 'float32')
+_firekernel.so : kernel_c.o pet_c.o kernel_wrap.o 
+	g++ -o _firekernel.so -shared kernel_c.o pet_c.o kernel_wrap.o -lGL
 
-    mu_pet_water = 0.096
-    mu_pet_bone  = 0.172
-    mu_ct_water  = 0.184
-    mu_ct_bone   = 0.428
+# need -lGL here ??
+# add pre-compilator flag with g++ is -D flagname
 
-    a = mu_ct_water * (mu_pet_bone - mu_pet_water)
-    b = 1000 * (mu_ct_bone - mu_ct_water)
+# Python wrapping
+kernel_wrap.o : kernel_wrap.c
+	g++ -c -fPIC kernel_wrap.c -I/usr/include/python2.6 -I/usr/lib/python2.6
 
-    for z in xrange(nz):
-        for y in xrange(ny):
-            for x in xrange(nx):
-                ict = CT[z, y, x]
-                if ict <= 0: mu = mu_pet_water * (ict + 1000) / 1000.0
-                else:        mu = mu_pet_water + ict * (a / b)
-                mmap[z, y, x] = mu
+kernel_wrap.c : kernel.i
+	swig -python kernel.i
 
-    return mmap
+# C code
+kernel_c.o : kernel_c.cpp
+	g++ -c -fPIC kernel_c.cpp -lGL
 
+pet_c.o : pet_c.cpp
+	g++ -c -fPIC pet_c.cpp -lGL
+
+install :
+	cp pet_cuda.so kernel_cuda.so _firekernel.so ../bin
+
+clean :
+	rm *.o *.so *_wrap.c
+	rm ../bin/*.so
+	rm  *.pyc

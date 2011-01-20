@@ -967,4 +967,572 @@ def pet2D_ring_simu_build_SRM_COO(lm_id1, lm_id2, chunk_size, nb_crystals, npix)
     return vals, rows, cols
         
 
+# Open list-mode pre-compute data set (int format), values are entry-exit point of SRM matrix
+def listmode_open_xyz_int(basename):
+    from numpy import fromfile
+    
+    f  = open(basename + '.x1', 'rb')
+    x1 = fromfile(file=f, dtype='uint16')
+    x1 = x1.astype('uint16')
+    f.close()
+
+    f  = open(basename + '.y1', 'rb')
+    y1 = fromfile(file=f, dtype='uint16')
+    y1 = y1.astype('uint16')
+    f.close()
+    
+    f  = open(basename + '.z1', 'rb')
+    z1 = fromfile(file=f, dtype='uint16')
+    z1 = z1.astype('uint16')
+    f.close()
+    
+    f  = open(basename + '.x2', 'rb')
+    x2 = fromfile(file=f, dtype='uint16')
+    x2 = x2.astype('uint16')
+    f.close()
+    
+    f  = open(basename + '.y2', 'rb')
+    y2 = fromfile(file=f, dtype='uint16')
+    y2 = y2.astype('uint16')
+    f.close()
+    
+    f  = open(basename + '.z2', 'rb')
+    z2 = fromfile(file=f, dtype='uint16')
+    z2 = z2.astype('uint16')
+    f.close()
+
+    return x1, y1, z1, x2, y2, z2
+
+# Open list-mode pre-compute data set (float format), values are entry-exit point of SRM matrix
+def listmode_open_xyz_float(basename):
+    from numpy import fromfile
+    
+    f  = open(basename + '.x1', 'rb')
+    x1 = fromfile(file=f, dtype='float32')
+    f.close()
+
+    f  = open(basename + '.y1', 'rb')
+    y1 = fromfile(file=f, dtype='float32')
+    f.close()
+    
+    f  = open(basename + '.z1', 'rb')
+    z1 = fromfile(file=f, dtype='float32')
+    f.close()
+    
+    f  = open(basename + '.x2', 'rb')
+    x2 = fromfile(file=f, dtype='float32')
+    f.close()
+    
+    f  = open(basename + '.y2', 'rb')
+    y2 = fromfile(file=f, dtype='float32')
+    f.close()
+    
+    f  = open(basename + '.z2', 'rb')
+    z2 = fromfile(file=f, dtype='float32')
+    f.close()
+
+    return x1, y1, z1, x2, y2, z2
+
+
+# Open list-mode subset
+def listmode_open_subset(filename, N_start, N_stop):
+    from numpy import zeros
+    f      = open(filename, 'r')
+    nlines = N_stop - N_start
+    lm_id1 = zeros((nlines), 'int32')
+    lm_id2 = zeros((nlines), 'int32')
+    for n in xrange(N_start):
+        buf = f.readline()
+    for n in xrange(nlines):
+        id1, id2 = f.readline().split()
+        lm_id1[n] = int(id1)
+        lm_id2[n] = int(id2)
+    f.close()
+
+    return lm_id1, lm_id2
+
+# Nb events ti list-mode file
+def listmode_nb_events(filename):
+    f = open(filename, 'r')
+    n = 0
+    while 1:
+        buf = f.readline()
+        if buf == '': break
+        n += 1
+        
+    return n
+
+# Open Sensibility Matrix
+def listmode_open_SM(filename):
+    from numpy import fromfile
+
+    '''
+    data = open(filename, 'r').readlines()
+    Ns   = len(data)
+    SM   = zeros((Ns), 'float32')
+    for n in xrange(Ns):
+        SM[n] = float(data[n])
+    del data
+    '''
+    f  = open(filename, 'rb')
+    SM = fromfile(file=f, dtype='int32')
+    SM = SM.astype('float32')
+
+    return SM
+
+# PET 2D ring scan create LOR event from a simple simulate phantom (three activities) ONLY FOR ALLEGRO SCANNER
+def listmode_simu_circle_phantom(nbparticules, ROIsize = 141, radius_detector = 432, respix = 4.0, rnd = 10):
+    from numpy        import zeros, array
+    from numpy.random import poisson
+    from numpy.random import seed as seed2
+    from random       import seed, random, randrange
+    from math         import pi, sqrt, cos, sin, asin, acos
+    seed(rnd)
+    seed2(rnd)
+
+    # Cst Allegro
+    Ldetec    = 97.0 / float(respix)  # detector width (mm)
+    Lcryst    = 4.3  / float(respix) # crystal width (mm)
+    radius    = radius_detector / float(respix)
+    border    = int((2*radius - ROIsize) / 2.0)
+    cxo = cyo = ROIsize // 2
+    image     = zeros((ROIsize, ROIsize), 'float32')
+    source    = []
+
+    # Generate an activity map with three differents circles
+    cx0, cy0, r0 = cxo,    cyo,    16
+    cx1, cy1, r1 = cx0+4,  cy0+4,   7
+    cx2, cy2, r2 = cx0-6,  cy0-6,   2
+    r02          = r0*r0
+    r12          = r1*r1
+    r22          = r2*r2
+    for y in xrange(ROIsize):
+        for x in xrange(ROIsize):
+            if ((cx0-x)*(cx0-x) + (cy0-y)*(cy0-y)) <= r02:
+                # inside the first circle
+                if ((cx1-x)*(cx1-x) + (cy1-y)*(cy1-y)) <= r12:
+                    # inside the second circle (do nothing)
+                    continue
+                if ((cx2-x)*(cx2-x) + (cy2-y)*(cy2-y)) <= r22:
+                    # inside the third circle
+                    source.extend([x, y, 5])
+                    #image[y, x] = 5
+                else:
+                    # inside the first circle
+                    source.extend([x, y, 1])
+                    #image[y, x] = 1
+                    
+    nbpix  = len(source) // 3
+    pp1    = poisson(lam=1.0, size=(nbparticules)).astype('int32')
+    ps1    = [randrange(-1, 2) for i in xrange(nbparticules)]
+    pp2    = poisson(lam=1.0, size=(nbparticules)).astype('int32')
+    ps2    = [randrange(-1, 2) for i in xrange(nbparticules)]
+    alpha  = [random()*2*pi for i in xrange(nbparticules)]
+    ind    = [randrange(nbpix) for i in xrange(nbparticules)]
+    
+    IDD1 = zeros((nbparticules), 'int32')
+    IDC1 = zeros((nbparticules), 'int32')
+    IDD2 = zeros((nbparticules), 'int32')
+    IDC2 = zeros((nbparticules), 'int32')
+    p    = 0
+    while p < nbparticules:
+        x     = int(source[3*ind[p]]   + (ps1[p] * pp1[p]))
+        y     = int(source[3*ind[p]+1] + (ps2[p] * pp2[p]))
+        val   = source[3*ind[p]+2]
+        image[y, x] += (source[3*ind[p]+2] * 10.0)
+        x    += border
+        y    += border
+        a     = alpha[p]
+        # compute line intersection with a circle (detectors)
+	dx    = cos(a)
+	dy    = sin(a)
+	b     = 2 * (dx*(x-radius) + dy*(y-radius))
+	c     = 2*radius*radius + x*x + y*y - 2*(radius*x + radius*y) - radius*radius
+	d     = b*b - 4*c
+	k0    = (-b + sqrt(d)) / 2.0
+	k1    = (-b - sqrt(d)) / 2.0
+	x1    = x + k0*dx
+	y1    = y + k0*dy
+	x2    = x + k1*dx
+	y2    = y + k1*dy
+	# compute angle from center of each point
+	dx = x1 - radius #- border
+	dy = y1 - radius #- border
+	if abs(dx) > abs(dy):
+            phi1 = asin(dy / float(radius))
+            if phi1 < 0: # asin return -pi/2 < . < pi/2
+                if dx < 0: phi1 = pi - phi1
+                else:      phi1 = 2*pi + phi1
+            else:
+                if dx < 0: phi1 = pi - phi1 # mirror according y axe
+	else:
+            phi1 = acos(dx / float(radius))
+            if dy < 0:     phi1 = 2*pi - phi1 # mirror according x axe
+ 	dx = x2 - radius #- border
+	dy = y2 - radius #- border
+	if abs(dx) > abs(dy):
+            phi2 = asin(dy / float(radius))
+            if phi2 < 0: # asin return -pi/2 < . < pi/2
+                if dx < 0: phi2 = pi - phi2
+                else:      phi2 = 2*pi + phi2
+            else:
+                if dx < 0: phi2 = pi - phi2 # mirror according y axe
+	else:
+            phi2 = acos(dx / float(radius))
+            if dy < 0:     phi2 = 2*pi - phi2 # mirror according x axe
+
+        # convert arc distance to ID detector and crystal
+        phi1  = (2 * pi - phi1 + pi / 2.0) % (2 * pi)
+        phi2  = (2 * pi - phi2 + pi / 2.0) % (2 * pi)
+        pos1  = phi1 * radius
+        pos2  = phi2 * radius
+        idd1  = int(pos1 / Ldetec)
+        pos1 -= (idd1 * Ldetec)
+        idc1  = int(pos1 / Lcryst)
+        idd2  = int(pos2 / Ldetec)
+        pos2 -= (idd2 * Ldetec)
+        idc2  = int(pos2 / Lcryst)
+
+        for n in xrange(val):
+            if p >= nbparticules: break
+            IDD1[p] = idd1
+            IDC1[p] = idc1
+            IDD2[p] = idd2
+            IDC2[p] = idc2
+            p += 1
+        if p >= nbparticules: break
+        
+    return image, IDC1, IDD1, IDC2, IDD2
+
+# build the sensibility Matrix to 2D ring PET scan according all possibles LORs
+def pet2D_ring_build_SM(nbcrystals):
+    from numpy  import zeros
+    from math   import cos, sin, pi, sqrt
+    from kernel import kernel_pet2D_ring_build_SM
+    from utils  import image_1D_projection
+    radius = int(nbcrystals / 2.0 / pi + 0.5)      # radius PET
+    dia    = 2 * radius + 1                        # dia PET must be odd
+    cxo    = cyo = radius                          # center PET
+    Nlor   = (nbcrystals-1) * (nbcrystals-1) / 2   # nb all possible LOR
+    radius = float(radius)
+
+    # build SRM for only the square image inside the ring of the PET
+    SM = zeros((dia * dia), 'float32')
+    for i in xrange(nbcrystals-1):
+        nlor  = nbcrystals-(i+1)
+        index = 0
+        SRM   = zeros((nlor, dia * dia), 'float32')
+        for j in xrange(i+1, nbcrystals):
+            alpha1 = i / radius
+            alpha2 = j / radius
+            x1     = int(cxo + radius * cos(alpha1) + 0.5)
+            x2     = int(cxo + radius * cos(alpha2) + 0.5)
+            y1     = int(cyo + radius * sin(alpha1) + 0.5)
+            y2     = int(cyo + radius * sin(alpha2) + 0.5)
+            kernel_pet2D_ring_build_SM(SRM, x1, y1, x2, y2, dia, index)
+            index += 1
+            
+        # sum by step in order to decrease the memory for this stage
+        norm = image_1D_projection(SRM, 'x')
+        for n in xrange(nlor): SRM[n] /= float(norm[n])
+        res = image_1D_projection(SRM, 'y')
+        SM += res
+ 
+    return SM
+
+
+# volume rendering by opengl 2011-01-20 12:09:21
+def volume_show(vol):
+    from numpy             import array, arange, zeros, flipud, take, sqrt
+    from sys               import exit
+    from kernel            import kernel_draw_voxels, kernel_draw_voxels_edge
+    from utils             import volume_pack_cube
+
+    global rotx, roty, rotz, scale
+    global xmouse, ymouse, lmouse, rmouse
+    global w, h
+    global vec, lmap, lmapl, lmapc, lthr
+    global flag_trans, flag_edge, flag_color
+    global gamma, thres
+
+    wz, wy, wx = vol.shape
+    vol        = vol / vol.max()
+    if not wx == wy == wz:
+        # must be put in a cube
+        vol = volume_pack_cube(vol)
+        wz, wy, wx = vol.shape
+    cz, cy, cx       = wz//2, wy//2, wx//2
+    w, h             = 320, 240
+    scale            = 3.0
+    lmouse, rmouse   = 0, 0
+    xmouse, ymouse   = 0.0, 0.0
+    rotx, roty, rotz = 0.0, 0.0, 0.0
+    vec, lmap        = [], []
+    flag_trans       = 0
+    flag_edge        = 0
+    flag_color       = 0
+    gamma            = 1.0
+    thres            = 0.0
+
+    def init():
+        glClearColor(0.0, 0.0, 0.0, 0.0)
+        glShadeModel(GL_FLAT) # not gouraud (only cube)
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE)
+        glLightfv(GL_LIGHT0, GL_AMBIENT,  [0.5, 0.5, 0.5, 1.0])
+        glLightfv(GL_LIGHT0, GL_DIFFUSE,  [1.0, 1.0, 1.0, 1.0])
+        glLightfv(GL_LIGHT0, GL_POSITION, [1.0, 1.0, 1.0, 0.0])
+        glLightfv(GL_LIGHT0, GL_SPECULAR, [1.0, 1.0, 1.0, 1.0])
+        glEnable(GL_COLOR_MATERIAL)
+
+    def build_voxel():
+        global vec, lmap, lmapl, lmapc, lthr
+        buf1 = []
+        buf2 = []
+        for z in xrange(wz):
+            for y in xrange(wy):
+                for x in xrange(wx):
+                    val = vol[z, y, x]
+                    if val != 0:
+                        buf1.extend([x, y, z])
+                        buf2.append(val)
+                        
+        vec       = array(buf1, 'i')
+        lthr      = array(buf2, 'f')
+        lmapi     = lthr  * 255
+        lthr      = sqrt(lthr)
+        N         = len(lthr)
+        lmapi     = lmapi.astype('int32')
+        lutr      = zeros((256), 'int32')
+        lutg      = zeros((256), 'int32')
+        lutb      = zeros((256), 'int32')
+        # jet color
+        up        = array(range(0, 255,  3), 'int32')
+        dw        = array(range(255, 0, -3), 'int32')
+        stp       = 85
+        lutr[stp:2*stp]   = up
+        lutr[2*stp:]      = 255
+        lutg[0:stp]       = up
+        lutg[stp:2*stp]   = 255
+        lutg[2*stp:3*stp] = dw
+        lutb[0:stp]       = 255
+        lutb[stp:2*stp]   = dw
+        matr = take(lutr, lmapi)
+        matg = take(lutg, lmapi)
+        matb = take(lutb, lmapi)
+        lmapc = zeros((3*N), 'float32')
+        lmapl = zeros((3*N), 'float32')
+        for i in xrange(N):
+            ind = 3*i
+            lmapc[ind]   = matr[i] / 255.0
+            lmapc[ind+1] = matg[i] / 255.0
+            lmapc[ind+2] = matb[i] / 255.0
+            lmapl[ind]   = lthr[i] #**0.5 # increase brightness
+            lmapl[ind+1] = lthr[i] #**0.5
+            lmapl[ind+2] = lthr[i] #**0.5
+        lmap = lmapl.copy()
+        del matr, matg, matb, lutr, lutg, lutb, lmapi
+        
+    def draw_workspace():
+        # draw workspace
+        glBegin(GL_LINES)
+        # front face
+        glColor3f(1.0, 1.0, 1.0)
+        glVertex3f(0.0, 0.0, wz)
+        glVertex3f(wx, 0.0, wz)
+        glVertex3f(wx, 0.0, wz)
+        glVertex3f(wx, wy, wz)
+        glVertex3f(wx, wy, wz)
+        glVertex3f(0.0, wy, wz)
+        glVertex3f(0.0, wy, wz)
+        glVertex3f(0.0, 0.0, wz)
+        # back face
+        glColor3f(1.0, 0.0, 0.0) # x axe
+        glVertex3f(0.0, 0.0, 0.0)
+        glVertex3f(wx, 0.0, 0.0)
+        glColor3f(1.0, 1.0, 1.0)
+        glVertex3f(wx, 0.0, 0.0)
+        glVertex3f(wx, wy, 0.0)
+        glVertex3f(wx, wy, 0.0)
+        glVertex3f(0.0, wy, 0.0)
+        glColor3f(0.0, 1.0, 0.0) # y axe
+        glVertex3f(0.0, wy, 0.0)
+        glVertex3f(0.0, 0.0, 0.0)
+        # four remain edges
+        glColor3f(0.0, 0.0, 1.0) # z axe
+        glVertex3f(0.0, 0.0, 0.0)
+        glVertex3f(0.0, 0.0, wz)
+        glColor3f(1.0, 1.0, 1.0)
+        glVertex3f(wx, 0.0, 0.0)
+        glVertex3f(wx, 0.0, wz)
+        glVertex3f(0.0, wy, 0.0)
+        glVertex3f(0.0, wy, wz)
+        glVertex3f(wx, wy, 0.0)
+        glVertex3f(wx, wy, wz)
+        glEnd()
+
+    def draw_HUD():
+        global w, h, rotx, roty, rotz, scale
+        txt = 'Volume %ix%ix%i rot x y z %6.2f %6.2f %6.2f scale %5.2f gamma %5.2f thr %5.2f' % (wx, wy, wz, rotx, roty, rotz, scale, gamma, thres)
+        glRasterPos2i(-w//2, -h//2+1)
+        for char in txt: glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, ord(char))
+
+        txt2 = 't: transparency     e: edges     c: colors     7/1: +/- gamma    9/3: +/- threshold'
+        glRasterPos2i(-w//2, h//2-12)
+        for char in txt2: glutBitmapCharacter(GLUT_BITMAP_HELVETICA_12, ord(char))
+
+
+    def display():
+        global w, h, vec, lmap, flag_trans, flag_edge, gamma, lthr, thres
+        glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT)
+
+        # some options
+        if flag_trans:
+            glEnable(GL_BLEND)
+            glDisable(GL_DEPTH_TEST)
+            glDisable(GL_LIGHTING)
+            glDisable(GL_LIGHT0)
+            #glDisable(GL_CULL_FACE)
+            glDepthMask(GL_FALSE);
+        else:
+            glDisable(GL_BLEND)
+            glEnable(GL_DEPTH_TEST)
+            glEnable(GL_LIGHTING)
+            glEnable(GL_LIGHT0)
+            #glEnable(GL_CULL_FACE)
+        
+        glPushMatrix()
+        glRotatef(rotx, 1.0, 0.0, 0.0)
+        glRotatef(roty, 0.0, 1.0, 0.0)
+        glRotatef(rotz, 0.0, 0.0, 1.0)
+        glScalef(scale, scale, scale)
+        glTranslatef(-cx, -cy, -cz)
+
+        draw_workspace()
+        if flag_edge: kernel_draw_voxels_edge(vec, lmap, lthr, thres)
+        else:         kernel_draw_voxels(vec, lmap, lthr, gamma, thres)
+        if flag_trans:
+            glDepthMask(GL_TRUE)
+        
+        glTranslate(cx, cy, cz)
+        glRotatef(-rotx, 1.0, 0.0, 0.0)
+        glRotatef(-roty, 0.0, 1.0, 0.0)
+        glRotatef(-rotz, 0.0, 0.0, 1.0)
+        glPopMatrix()
+         
+        # draw HUD
+        draw_HUD()
+        glutSwapBuffers()        
+        
+    def reshape(neww, newh):
+        # must be even, more easy for the next...
+        neww = neww + neww % 2
+        newh = newh + newh % 2
+                
+        glViewport (0, 0, neww, newh)
+        glMatrixMode (GL_PROJECTION)
+        glLoadIdentity ()
+        glOrtho(-neww//2, neww//2, -newh//2, newh//2, -1000.0, 1000.0)
+        glMatrixMode (GL_MODELVIEW)
+        glLoadIdentity()
+        glTranslatef(0.0, 0.0, -3*wz)
+        w, h = neww, newh
+
+    def keyboard(key, x, y):
+        global rotx, roty, rotz, flag_trans, flag_edge, flag_color, gamma, thres, lmap, lmpal, lmapc
+        if key == chr(27): sys.exit(0)
+        elif key == 'a':   rotx += .5
+        elif key == 'z':   rotx -= .5
+        elif key == 'q':   roty += .5
+        elif key == 's':   roty -= .5
+        elif key == 'w':   rotz += .5
+        elif key == 'x':   rotz -= .5
+        elif key == 't':
+            if flag_trans == 0:
+                flag_trans = 1
+                flag_edge  = 0
+            else:               flag_trans = 0
+        elif key == 'e':
+            if flag_edge == 0:
+                flag_edge  = 1
+                flag_trans = 0
+            else:               flag_edge = 0
+        elif key == '7':
+            gamma += 0.01
+            if gamma >= 1.0: gamma = 1.0
+        elif key == '1':
+            gamma -= 0.01
+            if gamma < 0.0: gamma = 0.0
+        elif key == '9':
+            thres += 0.01
+            if thres >= 1.0: thres = 1.0
+        elif key == '3':
+            thres -= 0.01
+            if thres < 0.0: thres = 0.0
+        elif key == 'c':
+            if flag_color:
+                lmap = lmapl.copy()
+                flag_color = 0
+            else:
+                lmap = lmapc.copy()
+                flag_color = 1
+        elif key == '1': print key
+
+        glutPostRedisplay()
+
+    def mouse_click(button, state, x, y):
+        global lmouse, rmouse, xmouse, ymouse
+
+        if button == GLUT_LEFT_BUTTON:
+            if state == GLUT_DOWN: lmouse = 1
+            elif state == GLUT_UP:
+                lmouse = 0
+                xmouse = 0
+                ymouse = 0
+
+        if button == GLUT_RIGHT_BUTTON:
+            if state == GLUT_DOWN: rmouse = 1
+            elif state == GLUT_UP:
+                rmouse = 0
+                xmouse = 0
+                ymosue = 0
+            
+    def mouse_move(x, y):
+        global xmouse, ymouse, lmouse, rmouse, rotx, roty, scale
+        if lmouse:
+            if xmouse == 0 and ymouse == 0:
+                xmouse = x
+                ymouse = y
+                return
+            else:
+                dx      = x - xmouse
+                dy      = y - ymouse
+                xmouse  = x
+                ymouse  = y
+                roty   += dx * 0.25
+                rotx   += dy * 0.25
+                glutPostRedisplay()
+
+        if rmouse:
+            if xmouse == 0:
+                xmouse = x
+                return
+            else:
+                dx = x- xmouse
+                xmouse = x
+                scale += dx * 0.01
+                glutPostRedisplay()
+        
+    glutInit(sys.argv)
+    glutInitDisplayMode (GLUT_DOUBLE | GLUT_RGBA | GLUT_DEPTH)
+    glutInitWindowSize (w, h)
+    glutInitWindowPosition (100, 100)
+    glutCreateWindow ('Viewer - FIREwork')
+    init()
+    build_voxel()
+    glutDisplayFunc(display)
+    glutReshapeFunc(reshape)
+    glutKeyboardFunc(keyboard)
+    glutMouseFunc(mouse_click)
+    glutMotionFunc(mouse_move)
+    glutMainLoop()
 

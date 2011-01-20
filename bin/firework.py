@@ -17,9 +17,10 @@
 #
 # FIREwork Copyright (C) 2008 - 2010 Julien Bert 
 
-from kernel import *
-from utils  import *
-from viewer import *
-from pet    import *
+from numpy      import *
+from firekernel import *
+from utils      import *
+from viewer     import *
+from pet        import *
 
     

@@ -16,26 +16,45 @@
 #
 # FIREwork Copyright (C) 2008 - 2010 Julien Bert 
 
-all : _kernel.so
+all : _firekernel.so
 
-_kernel.so : kernel.o kernel_wrap.o kernel_cuda.so
-	g++ -o _kernel.so -shared kernel.o kernel_wrap.o kernel_cuda.so -fopenmp -lGL
+_firekernel.so : kernel_c.o pet_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so
+	g++ -o _firekernel.so -shared kernel_c.o pet_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so -lGL
 
-kernel.o : kernel.cpp
-	g++ -D CUDA -c -fPIC kernel.cpp -fopenmp -lGL
-# not need -fopenmp and -lGL here ??
+# need -lGL here ??
+# add pre-compilator flag with g++ is -D flagname
 
+# Python wrapping
 kernel_wrap.o : kernel_wrap.c
 	g++ -c -fPIC kernel_wrap.c -I/usr/include/python2.6 -I/usr/lib/python2.6
 
 kernel_wrap.c : kernel.i
-	swig -python kernel.i
+	swig -python -DCUDA kernel.i
 
+# CUDA code
 kernel_cuda.so : kernel_cuda.o
 	nvcc -o kernel_cuda.so -shared kernel_cuda.o -lcublas -lcufft
 
 kernel_cuda.o : kernel_cuda.cu
 	nvcc -c kernel_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11
 
+pet_cuda.so : pet_cuda.o
+	nvcc -o pet_cuda.so -shared pet_cuda.o -lcublas -lcufft
+
+pet_cuda.o : pet_cuda.cu
+	nvcc -c pet_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11
+
+# C code
+kernel_c.o : kernel_c.cpp
+	g++ -c -fPIC kernel_c.cpp -lGL
+
+pet_c.o : pet_c.cpp
+	g++ -c -fPIC pet_c.cpp -lGL
+
+install :
+	cp pet_cuda.so kernel_cuda.so _firekernel.so ../bin
+
 clean :
-	rm *.o *.so *_wrap.c *.pyc kernel.py
+	rm *.o *.so *_wrap.c
+	rm ../bin/*.so
+	rm  *.pyc

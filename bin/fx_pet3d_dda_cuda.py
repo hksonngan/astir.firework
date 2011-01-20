@@ -147,7 +147,7 @@ for ite in xrange(Nite):
         
         # compute F
         F *= 0.0 # init
-        kernel_pet3D_IM_SRM_DDA_ON_iter_cuda(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, nxy, GPU)
+        kernel_pet3D_LMOSEM_dda_cuda(xi1[n_start:n_stop], yi1[n_start:n_stop], zi1[n_start:n_stop], xi2[n_start:n_stop], yi2[n_start:n_stop], zi2[n_start:n_stop], imsub, F, nxy, GPU)
         print '...... compute EM', time_format(time()-tsub)        
 
         # Normalization

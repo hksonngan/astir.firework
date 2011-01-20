@@ -130,9 +130,9 @@ for ite in xrange(Nite):
         # Compute F
         F *= 0.0 # init
         if AMname == 'None':
-            kernel_pet3D_IM_SRM_COO_ON_SIDDON_iter(xf1[n_start:n_stop], yf1[n_start:n_stop], zf1[n_start:n_stop], xf2[n_start:n_stop], yf2[n_start:n_stop], zf2[n_start:n_stop], imsub, F, nxy, nz, border)
+            kernel_pet3D_LMOSEM_sid(xf1[n_start:n_stop], yf1[n_start:n_stop], zf1[n_start:n_stop], xf2[n_start:n_stop], yf2[n_start:n_stop], zf2[n_start:n_stop], imsub, F, nxy, nz, border)
         else:
-            kernel_pet3D_IM_ATT_SRM_COO_ON_SIDDON_iter(xf1[n_start:n_stop], yf1[n_start:n_stop], zf1[n_start:n_stop], xf2[n_start:n_stop], yf2[n_start:n_stop], zf2[n_start:n_stop], imsub, F, AM, nxy, nz, border)
+            kernel_pet3D_LMOSEM_sid_att(xf1[n_start:n_stop], yf1[n_start:n_stop], zf1[n_start:n_stop], xf2[n_start:n_stop], yf2[n_start:n_stop], zf2[n_start:n_stop], imsub, F, AM, nxy, nz, border)
         print '...... compute EM', time_format(time()-tsub)
 
         # Normalization

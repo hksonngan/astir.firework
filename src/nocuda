@@ -18,8 +18,8 @@
 
 all : _firekernel.so
 
-_firekernel.so : kernel_c.o pet_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so
-	g++ -o _firekernel.so -shared kernel_c.o pet_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so -lGL
+_firekernel.so : kernel_c.o pet_c.o kernel_wrap.o 
+	g++ -o _firekernel.so -shared kernel_c.o pet_c.o kernel_wrap.o -lGL
 
 # need -lGL here ??
 # add pre-compilator flag with g++ is -D flagname
@@ -29,20 +29,7 @@ kernel_wrap.o : kernel_wrap.c
 	g++ -c -fPIC kernel_wrap.c -I/usr/include/python2.6 -I/usr/lib/python2.6
 
 kernel_wrap.c : kernel.i
-	swig -python -DCUDA kernel.i
-
-# CUDA code
-kernel_cuda.so : kernel_cuda.o
-	nvcc -o kernel_cuda.so -shared kernel_cuda.o -lcublas -lcufft
-
-kernel_cuda.o : kernel_cuda.cu
-	nvcc -c kernel_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11
-
-pet_cuda.so : pet_cuda.o
-	nvcc -o pet_cuda.so -shared pet_cuda.o -lcublas -lcufft
-
-pet_cuda.o : pet_cuda.cu
-	nvcc -c pet_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11
+	swig -python kernel.i
 
 # C code
 kernel_c.o : kernel_c.cpp
@@ -57,4 +44,5 @@ install :
 clean :
 	rm *.o *.so *_wrap.c
 	rm ../bin/*.so
+	rm pet_c.py kernel_c.py
 	rm  *.pyc

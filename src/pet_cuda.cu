@@ -582,7 +582,7 @@ __global__ void pet3D_OPLEM_DDA_att(unsigned int* d_F, int sublor_start, int sub
 		}
 		// compute F
 		if (Qf==0.0f) {return;}
-		Qf = Qf * __expf(Af/2.0);
+		Qf = Qf * __expf(Af/3.0);
 		Qf = 1 / Qf;
 		Qf = Qf * scale;
 		Qi = (unsigned int)Qf;

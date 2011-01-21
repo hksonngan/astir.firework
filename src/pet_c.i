@@ -82,6 +82,15 @@ void kernel_listmode_open_subset_xyz_int(unsigned short int* INPLACE_ARRAY1, int
 										 unsigned short int* INPLACE_ARRAY1, int DIM1,
 										 int n_start, int n_stop, char* basename);
 
+void kernel_listmode_open_subset_xyz_int_sort(unsigned short int* INPLACE_ARRAY1, int DIM1,
+											  unsigned short int* INPLACE_ARRAY1, int DIM1,
+											  unsigned short int* INPLACE_ARRAY1, int DIM1,
+											  unsigned short int* INPLACE_ARRAY1, int DIM1,
+											  unsigned short int* INPLACE_ARRAY1, int DIM1,
+											  unsigned short int* INPLACE_ARRAY1, int DIM1,
+											  int* IN_ARRAY1, int DIM1, int n_start, int n_stop, char* basename);
+
+
 void kernel_listmode_open_subset_xyz_float(float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
 										   float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
 										   float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,

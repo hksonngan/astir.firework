@@ -48,7 +48,7 @@ dev_c.o : dec_c.cpp
 
 install :
 	cp build/*.so build/*.py ../lib
-	cp pet.py utils.py viewer.py ../lib
+	cp pet.py utils.py viewer.py dev.py ../lib
 
 clean :
 	if test -d build; then rm -r build; fi

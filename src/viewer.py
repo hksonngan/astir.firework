@@ -70,9 +70,9 @@ from OpenGL.GLU        import *
 
 # Volume rendering by opengl
 def volume_show(vol):
-    from sys    import exit
-    from numpy  import zeros, array
-    from kernel import kernel_draw_pixels, kernel_ct_volume_rendering, kernel_color_image
+    from sys        import exit
+    from numpy      import zeros, array
+    from firekernel import kernel_draw_pixels, kernel_ct_volume_rendering, kernel_color_image
     
     global phi, theta, scale
     global xmouse, ymouse, lmouse, rmouse, wmouse
@@ -310,9 +310,9 @@ def volume_show(vol):
 
 # MIP volume rendering by opengl
 def volume_show_mip(vol):
-    from sys    import exit
-    from numpy  import zeros, array
-    from kernel import kernel_draw_pixels, kernel_mip_volume_rendering, kernel_color_image
+    from sys        import exit
+    from numpy      import zeros, array
+    from firekernel import kernel_draw_pixels, kernel_mip_volume_rendering, kernel_color_image
     
     global phi, theta, scale
     global xmouse, ymouse, lmouse, rmouse
@@ -569,9 +569,9 @@ def volume_show_mip(vol):
 
 # display slices of a 3D volume
 def volume_show_slices(vol):
-    from sys    import exit
-    from numpy  import zeros, array
-    from kernel import kernel_draw_pixels, kernel_color_image
+    from sys        import exit
+    from numpy      import zeros, array
+    from firekernel import kernel_draw_pixels, kernel_color_image
     
     global islice
     global w, h

@@ -61,6 +61,10 @@ void kernel_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsign
 										 unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
 										 int n_start, int n_stop, char* basename);
 
+void kernel_listmode_open_subset_xyz_int_sort(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1, 
+											  unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+											  int* ID, int nid, int n_start, int n_stop, char* basename);
+
 void kernel_listmode_open_subset_xyz_float(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1, 
 										   float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
 										   int n_start, int n_stop, char* basename);

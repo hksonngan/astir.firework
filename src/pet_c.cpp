@@ -610,6 +610,97 @@ void kernel_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsign
 
 }
 
+// Read a subset of list-mode data set (int data) and sort according ID vectors (usefull to shuflle LORs).
+void kernel_listmode_open_subset_xyz_int_sort(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1, 
+											  unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+											  int* ID, int nid, int n_start, int n_stop, char* basename) {
+
+	// init file
+	FILE * pfile_x1;
+	FILE * pfile_y1;
+	FILE * pfile_z1;
+	FILE * pfile_x2;
+	FILE * pfile_y2;
+	FILE * pfile_z2;
+	char namex1 [100];
+	char namey1 [100];
+	char namez1 [100];
+	char namex2 [100];
+	char namey2 [100];
+	char namez2 [100];
+	sprintf(namex1, "%s.x1", basename);
+	sprintf(namey1, "%s.y1", basename);
+	sprintf(namez1, "%s.z1", basename);
+	sprintf(namex2, "%s.x2", basename);
+	sprintf(namey2, "%s.y2", basename);
+	sprintf(namez2, "%s.z2", basename);
+	pfile_x1 = fopen(namex1, "rb");
+	pfile_y1 = fopen(namey1, "rb");
+	pfile_z1 = fopen(namez1, "rb");
+	pfile_x2 = fopen(namex2, "rb");
+	pfile_y2 = fopen(namey2, "rb");
+	pfile_z2 = fopen(namez2, "rb");
+	// position file
+	long int pos = n_start * sizeof(unsigned short int);
+	fseek(pfile_x1, pos, SEEK_SET);
+	fseek(pfile_y1, pos, SEEK_SET);
+	fseek(pfile_z1, pos, SEEK_SET);
+	fseek(pfile_x2, pos, SEEK_SET);
+	fseek(pfile_y2, pos, SEEK_SET);
+	fseek(pfile_z2, pos, SEEK_SET);
+
+	// read data
+	int i;
+	unsigned short int xi1, yi1, zi1, xi2, yi2, zi2;
+	int N = n_stop - n_start;
+	unsigned short int* xt1 = (unsigned short int*)malloc(N * sizeof(unsigned short int));
+	unsigned short int* yt1 = (unsigned short int*)malloc(N * sizeof(unsigned short int));
+	unsigned short int* zt1 = (unsigned short int*)malloc(N * sizeof(unsigned short int));
+	unsigned short int* xt2 = (unsigned short int*)malloc(N * sizeof(unsigned short int));
+	unsigned short int* yt2 = (unsigned short int*)malloc(N * sizeof(unsigned short int));
+	unsigned short int* zt2 = (unsigned short int*)malloc(N * sizeof(unsigned short int));
+	for (i=0; i<N; ++i) {
+		fread(&xi1, 1, sizeof(unsigned short int), pfile_x1);
+		fread(&yi1, 1, sizeof(unsigned short int), pfile_y1);
+		fread(&zi1, 1, sizeof(unsigned short int), pfile_z1);
+		fread(&xi2, 1, sizeof(unsigned short int), pfile_x2);
+		fread(&yi2, 1, sizeof(unsigned short int), pfile_y2);
+		fread(&zi2, 1, sizeof(unsigned short int), pfile_z2);
+		xt1[i] = xi1;
+		yt1[i] = yi1;
+		zt1[i] = zi1;
+		xt2[i] = xi2;
+		yt2[i] = yi2;
+		zt2[i] = zi2;
+	}
+	// sort LORs according ID vectors
+	i=0;
+	while(i<N) {
+		x1[i] = xt1[ID[i]];
+		y1[i] = yt1[ID[i]];
+		z1[i] = zt1[ID[i]];
+		x2[i] = xt2[ID[i]];
+		y2[i] = yt2[ID[i]];
+		z2[i] = zt2[ID[i]];
+		++i;
+	}
+	// close files
+	fclose(pfile_x1);
+	fclose(pfile_y1);
+	fclose(pfile_z1);
+	fclose(pfile_x2);
+	fclose(pfile_y2);
+	fclose(pfile_z2);
+	// free mem
+	free(xt1);
+	free(yt1);
+	free(zt1);
+	free(xt2);
+	free(yt2);
+	free(zt2);
+}
+
+
 // Read a subset of list-mode data set (float data).
 void kernel_listmode_open_subset_xyz_float(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1, 
 										   float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,

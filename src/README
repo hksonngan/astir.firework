@@ -1,0 +1,30 @@
+
+
+
+
+1- Libraries request:
+   - Python with .h
+   - Numpy
+   - Matplotlib
+   - iPython
+   - PIL
+   - pyOpenGL
+   - Nvidia SDK (optional)
+
+2- How to compile?
+   If you using your Nvidia GPU, run into a bash shell:
+   ~: make
+   ~: make install
+
+   If you do not have any Nvidia gears, you can compile without GPU support:
+   ~: make -f nocuda
+   ~: make install
+
+3- How to set PATH?
+   In order to call firework anyywhere from your system you have to set some PATH. If your Linux was setup with bash shell, open your .bashrc file and add:
+
+   export FIREDIR=/home/FIREwork    <- Here you have to change according where you put FIREwork
+   export PATH=$PATH:$FIREDIR/bin
+   export PYTHONPATH=$PYTHONPATH:$FIREDIR/lib:$FIREDIR/bin
+   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$FIREDIR/lib
+   

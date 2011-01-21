@@ -15,12 +15,14 @@
 # You should have received a copy of the GNU General Public License
 # along with FIREwork.  If not, see <http://www.gnu.org/licenses/>.
 #
-# FIREwork Copyright (C) 2008 - 2010 Julien Bert 
+# FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
 from numpy      import *
 from firekernel import *
 from utils      import *
 from viewer     import *
 from pet        import *
+from dev        import *
+import matplotlib.pyplot as plt
 
     

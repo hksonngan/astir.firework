@@ -14,7 +14,7 @@
 # You should have received a copy of the GNU General Public License
 # along with FIREwork.  If not, see <http://www.gnu.org/licenses/>.
 #
-# FIREwork Copyright (C) 2008 - 2010 Julien Bert 
+# FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
 # V0.1 2009-09-11 09:05:48 JB
 def image_int2float(mat):

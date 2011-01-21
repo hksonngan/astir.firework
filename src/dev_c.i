@@ -20,7 +20,7 @@
 
 %{
 #define SWIG_FILE_WITH_INIT
-#include "kernel_cuda.h"
+#include "dev_c.h"	
 %}
 
 %include "numpy.i"
@@ -29,5 +29,4 @@
 import_array();
 %}
 
-void kernel_3D_conv_wrap_cuda(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
-							  float* IN_ARRAY3, int DIM1, int DIM2, int DIM3);
+// here, put your wrapper!

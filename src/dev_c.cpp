@@ -1,4 +1,3 @@
-/* -*- C -*-  (not really, but good for syntax highlighting) */
 // This file is part of FIREwork
 // 
 // FIREwork is free software: you can redistribute it and/or modify
@@ -6,7 +5,7 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// FIREwork is distributed in the hope that it will be useful,
+// FIREwire is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
@@ -16,18 +15,16 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-%module firekernel
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <time.h>
+#include <sys/time.h>
+#include <pet_c.h>
 
-%{
-#define SWIG_FILE_WITH_INIT
-#include "kernel_cuda.h"
-%}
+/********************************************************************************
+ * Dev file
+ ********************************************************************************/
 
-%include "numpy.i"
-
-%init %{
-import_array();
-%}
-
-void kernel_3D_conv_wrap_cuda(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
-							  float* IN_ARRAY3, int DIM1, int DIM2, int DIM3);
+// here, put your code!

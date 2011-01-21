@@ -15,7 +15,7 @@
 # You should have received a copy of the GNU General Public License
 # along with FIREwork.  If not, see <http://www.gnu.org/licenses/>.
 #
-# FIREwork Copyright (C) 2008 - 2010 Julien Bert 
+# FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
 from sys import exit
 
@@ -27,8 +27,6 @@ except:
     exit()
 try:
     from firework      import *
-    from numpy         import *
-    import matplotlib.pyplot as plt
 except:
     print 'Please check your installation'
     exit()
@@ -50,7 +48,7 @@ def myoutputprompt(self):
 
 '''
 print 'This file is part of FIREwork'
-print 'FIREwork  Copyright (C) 2008 - 2010  Julien Bert'
+print 'FIREwork  Copyright (C) 2008 - 2011  Julien Bert'
 print 'This program comes with ABSOLUTELY NO WARRANTY; for details type "licence".'
 print 'This is free software, and you are welcome to redistribute it'
 print 'under certain conditions; type "licence" for details.'
@@ -58,7 +56,7 @@ print 'GNU General Public License version 3'
 print ''
 '''
 
-ipshell = IPShellEmbed(banner="** FireShell V1.00 **")
+ipshell = IPShellEmbed(banner="** FireShell V0.2 **")
 ipapi.get().set_hook("generate_prompt", myinputprompt)
 ipapi.get().set_hook("generate_output_prompt", myoutputprompt)
 ipshell()

@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with FIREwork.  If not, see <http://www.gnu.org/licenses/>.
 //
-// FIREwork Copyright (C) 2008 - 2010 Julien Bert 
+// FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
 // DEV draw one pixel per thread, if the thread is alon the line. Too slow...
 __global__ void dev_draw(float* d_im, unsigned short int* d_x1, unsigned short int* d_y1,

@@ -13,7 +13,7 @@
 // You should have received a copy of the GNU General Public License
 // along with FIREwork.  If not, see <http://www.gnu.org/licenses/>.
 //
-// FIREwork Copyright (C) 2008 - 2010 Julien Bert 
+// FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
 #include <stdlib.h>
 #include <stdio.h>

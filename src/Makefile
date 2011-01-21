@@ -14,48 +14,60 @@
 # You should have received a copy of the GNU General Public License
 # along with FIREwork.  If not, see <http://www.gnu.org/licenses/>.
 #
-# FIREwork Copyright (C) 2008 - 2010 Julien Bert 
+# FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-all : _firekernel.so
+all : _firekernel.so end
 
-_firekernel.so : kernel_c.o pet_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so
-	g++ -o _firekernel.so -shared kernel_c.o pet_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so -lGL
+end :
+	if test -d build; then rm -r build; fi
+	mkdir build
+	mv *.so *.o firekernel.py kernel_wrap.c build/
+
+_firekernel.so : kernel_c.o pet_c.o dev_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so dev_cuda.so
+	g++ -o _firekernel.so -shared kernel_c.o pet_c.o dev_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so dev_cuda.so -lGL
 
 # need -lGL here ??
 # add pre-compilator flag with g++ is -D flagname
 
 # Python wrapping
 kernel_wrap.o : kernel_wrap.c
-	g++ -c -fPIC kernel_wrap.c -I/usr/include/python2.6 -I/usr/lib/python2.6
+	g++ -o kernel_wrap.o -c -fPIC kernel_wrap.c -I/usr/include/python2.6 -I/usr/lib/python2.6
 
 kernel_wrap.c : kernel.i
-	swig -python -DCUDA kernel.i
+	swig -python -DCUDA kernel.i 
 
 # CUDA code
 kernel_cuda.so : kernel_cuda.o
 	nvcc -o kernel_cuda.so -shared kernel_cuda.o -lcublas -lcufft
 
 kernel_cuda.o : kernel_cuda.cu
-	nvcc -c kernel_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11
+	nvcc -o kernel_cuda.o -c kernel_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11
 
 pet_cuda.so : pet_cuda.o
 	nvcc -o pet_cuda.so -shared pet_cuda.o -lcublas -lcufft
 
 pet_cuda.o : pet_cuda.cu
-	nvcc -c pet_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11
+	nvcc -o pet_cuda.o -c pet_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11 
+
+dev_cuda.so : dev_cuda.o
+	nvcc -o dev_cuda.so -shared dev_cuda.o -lcublas -lcufft
+
+dev_cuda.o : dev_cuda.cu
+	nvcc -o dev_cuda.o -c dev_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11 
 
 # C code
 kernel_c.o : kernel_c.cpp
-	g++ -c -fPIC kernel_c.cpp -lGL
+	g++ -o kernel_c.o -c -fPIC kernel_c.cpp -lGL 
 
 pet_c.o : pet_c.cpp
-	g++ -c -fPIC pet_c.cpp -lGL
+	g++ -o pet_c.o -c -fPIC pet_c.cpp
+
+dev_c.o : dev_c.cpp
+	g++ -o dev_c.o -c -fPIC dev_c.cpp
 
 install :
-	cp pet_cuda.so kernel_cuda.so _firekernel.so ../bin
+	cp build/*.so build/*.py ../lib
+	cp pet.py utils.py viewer.py ../lib
 
 clean :
-	rm *.o *.so *_wrap.c
-	rm ../bin/*.so
-	rm pet_c.py kernel_c.py
-	rm  *.pyc
+	if test -d build; then rm -r build; fi

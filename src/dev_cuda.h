@@ -16,3 +16,5 @@
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
 // here, put your code!
+
+void dev_raytracing(float* im, int nim1, int nim2, int ns);

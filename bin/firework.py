@@ -18,6 +18,8 @@
 # FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
 from numpy      import *
+from random     import *
+from time       import time
 from firekernel import *
 from utils      import *
 from viewer     import *

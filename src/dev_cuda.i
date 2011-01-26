@@ -31,3 +31,4 @@ import_array();
 
 // here, put your wrapper!
 void dev_raytracing(float* INPLACE_ARRAY2, int DIM1, int DIM2, int ns);
+void dev_div(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);

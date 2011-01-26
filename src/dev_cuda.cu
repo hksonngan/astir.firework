@@ -28,6 +28,10 @@
 #define INF 2e10f;
 #define rnd(x) (x*rand() / RAND_MAX)
 
+
+/***********************************************
+ * Test ray-tracing
+ ***********************************************/
 struct Sphere{
 	float lum;
 	float radius;
@@ -89,4 +93,75 @@ void dev_raytracing(float* im, int nim1, int nim2, int ns) {
 	cudaMemcpy(im, dim, sizeof(float) * npix, cudaMemcpyDeviceToHost);
 	cudaFree(dim);
 	cudaFree(s);
+}
+
+/***********************************************
+ * Test divergence
+ ***********************************************/
+
+__global__ void kernel_div_v1(float* dA, float* dB, float* dC, float* dres, int na) {
+	int id = threadIdx.x + blockIdx.x * blockDim.x;
+	int va, vb, vc, vres;
+	if (id < na) {
+		va = dA[id];
+		vb = dB[id];
+		vc = dC[id];
+		
+		vres = va;
+		if (vb > vres) {vres = vb;}
+		if (vc > vres) {vres = vc;}
+		
+		dres[id] = vres;		
+	}
+}
+
+__global__ void kernel_div_v2(float* dA, float* dB, float* dC, float* dres, int na) {
+	int id = threadIdx.x + blockIdx.x * blockDim.x;
+	int va, vb, vc;
+	int fa;
+	int vres;
+	if (id < na) {
+		va = dA[id];
+		vb = dB[id];
+		vc = dC[id];
+		
+		fa = va>vb;
+		vres = fa*va + !fa*vb;
+		fa = vres>vc;
+		vres = vres*fa + !fa*vc;
+		
+		dres[id] = vres;
+	}
+
+}
+
+void dev_div(float* A, int na, float* B, int nb, float* C, int nc, float* res, int nres) {
+	cudaSetDevice(0);
+	unsigned int mem_vec = na * sizeof(float);
+	float *dA;
+	float *dB;
+	float *dC;
+	float *dres;
+	cudaMalloc((void**) &dA, mem_vec);
+	cudaMalloc((void**) &dB, mem_vec);
+	cudaMalloc((void**) &dC, mem_vec);
+	cudaMalloc((void**) &dres, mem_vec);
+	cudaMemcpy(dA, A, mem_vec, cudaMemcpyHostToDevice);
+	cudaMemcpy(dB, B, mem_vec, cudaMemcpyHostToDevice);
+	cudaMemcpy(dC, C, mem_vec, cudaMemcpyHostToDevice);
+	cudaMemcpy(dres, res, mem_vec, cudaMemcpyHostToDevice);
+	dim3 threads, grid;
+	int block_size = 256;
+	int grid_size = (na + block_size - 1) / block_size;
+	threads.x = block_size;
+	grid.x = grid_size;
+	for (int i=0; i<100000; ++i) {
+		kernel_div_v2<<<grid, threads>>>(dA, dB, dC, dres, na);
+	}
+	cudaMemcpy(res, dres, mem_vec, cudaMemcpyDeviceToHost);
+	cudaFree(dA);
+	cudaFree(dB);
+	cudaFree(dC);
+	cudaFree(dres);
+	cudaThreadExit();
 }

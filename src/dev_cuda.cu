@@ -25,9 +25,11 @@
 
 // here, put your code!
 
+/***********************************************
+ * Utils
+ ***********************************************/
 #define INF 2e10f;
 #define rnd(x) (x*rand() / RAND_MAX)
-
 
 /***********************************************
  * Test ray-tracing
@@ -165,3 +167,4 @@ void dev_div(float* A, int na, float* B, int nb, float* C, int nc, float* res, i
 	cudaFree(dres);
 	cudaThreadExit();
 }
+

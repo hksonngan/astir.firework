@@ -30,6 +30,7 @@
  %include "pet_cuda.i"
  %include "kernel_cuda.i"
  %include "dev_cuda.i"
+ %include "mc_cuda.i"
 #endif
 
 %init %{

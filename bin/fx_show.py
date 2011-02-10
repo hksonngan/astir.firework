@@ -71,7 +71,7 @@ else:
         scale = float(vol.max()) - minv
         vol   = (vol - minv) / scale
         vol   = volume_flip_ud(vol)
-        volume_show_ct(vol)
+        volume_show(vol)
     else:
         print 'File format unknow by FIREwork!'
     

@@ -17,3 +17,16 @@
 
 // here, put your code!
 
+float rnd_park_miller(int *seed);
+
+void dev_siddon_3D(float* vol, int nz, int ny, int nx, int nlines);
+
+void dev_amanatides_3D(float* vol, int nz, int ny, int nx,
+					   float* X0, int nx0, float* Y0, int ny0, float* Z0, int nz0,
+					   float* Xe, int nxe, float* Ye, int nye, float* Ze, int nze);
+
+void dev_raypro_3D(float* vol, int nz, int ny, int nx,
+				   float* X0, int nx0, float* Y0, int ny0, float* Z0, int nz0,
+				   float* DX, int ndx, float* DY, int ndy, float* DZ, int ndz,
+				   float* D, int nd);
+

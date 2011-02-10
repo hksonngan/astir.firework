@@ -15,8 +15,4 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-// here, put your code!
-
-void dev_raytracing(float* im, int nim1, int nim2, int ns);
-void dev_div(float* A, int na, float* B, int nb, float* C, int nc, float* res, int nres);
-
+void mc_cuda(float* vol, int nz, int ny, int nx, int nlines);

@@ -2,7 +2,7 @@
 
 
 
-1- Libraries request:
+1- Libraries require:
    - Python with .h
    - Numpy
    - Matplotlib
@@ -12,7 +12,7 @@
    - Nvidia SDK (optional)
 
 2- How to compile?
-   If you using your Nvidia GPU, run into a bash shell:
+   If you using your Nvidia GPU, run this into a bash shell:
    ~: make
    ~: make install
 

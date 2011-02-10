@@ -23,8 +23,8 @@ end :
 	mkdir build
 	mv *.so *.o firekernel.py kernel_wrap.c build/
 
-_firekernel.so : kernel_c.o pet_c.o dev_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so dev_cuda.so
-	g++ -o _firekernel.so -shared kernel_c.o pet_c.o dev_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so dev_cuda.so -lGL
+_firekernel.so : kernel_c.o pet_c.o dev_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so dev_cuda.so mc_cuda.so
+	g++ -o _firekernel.so -shared kernel_c.o pet_c.o dev_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so dev_cuda.so mc_cuda.so -lGL
 
 # need -lGL here ??
 # add pre-compilator flag with g++ is -D flagname
@@ -54,6 +54,12 @@ dev_cuda.so : dev_cuda.o
 
 dev_cuda.o : dev_cuda.cu
 	nvcc -o dev_cuda.o -c dev_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11 
+
+mc_cuda.so : mc_cuda.o
+	nvcc -o mc_cuda.so -shared mc_cuda.o -lcublas -lcufft
+
+mc_cuda.o : mc_cuda.cu
+	nvcc -o mc_cuda.o -c mc_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11 
 
 # C code
 kernel_c.o : kernel_c.cpp

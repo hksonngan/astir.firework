@@ -72,7 +72,7 @@ from OpenGL.GLU        import *
 def volume_show(vol):
     from sys        import exit
     from numpy      import zeros, array
-    from firekernel import kernel_draw_pixels, kernel_ct_volume_rendering, kernel_color_image
+    from firekernel import kernel_draw_pixels, kernel_volume_rendering, kernel_color_image
     
     global phi, theta, scale
     global xmouse, ymouse, lmouse, rmouse, wmouse
@@ -191,7 +191,7 @@ def volume_show(vol):
         glRasterPos2i(0, 0)
 
         # get mip
-        kernel_ct_volume_rendering(vol, mip, phi, theta, scale, wmouse)
+        kernel_volume_rendering(vol, mip, phi, theta, scale, wmouse)
         # color map
         kernel_color_image(mip, mapr, mapg, mapb, lutr, lutg, lutb)
         # draw

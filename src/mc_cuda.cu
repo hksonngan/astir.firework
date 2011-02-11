@@ -83,7 +83,7 @@ __device__ float park_miller_jb(int *seed) {
 /***********************************************************
  * Physics
  ***********************************************************/
-// kernel Compton Cross Section Per Atom
+// Compton Cross Section Per Atom
 __device__ float Compton_CSPA(float E, float Z) {
 	float CrossSection = 0.0;
 	if (Z<0.9999f || E < 1e-4f) {return CrossSection;}
@@ -110,6 +110,41 @@ __device__ float Compton_CSPA(float E, float Z) {
 	return CrossSection;
 }
 
+// Compton Scatter (Klein-Nishina)
+__device__ float Compton_scatter(StackGamma stackgamma, unsigned int id) {
+	float E = stackgamma.E[id];
+	int seed = stackgamma.seed[id];
+	float E0 = __fdividef(E, 0.510998910f);
+
+	float epszero = __fdividef(1.0f, (1.0f + 2.0f * E0));
+	float eps02 = epszero*epszero;
+	float a1 = -__logf(epszero);
+	float a2 = __fdividef(a1, (a1 + 0.5f*(1.0f-eps02)));
+
+	float greject, onecost, eps, eps2;
+	do {
+		if (a2 > park_miller_jb(&seed)) {
+			eps = __expf(-a1 * park_miller_jb(&seed));
+			eps2 = eps*eps;
+		} else {
+			eps2 = eps02 + (1.0f - eps02) * park_miller_jb(&seed);
+			eps = sqrt(eps2);
+		}
+		onecost = __fdividef(1.0f - eps, eps * E0);
+		greject = 1.0f - eps * onecost * __fdividef(2.0f - onecost, 1.0f + eps2);
+	} while (greject < park_miller_jb(&seed));
+
+	E *= eps;
+	stackgamma.seed[id] = seed;
+	stackgamma.E[id] = E;
+	if (E <= 1.0e-6f) {
+		stackgamma.live[id] = 0;
+		return 0.0f;
+	}
+	
+	return acos(1.0f - onecost);
+}
+
 __device__ float Compton_mu_eau(float E) {
 	return (2*Compton_CSPA(E, 1) + Compton_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
 }
@@ -119,7 +154,7 @@ __device__ float Compton_mu_Al(float E) {
 }
 
 /***********************************************************
- * Managment kernel
+ * Managment
  ***********************************************************/
 __global__ void kernel_particle_birth(StackGamma stackgamma, int3 dimvol) {
 	unsigned int id = __umul24(blockIdx.x, blockDim.x)+threadIdx.x;
@@ -147,19 +182,44 @@ __global__ void kernel_particle_birth(StackGamma stackgamma, int3 dimvol) {
 	}
 }
 
+__global__ void kernel_particle_gun(StackGamma stackgamma, int3 dimvol,
+									float posx, float posy, float posz,
+									float dx, float dy, float dz, float E) {
+	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (id < stackgamma.size) {
+		stackgamma.E[id] = E;
+		stackgamma.px[id] = posx;
+		stackgamma.py[id] = posy;
+		stackgamma.pz[id] = posz;
+		stackgamma.dx[id] = dx;
+		stackgamma.dy[id] = dy;
+		stackgamma.dz[id] = dz;
+		stackgamma.live[id] = 1;
+		stackgamma.in[id] = 1;
+	}
+}
+
+// return attenuation according materials 
+__device__ float att_from_mat(int mat, float E) {
+	switch (mat) {
+	case 0:	return Compton_mu_eau(E); // H2O
+	case 1:	return Compton_mu_Al(E); // Al
+	}
+	return 0.0f;
+}
+
 /***********************************************************
  * Tracking kernel
  ***********************************************************/
-__global__ void kernel_siddon(float* dvol, int3 dimvol, StackGamma stackgamma) {
+__global__ void kernel_siddon(float* dvol, int3 dimvol, StackGamma stackgamma, float* dtrack) {
 
-	int3 u, i, e, stepi, old;
+	int3 u, i, e, stepi;
 	float3 p0, pe, stept, astart, run, delta;
-	float pq, oldv, newv, totv, mu, val;
+	float pq, oldv, newv, totv, val, E;
 	float eps = 1.0e-5f;
 	unsigned int id = __umul24(blockIdx.x, blockDim.x)+threadIdx.x;
 	int jump = dimvol.x*dimvol.y;
-	int seed = stackgamma.seed[id];
-	int inside;
+	int seed, inside, oldmat, mat;
 	
 	if (id < stackgamma.size) {
 		p0.x = stackgamma.px[id];
@@ -168,8 +228,13 @@ __global__ void kernel_siddon(float* dvol, int3 dimvol, StackGamma stackgamma) {
 		delta.x = stackgamma.dx[id];
 		delta.y = stackgamma.dy[id];
 		delta.z = stackgamma.dz[id];
+		seed = stackgamma.seed[id];
+		E = stackgamma.E[id];
+
+		// get free mean path
+		oldmat = dvol[int(p0.z)*jump + int(p0.y)*dimvol.x + int(p0.x)];
+		pq = -__fdividef(__logf(park_miller_jb(&seed)), att_from_mat(oldmat, E));
 		
-		pq = -__logf(park_miller_jb(&seed)) / 0.018f;
 		pe.x = p0.x + delta.x*pq;
 		pe.y = p0.y + delta.y*pq;
 		pe.z = p0.z + delta.z*pq;
@@ -212,26 +277,28 @@ __global__ void kernel_siddon(float* dvol, int3 dimvol, StackGamma stackgamma) {
 		if (run.y == oldv) {run.y += stept.y; i.y += stepi.y;}
 		if (run.z == oldv) {run.z += stept.z; i.z += stepi.z;}
 
-		mu = oldv*dvol[e.z*jump + e.y*dimvol.x + e.x];
-		dvol[e.z*jump + e.y*dimvol.x + e.x] += oldv;
+		// to debug
+		dtrack[e.z*jump + e.y*dimvol.x + e.x] += oldv;
 		
 		totv = 0.0f;
-		old.x = i.x;
-		old.y = i.y;
-		old.z = i.z;
 		inside = 1;
 		while ((oldv < pq) & inside) {
 			newv = run.x;
 			if (run.y < newv) {newv=run.y;}
 			if (run.z < newv) {newv=run.z;}
 			val = (newv - oldv);
-			mu = val * dvol[i.z*jump + i.y*dimvol.x + i.x];
-			dvol[i.z*jump + i.y*dimvol.x + i.x] += val;
+
+			// if mat change
+			mat = dvol[i.z*jump + i.y*dimvol.x + i.x];
+			if (mat != oldmat) {
+				pq = -__fdividef(__logf(park_miller_jb(&seed)), att_from_mat(oldmat, E));
+				oldmat = mat;
+			}
+
+			dtrack[i.z*jump + i.y*dimvol.x + i.x] += val;
+
 			totv += val;
 			oldv = newv;
-			old.x = i.x;
-			old.y = i.y;
-			old.z = i.z;
 			if (run.x==newv) {i.x += stepi.x; run.x += stept.x;}
 			if (run.y==newv) {i.y += stepi.y; run.y += stept.y;}
 			if (run.z==newv) {i.z += stepi.z; run.z += stept.z;}
@@ -242,11 +309,14 @@ __global__ void kernel_siddon(float* dvol, int3 dimvol, StackGamma stackgamma) {
 			stackgamma.in[id] = 0;
 			return;
 		}
-		
-		mu = (pq-totv)*dvol[old.z*jump + old.y*dimvol.x + old.x];
-		dvol[old.z*jump + old.y*dimvol.x + old.x] += (pq - totv);
 
+		pe.x = p0.x + delta.x*pq;
+		pe.y = p0.y + delta.y*pq;
+		pe.z = p0.z + delta.z*pq;
 		stackgamma.seed[id] = seed;
+		stackgamma.px[id] = pe.x;
+		stackgamma.py[id] = pe.y;
+		stackgamma.pz[id] = pe.z;
 
 	} // id < nx
 
@@ -464,7 +534,10 @@ void mc_cuda(float* vol, int nz, int ny, int nx, int nparticles) {
 	unsigned int mem_vol = nz*ny*nx * sizeof(float);
 	float* dvol;
 	cudaMalloc((void**) &dvol, mem_vol);
-	cudaMemset(dvol, 0, mem_vol);
+	cudaMemcpy(dvol, vol, mem_vol, cudaMemcpyHostToDevice);
+	float* dtrack;
+	cudaMalloc((void**) &dtrack, mem_vol);
+	cudaMemset(dtrack, 0, mem_vol);
 
 	// Stack allocation memory
 	StackGamma stackgamma;
@@ -501,17 +574,18 @@ void mc_cuda(float* vol, int nz, int ny, int nx, int nparticles) {
 	// Init particles
     gettimeofday(&start, NULL);
     t1 = start.tv_sec + start.tv_usec / 1000000.0;
-	kernel_particle_birth<<<grid, threads>>>(stackgamma, dimvol);
+	//kernel_particle_birth<<<grid, threads>>>(stackgamma, dimvol);
+	kernel_particle_gun<<<grid, threads>>>(stackgamma, dimvol, 50.0, 50.0, 0.0, 0.0, 0.0, 1.0, 0.511);
 	cudaThreadSynchronize();
     gettimeofday(&end, NULL);
     t2 = end.tv_sec + end.tv_usec / 1000000.0;
     diff = t2 - t1;
     printf("Create gamma particles %f s\n", diff);
-	
+
 	// Propagation
 	gettimeofday(&start, NULL);
     t1 = start.tv_sec + start.tv_usec / 1000000.0;
-	kernel_siddon<<<grid, threads>>>(dvol, dimvol, stackgamma);
+	kernel_siddon<<<grid, threads>>>(dvol, dimvol, stackgamma, dtrack);
 	cudaThreadSynchronize();
     gettimeofday(&end, NULL);
     t2 = end.tv_sec + end.tv_usec / 1000000.0;
@@ -519,7 +593,7 @@ void mc_cuda(float* vol, int nz, int ny, int nx, int nparticles) {
     printf("Track gamma particles %f s\n", diff);
 	
 	//cudaMemcpy(tmp, stackgamma.seed, mem_stack_int, cudaMemcpyDeviceToHost);
-	cudaMemcpy(vol, dvol, mem_vol, cudaMemcpyDeviceToHost);
+	cudaMemcpy(vol, dtrack, mem_vol, cudaMemcpyDeviceToHost);
 	//printf("new seed %i\n", tmp[0]);
 
 	cudaFree(dvol);

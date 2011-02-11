@@ -1318,53 +1318,56 @@ def curve_smooth(a, order):
 # ===========================================
 
 def filter_3d_Metz(vol, N, sig):
-    from kernel import kernel_3Dconv_cuda
+    from firekernel import kernel_3D_conv_wrap_cuda
+    from numpy      import where
 
     smax    = max(vol.shape)
     H       = filter_build_3d_Metz(smax, N, sig)
     Hpad    = filter_pad_3d_cuda(H)
     z, y, x = vol.shape
     vol     = volume_pack_cube(vol)
-    kernel_3Dconv_cuda(vol, Hpad)
+    kernel_3D_conv_wrap_cuda(vol, Hpad)
+    id      = where(vol < 0)
+    vol[id] = 0
     vol     = volume_unpack_cube(vol, z, y, x)
 
     return vol
 
 def filter_3d_Gaussian(vol, sig):
-    from kernel import kernel_3Dconv_cuda
+    from kernel import kernel_3D_conv_wrap_cuda
 
     smax    = max(vol.shape)
     H       = filter_build_3d_Gaussian(smax, sig)
     Hpad    = filter_pad_3d_cuda(H)
     z, y, x = vol.shape
     vol     = volume_pack_cube(vol)
-    kernel_3Dconv_cuda(vol, Hpad)
+    kernel_3D_conv_wrap_cuda(vol, Hpad)
     vol     = volume_unpack_cube(vol, z, y, x)
 
     return vol
 
 def filter_3d_Butterworth_lp(vol, order, fc):
-    from kernel import kernel_3Dconv_cuda
+    from kernel import kernel_3D_conv_wrap_cuda
 
     smax    = max(vol.shape)
     H       = filter_build_3d_Butterworth_lp(smax, order, fc)
     Hpad    = filter_pad_3d_cuda(H)
     z, y, x = vol.shape
     vol     = volume_pack_cube(vol)
-    kernel_3Dconv_cuda(vol, Hpad)
+    kernel_3D_conv_wrap_cuda(vol, Hpad)
     vol     = volume_unpack_cube(vol, z, y, x)
 
     return vol
 
 def filter_3d_tanh_lp(vol, a, fc):
-    from kernel import kernel_3Dconv_cuda
+    from kernel import kernel_3D_conv_wrap_cuda
 
     smax    = max(vol.shape)
     H       = filter_build_3d_tanh_lp(smax, a, fc)
     Hpad    = filter_pad_3d_cuda(H)
     z, y, x = vol.shape
     vol     = volume_pack_cube(vol)
-    kernel_3Dconv_cuda(vol, Hpad)
+    kernel_3D_conv_wrap_cuda(vol, Hpad)
     vol     = volume_unpack_cube(vol, z, y, x)
 
     return vol

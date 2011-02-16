@@ -16,6 +16,7 @@
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
 #include "mc_cuda.h"
+#include "mc_cuda_cst.cu"
 #include <stdio.h>
 #include <stdlib.h>
 #include <cublas.h>
@@ -28,6 +29,7 @@
  ***********************************************************/
 __constant__ const float pi = 3.14159265358979323846;
 __constant__ const float twopi = 2*pi;
+texture<float, 1, cudaReadModeElementType> tex_vol;
 
 // Stack of gamma particles, format data is defined as SoA
 struct StackGamma{
@@ -39,10 +41,13 @@ struct StackGamma{
 	float* py;
 	float* pz;
 	int* seed;
-	char* live;
-	char* in;
+	int* ct_eff;
+	int* ct_Cpt;
+	int* ct_PE;
+	unsigned char* live;
+	unsigned char* in;
 	unsigned int size;
-};
+}; //
 
 // Given by Hector doesn't work properly
 __device__ float park_miller(long unsigned int *seed) {
@@ -78,6 +83,38 @@ __device__ float park_miller_jb(int *seed) {
 	ans = recm * (*seed);
 	*seed ^= mask;
 	return ans;
+}
+
+// Hamilton multiplication (quaternion)
+__device__ float4 quat_mul(float4 p, float4 q) {
+	return make_float4(
+		   p.w*q.x + p.x*q.w + p.y*q.z - p.z*q.y,    // x
+		   p.w*q.y + p.y*q.w + p.z*q.x - p.x*q.z,    // y
+		   p.w*q.z + p.z*q.w + p.x*q.y - p.y*q.x,    // z
+		   p.w*q.w - p.x*q.x - p.y*q.y - p.z*q.z);   // w
+}
+
+// Create quaternion for axis angle rotation
+__device__ float4 quat_axis(float4 n, float theta) {
+	theta /= 2.0f;
+	float stheta = __sinf(theta);
+	return make_float4(n.x*stheta, n.y*stheta, n.z*stheta, __cosf(theta));
+}
+
+// Conjugate quaternion
+__device__ float4 quat_conj(float4 p) {
+	return make_float4(-p.x, -p.y, -p.z, p.w);
+}
+
+// Normalize quaternion
+__device__ float4 quat_norm(float4 p) {
+	float norm = __fdividef(1.0f, __powf(p.w*p.w+p.x*p.x+p.y*p.y+p.z*p.z, 0.5f));
+	return make_float4(p.x*norm, p.y*norm, p.z*norm, p.w*norm);
+}
+
+// Cross product
+__device__ float4 quat_crossprod(float4 u, float4 v){
+	return make_float4(u.y*v.z-u.z*v.y, u.z*v.x-u.x*v.z, u.x*v.y-u.y*v.x, 0.0f);
 }
 
 /***********************************************************
@@ -145,18 +182,252 @@ __device__ float Compton_scatter(StackGamma stackgamma, unsigned int id) {
 	return acos(1.0f - onecost);
 }
 
-__device__ float Compton_mu_eau(float E) {
-	return (2*Compton_CSPA(E, 1) + Compton_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
+// PhotoElectric Cross Section Per Atom, use Sandia data and load 21,236 Bytes on constant memory.
+__device__ float PhotoElec_CSPA(float E, int Z) {
+	float Emin = fmax(fIonizationPotentials[Z]*1e-6f, 0.01e-3f); // from Sandia, the same for all Z
+	if (E < Emin) {return 0.0f;}
+	
+	int start = fCumulIntervals[Z];
+	int stop = start + fNbOfIntervals[Z] - 1.0f;
+	int pos;
+	for (pos=stop; pos>start; --pos) {
+		if (E < fSandiaTable[pos][0]*1.0e-3f) {break;}
+	}
+	float AoverAvo = 103.642688246e-10f * __fdividef((float)Z, fZtoAratio[Z]);
+	float rE = __fdividef(1.0f, E);
+	float rE2 = rE*rE;
+
+	return rE * fSandiaTable[pos][1] * AoverAvo * 0.160217648e-22f
+		+ rE2 * fSandiaTable[pos][2] * AoverAvo * 0.160217648e-25f
+		+ rE * rE2 * fSandiaTable[pos][3] * AoverAvo * 0.160217648e-28f
+		+ rE2 * rE2 * fSandiaTable[pos][4] * AoverAvo * 0.160217648e-31f;
 }
 
+__device__ float Compton_mu_Water(float E) {
+	// H2O
+	return (2*Compton_CSPA(E, 1) + Compton_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
+}
+__device__ float Compton_mu_Plastic(float E) {
+	// 5C8H2O
+	return (5*Compton_CSPA(E, 6) + 8*Compton_CSPA(E, 1) + 2*Compton_CSPA(E, 8)) * 7.096901340e17f;
+}
 __device__ float Compton_mu_Al(float E) {
+	// Al
 	return Compton_CSPA(E, 13) * 6.024030465e+19f; // Avogadro*Al_density/a_Al
 }
+__device__ float Compton_mu_Air(float E) {
+	// O N Ar C
+	return (0.231781f*Compton_CSPA(E, 8) + 0.755268f*Compton_CSPA(E, 7)
+			+ 0.012827f*Compton_CSPA(E, 18) + 0.000124f*Compton_CSPA(E, 6)) * 5.247706935e17f;
+}
+__device__ float Compton_mu_Body(float E) {
+	// H O
+	return (0.112f*Compton_CSPA(E, 1) + 0.888f*Compton_CSPA(E, 8)) * 4.205077389e18f;
+}
+__device__ float Compton_mu_Lung(float E) {
+	// H C N O Na P S Cl K
+	return (0.103f*Compton_CSPA(E, 1)+ 0.105f*Compton_CSPA(E, 6) + 0.031f*Compton_CSPA(E, 7)
+			+ 0.749f*Compton_CSPA(E, 8) + 0.002f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
+			+ 0.003f*Compton_CSPA(E, 16) + 0.003f*Compton_CSPA(E, 17) + 0.002f*Compton_CSPA(E, 19)) * 1.232299227e18f;
+}
+__device__ float Compton_mu_RibBone(float E) {
+	// H C N O Na Mg P S Ca
+	return (0.034f*Compton_CSPA(E, 1) + 0.155f*Compton_CSPA(E, 6) + 0.042f*Compton_CSPA(E, 7)
+			+ 0.435f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 12)
+			+ 0.103f*Compton_CSPA(E, 15) + 0.003f*Compton_CSPA(E, 16) + 0.225f*Compton_CSPA(E, 20)) * 5.299038816e18f;
+}
+__device__ float Compton_mu_SpineBone(float E) {
+	// H C N O Na Mg P S Cl K Ca
+	return (0.063f*Compton_CSPA(E, 1) + 0.261f*Compton_CSPA(E, 6) + 0.039f*Compton_CSPA(E, 7)
+			+ 0.436f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 12)
+			+ 0.061f*Compton_CSPA(E, 15) + 0.003f*Compton_CSPA(E, 16) + 0.001f*Compton_CSPA(E, 17)
+			+ 0.001f*Compton_CSPA(E, 19) + 0.133f*Compton_CSPA(E, 20)) * 4.709337384e18f;
+}
+__device__ float Compton_mu_Heart(float E) {
+	// H C N O Na P S Cl K
+	return (0.104f*Compton_CSPA(E, 1) + 0.139f*Compton_CSPA(E, 6) + 0.029f*Compton_CSPA(E, 7)
+			+ 0.718f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
+			+ 0.002f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.003f*Compton_CSPA(E, 19)) * 4.514679219e18f;
+}
+__device__ float Compton_mu_Breast(float E) {
+	// H C N O Na P S Cl
+	return (0.106f*Compton_CSPA(E, 1) + 0.332f*Compton_CSPA(E, 6) + 0.03f*Compton_CSPA(E, 7)
+			+ 0.527f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 15)
+			+ 0.002f*Compton_CSPA(E, 16) + 0.001f*Compton_CSPA(E, 17)) * 4.688916436e18f;
+}
+
+__device__ float PhotoElec_mu_Water(float E) {
+	// H2O
+	return (2*PhotoElec_CSPA(E, 1) + PhotoElec_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
+}
+__device__ float PhotoElec_mu_Plastic(float E) {
+	// 5C8H2O
+	return (5*PhotoElec_CSPA(E, 6) + 8*PhotoElec_CSPA(E, 1) + 2*PhotoElec_CSPA(E, 8)) * 7.096901340e17f;
+}
+__device__ float PhotoElec_mu_Al(float E) {
+	// Al
+	return PhotoElec_CSPA(E, 13) * 6.024030465e+19f; // Avogadro*Al_density/a_Al
+}
+__device__ float PhotoElec_mu_Air(float E) {
+	// O N Ar C
+	return (0.231781f*PhotoElec_CSPA(E, 8) + 0.755268f*PhotoElec_CSPA(E, 7)
+			+ 0.012827f*PhotoElec_CSPA(E, 18) + 0.000124f*PhotoElec_CSPA(E, 6)) * 5.247706935e17f;
+}
+__device__ float PhotoElec_mu_Body(float E) {
+	// H O
+	return (0.112f*PhotoElec_CSPA(E, 1) + 0.888f*PhotoElec_CSPA(E, 8)) * 4.205077389e18f;
+}
+__device__ float PhotoElec_mu_Lung(float E) {
+	// H C N O Na P S Cl K
+	return (0.103f*PhotoElec_CSPA(E, 1)+ 0.105f*PhotoElec_CSPA(E, 6) + 0.031f*PhotoElec_CSPA(E, 7)
+			+ 0.749f*PhotoElec_CSPA(E, 8) + 0.002f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 15)
+			+ 0.003f*PhotoElec_CSPA(E, 16) + 0.003f*PhotoElec_CSPA(E, 17) + 0.002f*PhotoElec_CSPA(E, 19)) * 1.232299227e18f;
+}
+__device__ float PhotoElec_mu_RibBone(float E) {
+	// H C N O Na Mg P S Ca
+	return (0.034f*PhotoElec_CSPA(E, 1) + 0.155f*PhotoElec_CSPA(E, 6) + 0.042f*PhotoElec_CSPA(E, 7)
+			+ 0.435f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 12)
+			+ 0.103f*PhotoElec_CSPA(E, 15) + 0.003f*PhotoElec_CSPA(E, 16) + 0.225f*PhotoElec_CSPA(E, 20)) * 5.299038816e18f;
+}
+__device__ float PhotoElec_mu_SpineBone(float E) {
+	// H C N O Na Mg P S Cl K Ca
+	return (0.063f*PhotoElec_CSPA(E, 1) + 0.261f*PhotoElec_CSPA(E, 6) + 0.039f*PhotoElec_CSPA(E, 7)
+			+ 0.436f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.001f*PhotoElec_CSPA(E, 12)
+			+ 0.061f*PhotoElec_CSPA(E, 15) + 0.003f*PhotoElec_CSPA(E, 16) + 0.001f*PhotoElec_CSPA(E, 17)
+			+ 0.001f*PhotoElec_CSPA(E, 19) + 0.133f*PhotoElec_CSPA(E, 20)) * 4.709337384e18f;
+}
+__device__ float PhotoElec_mu_Heart(float E) {
+	// H C N O Na P S Cl K
+	return (0.104f*PhotoElec_CSPA(E, 1) + 0.139f*PhotoElec_CSPA(E, 6) + 0.029f*PhotoElec_CSPA(E, 7)
+			+ 0.718f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 15)
+			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.003f*PhotoElec_CSPA(E, 19)) * 4.514679219e18f;
+}
+__device__ float PhotoElec_mu_Breast(float E) {
+	// H C N O Na P S Cl
+	return (0.106f*PhotoElec_CSPA(E, 1) + 0.332f*PhotoElec_CSPA(E, 6) + 0.03f*PhotoElec_CSPA(E, 7)
+			+ 0.527f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.001f*PhotoElec_CSPA(E, 15)
+			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.001f*PhotoElec_CSPA(E, 17)) * 4.688916436e18f;
+}
+
+// return attenuation according materials 
+__device__ float att_from_mat(int mat, float E) {
+	switch (mat) {
+	case 0:     return Compton_mu_Air(E) + PhotoElec_mu_Air(E);
+	case 1:     return Compton_mu_Body(E) + PhotoElec_mu_Body(E);
+	case 2:     return Compton_mu_Lung(E) + PhotoElec_mu_Lung(E);
+	case 3:     return Compton_mu_Breast(E) + PhotoElec_mu_Breast(E);
+	case 4:     return Compton_mu_Heart(E) + PhotoElec_mu_Heart(E);
+	case 5:     return Compton_mu_SpineBone(E) + PhotoElec_mu_SpineBone(E);
+	case 6:     return Compton_mu_RibBone(E) + PhotoElec_mu_RibBone(E);
+	case 98:    return Compton_mu_Plastic(E) + PhotoElec_mu_Plastic(E);
+	case 99:	return Compton_mu_Water(E) + PhotoElec_mu_Water(E);
+	case 100:	return Compton_mu_Al(E) + PhotoElec_mu_Al(E);
+	}
+	return 0.0f;
+}
+
+
+// Kernel interactions
+__global__ void kernel_interactions(StackGamma stackgamma, float* ddose, int3 dimvol) {
+	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	float theta, phi, dx, dy, dz, oldE, depdose;
+	float Compton_CS, PhotoElec_CS, tot_CS, effect;
+	int px, py, pz, jump, mat;
+	int seed;
+	if (id < stackgamma.size) {
+		if (stackgamma.in[id] == 0) {return;} // if the particle is outside 
+		
+		seed = stackgamma.seed[id];
+		dx = stackgamma.dx[id];
+		dy = stackgamma.dy[id];
+		dz = stackgamma.dz[id];
+		px = int(stackgamma.px[id]);
+		py = int(stackgamma.py[id]);
+		pz = int(stackgamma.pz[id]);
+		oldE = stackgamma.E[id];
+		jump = dimvol.x * dimvol.y;
+		//mat = int(dvol[pz*jump + py*dimvol.x + px]);
+		mat = tex1Dfetch(tex_vol, pz*jump + py*dimvol.x + px);
+
+		switch (mat) {
+		case 0:     Compton_CS = Compton_mu_Air(oldE);       PhotoElec_CS = PhotoElec_mu_Air(oldE); break;
+		case 1:     Compton_CS = Compton_mu_Body(oldE);      PhotoElec_CS = PhotoElec_mu_Body(oldE); break;
+		case 2:     Compton_CS = Compton_mu_Lung(oldE);      PhotoElec_CS = PhotoElec_mu_Lung(oldE); break;
+		case 3:     Compton_CS = Compton_mu_Breast(oldE);    PhotoElec_CS = PhotoElec_mu_Breast(oldE); break;
+		case 4:     Compton_CS = Compton_mu_Heart(oldE);     PhotoElec_CS = PhotoElec_mu_Heart(oldE); break;
+		case 5:     Compton_CS = Compton_mu_SpineBone(oldE); PhotoElec_CS = PhotoElec_mu_SpineBone(oldE); break;
+		case 6:     Compton_CS = Compton_mu_RibBone(oldE);   PhotoElec_CS = PhotoElec_mu_RibBone(oldE); break;
+		case 98:    Compton_CS = Compton_mu_Plastic(oldE);   PhotoElec_CS = PhotoElec_mu_Plastic(oldE); break;
+		case 99:	Compton_CS = Compton_mu_Water(oldE);     PhotoElec_CS = PhotoElec_mu_Water(oldE); break;
+		case 100:	Compton_CS = Compton_mu_Al(oldE);        PhotoElec_CS = PhotoElec_mu_Al(oldE); break;
+		}
+
+		// Select effect
+		tot_CS = Compton_CS + PhotoElec_CS;
+		PhotoElec_CS = __fdividef(PhotoElec_CS, tot_CS);
+		Compton_CS = 1.0f;
+		effect = park_miller_jb(&seed);
+
+		if (effect <= PhotoElec_CS) {
+			// PhotoElectric effect
+			depdose = oldE;
+			stackgamma.live[id] = 0;
+			theta = 0.0f;
+			phi = 0.0f;
+			++stackgamma.ct_eff[id];
+			++stackgamma.ct_PE[id];
+		}
+		if (effect > PhotoElec_CS && effect <= Compton_CS) {
+			// Compton scattering
+			theta = Compton_scatter(stackgamma, id);
+			phi = park_miller_jb(&seed) * 2 * twopi;
+			// !!!!! WARNING: should be 2*pi instead of 4*pi, it is to fix a pb with ParkMiller
+			//                only uniform in half range ?! so the range must be twice.
+			depdose = oldE - stackgamma.E[id];
+			++stackgamma.ct_eff[id];
+			++stackgamma.ct_Cpt[id];
+		}
+
+		// Dose depot
+		ddose[pz*jump + py*dimvol.x + px] += depdose;
+		// !!!!! WARNING: Atomic function is required (w/ ddose in uint)
+
+		//*****************************************************
+		// Apply new direction to the particle (use quaternion)
+		//
+		// create quaternion from particle and normalize it
+		float4 p = make_float4(dx, dy, dz, 0.0f);
+		p = quat_norm(p);
+		// select best axis to compute the rotation axis
+		float4 a = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
+		if (dx<dy) {a.x=1.0f;} // choose x axis
+		else {a.y=1.0f;}       // choose y axis
+		// create virtual axis given by p^a
+		a = quat_crossprod(p, a);
+		a = quat_norm(a);
+		// build rotation around p axis with phi (in order to rotate the next rotation axis a)
+		float4 r = quat_axis(p, phi);
+		// do rotation of a = rar*
+		a = quat_mul(a, quat_conj(r)); // a = ar*
+		a = quat_mul(r, a);            // a = ra
+		// build rotation around a axis with theta (thus rotate p)
+		r = quat_axis(a, theta);
+		// do final rotation of p = rpr*
+		p = quat_mul(p, quat_conj(r));
+		p = quat_mul(r, p);
+		// assign new values
+		stackgamma.dx[id] = p.x;
+		stackgamma.dy[id] = p.y;
+		stackgamma.dz[id] = p.z;
+		stackgamma.seed[id] = seed;
+	}
+}
+
 
 /***********************************************************
  * Managment
  ***********************************************************/
-__global__ void kernel_particle_birth(StackGamma stackgamma, int3 dimvol) {
+__global__ void kernel_particle_rnd(StackGamma stackgamma, int3 dimvol) {
 	unsigned int id = __umul24(blockIdx.x, blockDim.x)+threadIdx.x;
 	float phi, theta;
 	int seed = stackgamma.seed[id];
@@ -187,31 +458,56 @@ __global__ void kernel_particle_gun(StackGamma stackgamma, int3 dimvol,
 									float dx, float dy, float dz, float E) {
 	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (id < stackgamma.size) {
-		stackgamma.E[id] = E;
-		stackgamma.px[id] = posx;
-		stackgamma.py[id] = posy;
-		stackgamma.pz[id] = posz;
-		stackgamma.dx[id] = dx;
-		stackgamma.dy[id] = dy;
-		stackgamma.dz[id] = dz;
-		stackgamma.live[id] = 1;
-		stackgamma.in[id] = 1;
+		if (stackgamma.in[id]==0 || stackgamma.live[id]==0) { 
+			stackgamma.E[id] = E;
+			stackgamma.px[id] = posx;
+			stackgamma.py[id] = posy;
+			stackgamma.pz[id] = posz;
+			stackgamma.dx[id] = dx;
+			stackgamma.dy[id] = dy;
+			stackgamma.dz[id] = dz;
+			stackgamma.live[id] = 1;
+			stackgamma.in[id] = 1;
+			stackgamma.ct_eff[id] = 0;
+			stackgamma.ct_Cpt[id] = 0;
+			stackgamma.ct_PE[id] = 0;
+		}
 	}
 }
 
-// return attenuation according materials 
-__device__ float att_from_mat(int mat, float E) {
-	switch (mat) {
-	case 0:	return Compton_mu_eau(E); // H2O
-	case 1:	return Compton_mu_Al(E); // Al
+__global__ void kernel_particle_largegun(StackGamma stackgamma, int3 dimvol,
+										 float posx, float posy, float posz,
+										 float dx, float dy, float dz, float E, float rad) {
+	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (id < stackgamma.size) {
+		float phi, r;
+		int seed;
+		if (stackgamma.in[id]==0 || stackgamma.live[id]==0) {
+			seed = stackgamma.seed[id];
+			phi = park_miller_jb(&seed) * twopi;
+			r   = park_miller_jb(&seed) * rad;
+			stackgamma.seed[id] = seed;
+			stackgamma.E[id] = E;
+			stackgamma.px[id] = posx + r * __cosf(phi);
+			stackgamma.py[id] = posy;
+			stackgamma.pz[id] = posz + r * __sinf(phi);
+			stackgamma.dx[id] = dx;
+			stackgamma.dy[id] = dy;
+			stackgamma.dz[id] = dz;
+			stackgamma.live[id] = 1;
+			stackgamma.in[id] = 1;
+			stackgamma.ct_eff[id] = 0;
+			stackgamma.ct_Cpt[id] = 0;
+			stackgamma.ct_PE[id] = 0;
+		}
 	}
-	return 0.0f;
+
 }
 
 /***********************************************************
  * Tracking kernel
  ***********************************************************/
-__global__ void kernel_siddon(float* dvol, int3 dimvol, StackGamma stackgamma, float* dtrack) {
+__global__ void kernel_siddon(int3 dimvol, StackGamma stackgamma, float* dtrack, float dimvox) {
 
 	int3 u, i, e, stepi;
 	float3 p0, pe, stept, astart, run, delta;
@@ -232,8 +528,10 @@ __global__ void kernel_siddon(float* dvol, int3 dimvol, StackGamma stackgamma, f
 		E = stackgamma.E[id];
 
 		// get free mean path
-		oldmat = dvol[int(p0.z)*jump + int(p0.y)*dimvol.x + int(p0.x)];
+		//oldmat = dvol[int(p0.z)*jump + int(p0.y)*dimvol.x + int(p0.x)];
+		oldmat = tex1Dfetch(tex_vol, int(p0.z)*jump + int(p0.y)*dimvol.x + int(p0.x));
 		pq = -__fdividef(__logf(park_miller_jb(&seed)), att_from_mat(oldmat, E));
+		pq = __fdividef(pq, dimvox);
 		
 		pe.x = p0.x + delta.x*pq;
 		pe.y = p0.y + delta.y*pq;
@@ -278,7 +576,7 @@ __global__ void kernel_siddon(float* dvol, int3 dimvol, StackGamma stackgamma, f
 		if (run.z == oldv) {run.z += stept.z; i.z += stepi.z;}
 
 		// to debug
-		dtrack[e.z*jump + e.y*dimvol.x + e.x] += oldv;
+		//dtrack[e.z*jump + e.y*dimvol.x + e.x] += oldv;
 		
 		totv = 0.0f;
 		inside = 1;
@@ -289,13 +587,14 @@ __global__ void kernel_siddon(float* dvol, int3 dimvol, StackGamma stackgamma, f
 			val = (newv - oldv);
 
 			// if mat change
-			mat = dvol[i.z*jump + i.y*dimvol.x + i.x];
+			//mat = dvol[i.z*jump + i.y*dimvol.x + i.x];
+			mat = tex1Dfetch(tex_vol, i.z*jump + i.y*dimvol.x + i.x);
 			if (mat != oldmat) {
 				pq = -__fdividef(__logf(park_miller_jb(&seed)), att_from_mat(oldmat, E));
 				oldmat = mat;
 			}
 
-			dtrack[i.z*jump + i.y*dimvol.x + i.x] += val;
+			//dtrack[i.z*jump + i.y*dimvol.x + i.x] += val;
 
 			totv += val;
 			oldv = newv;
@@ -305,18 +604,15 @@ __global__ void kernel_siddon(float* dvol, int3 dimvol, StackGamma stackgamma, f
 			inside = (i.x >= 0) & (i.x < dimvol.x) & (i.y >= 0) & (i.y < dimvol.y) & (i.z >= 0) & (i.z < dimvol.z);
 		}
 
-		if (!inside) {
-			stackgamma.in[id] = 0;
-			return;
-		}
-
-		pe.x = p0.x + delta.x*pq;
-		pe.y = p0.y + delta.y*pq;
-		pe.z = p0.z + delta.z*pq;
+		pe.x = p0.x + delta.x*oldv;
+		pe.y = p0.y + delta.y*oldv;
+		pe.z = p0.z + delta.z*oldv;
 		stackgamma.seed[id] = seed;
 		stackgamma.px[id] = pe.x;
 		stackgamma.py[id] = pe.y;
 		stackgamma.pz[id] = pe.z;
+
+		if (!inside) {stackgamma.in[id] = 0;}
 
 	} // id < nx
 
@@ -518,13 +814,17 @@ __global__ void kernel_raypro(float* dvol, int3 dimvol, StackGamma stackgamma) {
 /***********************************************************
  * Main
  ***********************************************************/
-void mc_cuda(float* vol, int nz, int ny, int nx, int nparticles) {
+void mc_cuda(float* vol, int nz, int ny, int nx,
+			 float* E, int nE, float* dx, int ndx, float* dy, int ndy, float* dz, int ndz,
+			 float* px, int npx, float* py, int npy, float* pz, int npz,
+			 int nparticles) {
 	cudaSetDevice(1);
 
     timeval start, end;
     double t1, t2, diff;
 	int3 dimvol;
-	int n;
+	int n, step;
+	int countparticle=0;
 	
 	dimvol.x = nx;
 	dimvol.y = ny;
@@ -535,16 +835,38 @@ void mc_cuda(float* vol, int nz, int ny, int nx, int nparticles) {
 	float* dvol;
 	cudaMalloc((void**) &dvol, mem_vol);
 	cudaMemcpy(dvol, vol, mem_vol, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_vol, dvol, mem_vol);
 	float* dtrack;
 	cudaMalloc((void**) &dtrack, mem_vol);
 	cudaMemset(dtrack, 0, mem_vol);
+	float* ddose;
+	cudaMalloc((void**) &ddose, mem_vol);
+	cudaMemset(ddose, 0, mem_vol);
 
-	// Stack allocation memory
+	// Stacks
 	StackGamma stackgamma;
+	StackGamma collector;
 	stackgamma.size = nparticles;
+	//unsigned int mem_stack = stackgamma.size * sizeof(stackgamma);
 	unsigned int mem_stack_float = stackgamma.size * sizeof(float);
 	unsigned int mem_stack_int = stackgamma.size * sizeof(int);
 	unsigned int mem_stack_char = stackgamma.size * sizeof(char);
+
+	// Host stack allocation memory
+	collector.E = (float*)malloc(mem_stack_float);
+	collector.dx = (float*)malloc(mem_stack_float);
+	collector.dy = (float*)malloc(mem_stack_float);
+	collector.dz = (float*)malloc(mem_stack_float);
+	collector.px = (float*)malloc(mem_stack_float);
+	collector.py = (float*)malloc(mem_stack_float);
+	collector.pz = (float*)malloc(mem_stack_float);
+	collector.live = (unsigned char*)malloc(mem_stack_char);
+	collector.in = (unsigned char*)malloc(mem_stack_char);
+	collector.ct_eff = (int*)malloc(mem_stack_int);
+	collector.ct_Cpt = (int*)malloc(mem_stack_int);
+	collector.ct_PE = (int*)malloc(mem_stack_int);
+
+	// Device stack allocation memory
 	cudaMalloc((void**) &stackgamma.E, mem_stack_float);
 	cudaMalloc((void**) &stackgamma.dx, mem_stack_float);
 	cudaMalloc((void**) &stackgamma.dy, mem_stack_float);
@@ -555,7 +877,12 @@ void mc_cuda(float* vol, int nz, int ny, int nx, int nparticles) {
 	cudaMalloc((void**) &stackgamma.seed, mem_stack_int);
 	cudaMalloc((void**) &stackgamma.live, mem_stack_char);
 	cudaMalloc((void**) &stackgamma.in, mem_stack_char);
-
+	cudaMalloc((void**) &stackgamma.ct_eff, mem_stack_int);
+	cudaMalloc((void**) &stackgamma.ct_Cpt, mem_stack_int);
+	cudaMalloc((void**) &stackgamma.ct_PE, mem_stack_int);
+	cudaMemset(stackgamma.live, 0, mem_stack_char); // at beginning all particles are dead
+	cudaMemset(stackgamma.in, 0, mem_stack_char);   // and outside the volume
+	
 	// Init seeds
 	int* tmp = (int*)malloc(stackgamma.size * sizeof(int));
 	srand(10);
@@ -570,33 +897,115 @@ void mc_cuda(float* vol, int nz, int ny, int nx, int nparticles) {
 	int grid_size = (nparticles + block_size - 1) / block_size;
 	threads.x = block_size;
 	grid.x = grid_size;
-	
-	// Init particles
-    gettimeofday(&start, NULL);
-    t1 = start.tv_sec + start.tv_usec / 1000000.0;
-	//kernel_particle_birth<<<grid, threads>>>(stackgamma, dimvol);
-	kernel_particle_gun<<<grid, threads>>>(stackgamma, dimvol, 50.0, 50.0, 0.0, 0.0, 0.0, 1.0, 0.511);
-	cudaThreadSynchronize();
-    gettimeofday(&end, NULL);
-    t2 = end.tv_sec + end.tv_usec / 1000000.0;
-    diff = t2 - t1;
-    printf("Create gamma particles %f s\n", diff);
 
-	// Propagation
-	gettimeofday(&start, NULL);
-    t1 = start.tv_sec + start.tv_usec / 1000000.0;
-	kernel_siddon<<<grid, threads>>>(dvol, dimvol, stackgamma, dtrack);
-	cudaThreadSynchronize();
-    gettimeofday(&end, NULL);
-    t2 = end.tv_sec + end.tv_usec / 1000000.0;
-    diff = t2 - t1;
-    printf("Track gamma particles %f s\n", diff);
+	// Outter loop
+	for (step=0; step<2; ++step) {
+		printf("Step %i\n", step);
+		// Init particles
+		gettimeofday(&start, NULL);
+		t1 = start.tv_sec + start.tv_usec / 1000000.0;
+		kernel_particle_largegun<<<grid, threads>>>(stackgamma, dimvol, 45.0, 0.0, 35.0, 0.0, 1.0, 0.0, 0.511, 5.0);
+		cudaThreadSynchronize();
+		gettimeofday(&end, NULL);
+		t2 = end.tv_sec + end.tv_usec / 1000000.0;
+		diff = t2 - t1;
+		printf("   Create gamma particles %f s\n", diff);
+	
+		// Propagation
+		gettimeofday(&start, NULL);
+		t1 = start.tv_sec + start.tv_usec / 1000000.0;
+		kernel_siddon<<<grid, threads>>>(dimvol, stackgamma, dtrack, 4.0); // 4.0 mm3 voxel
+		cudaThreadSynchronize();
+		gettimeofday(&end, NULL);
+		t2 = end.tv_sec + end.tv_usec / 1000000.0;
+		diff = t2 - t1;
+		printf("   Track gamma particles %f s\n", diff);
+
+		// Interactions
+		gettimeofday(&start, NULL);
+		t1 = start.tv_sec + start.tv_usec / 1000000.0;
+		kernel_interactions<<<grid, threads>>>(stackgamma, ddose, dimvol);
+		cudaThreadSynchronize();
+		gettimeofday(&end, NULL);
+		t2 = end.tv_sec + end.tv_usec / 1000000.0;
+		diff = t2 - t1;
+		printf("   Interactions gamma particles %f s\n", diff);
+
+		// Collector
+		gettimeofday(&start, NULL);
+		t1 = start.tv_sec + start.tv_usec / 1000000.0;
+		cudaMemcpy(collector.E, stackgamma.E, mem_stack_float, cudaMemcpyDeviceToHost);
+		cudaMemcpy(collector.dx, stackgamma.dx, mem_stack_float, cudaMemcpyDeviceToHost);
+		cudaMemcpy(collector.dy, stackgamma.dy, mem_stack_float, cudaMemcpyDeviceToHost);
+		cudaMemcpy(collector.dz, stackgamma.dz, mem_stack_float, cudaMemcpyDeviceToHost);
+		cudaMemcpy(collector.px, stackgamma.px, mem_stack_float, cudaMemcpyDeviceToHost);
+		cudaMemcpy(collector.py, stackgamma.py, mem_stack_float, cudaMemcpyDeviceToHost);
+		cudaMemcpy(collector.pz, stackgamma.pz, mem_stack_float, cudaMemcpyDeviceToHost);
+		cudaMemcpy(collector.live, stackgamma.live, mem_stack_char, cudaMemcpyDeviceToHost);
+		cudaMemcpy(collector.in, stackgamma.in, mem_stack_char, cudaMemcpyDeviceToHost);
+		cudaMemcpy(collector.ct_eff, stackgamma.ct_eff, mem_stack_int, cudaMemcpyDeviceToHost);
+		cudaMemcpy(collector.ct_Cpt, stackgamma.ct_Cpt, mem_stack_int, cudaMemcpyDeviceToHost);
+		cudaMemcpy(collector.ct_PE, stackgamma.ct_PE, mem_stack_int, cudaMemcpyDeviceToHost);			
+		gettimeofday(&end, NULL);
+		t2 = end.tv_sec + end.tv_usec / 1000000.0;
+		diff = t2 - t1;
+		printf("   Get back stack of gamma particles %f s\n", diff);
+
+		gettimeofday(&start, NULL);
+		t1 = start.tv_sec + start.tv_usec / 1000000.0;
+		int c1=0;
+		int c2=0;
+		int c3=0;
+		int c4=0;
+		n=0;
+		while(n<nparticles && countparticle<nparticles) {
+			if (collector.in[n] == 0) {
+				E[countparticle] = collector.E[n];
+				dx[countparticle] = collector.dx[n];
+				dy[countparticle] = collector.dy[n];
+				dz[countparticle] = collector.dz[n];
+				px[countparticle] = collector.px[n];
+				py[countparticle] = collector.py[n];
+				pz[countparticle] = collector.pz[n];
+				++countparticle;
+			}
+			if (collector.live[n] == 0) {++c1;}
+			c2 += collector.ct_eff[n];
+			c3 += collector.ct_Cpt[n];
+			c4 += collector.ct_PE[n];
+			++n;
+		}
+		gettimeofday(&end, NULL);
+		t2 = end.tv_sec + end.tv_usec / 1000000.0;
+		diff = t2 - t1;
+		
+		printf("   Store gamma particles %f s\n", diff);
+		printf("   Nb particles outside %i absorbed %i\n", countparticle, c1);
+		printf("   Tot interaction %i: %i Compton %i Photo-Electric\n", c2, c3, c4);
+
+	} // outter loop (step)
 	
 	//cudaMemcpy(tmp, stackgamma.seed, mem_stack_int, cudaMemcpyDeviceToHost);
-	cudaMemcpy(vol, dtrack, mem_vol, cudaMemcpyDeviceToHost);
-	//printf("new seed %i\n", tmp[0]);
+	//cudaMemcpy(vol, dtrack, mem_vol, cudaMemcpyDeviceToHost);
+	cudaMemcpy(vol, ddose, mem_vol, cudaMemcpyDeviceToHost);
 
+	// Clean memory
+	free(collector.E);
+	free(collector.dx);
+	free(collector.dy);
+	free(collector.dz);
+	free(collector.px);
+	free(collector.py);
+	free(collector.pz);
+	free(collector.live);
+	free(collector.in);
+	free(collector.ct_eff);
+	free(collector.ct_Cpt);
+	free(collector.ct_PE);
+	
+	cudaUnbindTexture(tex_vol);
 	cudaFree(dvol);
+	cudaFree(ddose);
 	cudaFree(stackgamma.E);
 	cudaFree(stackgamma.dx);
 	cudaFree(stackgamma.dy);
@@ -606,7 +1015,10 @@ void mc_cuda(float* vol, int nz, int ny, int nx, int nparticles) {
 	cudaFree(stackgamma.pz);
 	cudaFree(stackgamma.live);
 	cudaFree(stackgamma.in);
-	cudaFree(stackgamma.seed);	
+	cudaFree(stackgamma.seed);
+	cudaFree(stackgamma.ct_eff);
+	cudaFree(stackgamma.ct_Cpt);
+	cudaFree(stackgamma.ct_PE);
 	cudaThreadExit();
 
 }

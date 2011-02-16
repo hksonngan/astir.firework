@@ -29,4 +29,7 @@
 import_array();
 %}
 
-void mc_cuda(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, int nlines);
+void mc_cuda(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
+			 float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
+			 float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
+			 int nparticles);

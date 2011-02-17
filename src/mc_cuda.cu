@@ -30,6 +30,8 @@
 __constant__ const float pi = 3.14159265358979323846;
 __constant__ const float twopi = 2*pi;
 texture<float, 1, cudaReadModeElementType> tex_vol;
+texture<float, 1, cudaReadModeElementType> tex_rayl_cs;
+texture<float, 1, cudaReadModeElementType> tex_rayl_ff;
 
 // Stack of gamma particles, format data is defined as SoA
 struct StackGamma{
@@ -44,6 +46,7 @@ struct StackGamma{
 	int* ct_eff;
 	int* ct_Cpt;
 	int* ct_PE;
+	int* ct_Ray;
 	unsigned char* live;
 	unsigned char* in;
 	unsigned int size;
@@ -182,13 +185,13 @@ __device__ float Compton_scatter(StackGamma stackgamma, unsigned int id) {
 	return acos(1.0f - onecost);
 }
 
-// PhotoElectric Cross Section Per Atom, use Sandia data and load 21,236 Bytes on constant memory.
+// PhotoElectric Cross Section Per Atom, use Sandia data and load 21,236 Bytes in constant memory.
 __device__ float PhotoElec_CSPA(float E, int Z) {
 	float Emin = fmax(fIonizationPotentials[Z]*1e-6f, 0.01e-3f); // from Sandia, the same for all Z
 	if (E < Emin) {return 0.0f;}
 	
 	int start = fCumulIntervals[Z];
-	int stop = start + fNbOfIntervals[Z] - 1.0f;
+	int stop = start + fNbOfIntervals[Z] - 1;
 	int pos;
 	for (pos=stop; pos>start; --pos) {
 		if (E < fSandiaTable[pos][0]*1.0e-3f) {break;}
@@ -203,79 +206,151 @@ __device__ float PhotoElec_CSPA(float E, int Z) {
 		+ rE2 * rE2 * fSandiaTable[pos][4] * AoverAvo * 0.160217648e-31f;
 }
 
+// Rayleigh Cross Section Per Atom and Form Factor, use Rayleigh data table, and load 1,616 Bytes in constant memory,
+// and 970,560 Bytes in texture memory
+__device__ float Rayleigh_CSPA(float E, int Z) {
+	if (E < 250e-6f || E > 100e3f) {return 0.0f;} // 250 eV < E < 100 GeV
+
+	int start = Rayleigh_cs_CumulIntervals[Z];
+	int stop  = start + 2 * (Rayleigh_cs_NbIntervals[Z] - 1);
+
+	int pos;
+	for (pos=start; pos<stop; pos+=2) {
+		if (tex1Dfetch(tex_rayl_cs, pos) >= E) {break;}
+	}
+	return tex1Dfetch(tex_rayl_cs, pos+1);
+	float hi_E = tex1Dfetch(tex_rayl_cs, pos);
+	float lo_cs = tex1Dfetch(tex_rayl_cs, pos-1);
+	if (E < 1e3f) { // 1 Gev
+		float rlo_E = __fdividef(1.0f, tex1Dfetch(tex_rayl_cs, pos-2));
+		float logcs = __log10f(tex1Dfetch(tex_rayl_cs, pos-1)) * __log10f(__fdividef(hi_E, E))
+			+ __log10f(tex1Dfetch(tex_rayl_cs, pos+1)) * __fdividef(__log10f(E * rlo_E), __log10f(hi_E * rlo_E));
+		return __powf(10.0f, logcs) * 1.0e-22f;
+	}
+	else {return lo_cs * 1.0e-22f;}
+}
+__device__ float Rayleigh_FF(float E, int Z) {
+	int start = Rayleigh_ff_CumulIntervals[Z];
+	int stop  = start + 2 * (Rayleigh_ff_NbIntervals[Z] - 1);
+	int pos;
+	for (pos=start; pos<stop; pos+=2) {
+		if (tex1Dfetch(tex_rayl_ff, pos) >= E) {break;}
+	}
+	float hi_E = tex1Dfetch(tex_rayl_ff, pos);
+	float lo_cs = tex1Dfetch(tex_rayl_ff, pos-1);
+	if (E < 1e3f) { // 1 Gev
+		float rlo_E = __fdividef(1.0f, tex1Dfetch(tex_rayl_ff, pos-2));
+		float logcs = __log10f(tex1Dfetch(tex_rayl_ff, pos-1)) * __log10f(__fdividef(hi_E, E))
+			+ __log10f(tex1Dfetch(tex_rayl_ff, pos+1)) * __fdividef(__log10f(E * rlo_E), __log10f(hi_E * rlo_E));
+		return __powf(10.0f, logcs);
+	}
+	else {return lo_cs;}
+}
+
+// Rayleigh Scatter
+__device__ float Rayleigh_scatter(StackGamma stackgamma, unsigned int id, int Z) {
+	float E = stackgamma.E[id];
+	if (E <= 250.0e-6f) { // 250 eV
+		stackgamma.live[id] = 0;
+		return 0.0f;
+	}
+	int seed = stackgamma.seed[id];
+	float wphot = __fdividef(123.984187539e-11f, E);
+	float costheta, sinthetahalf, FF;
+	do {
+		if (E > 5.0f) {costheta = 1.0f;}
+		else {
+			do {
+				costheta = 2.0f * park_miller_jb(&seed) - 1.0f;
+			} while (((1.0f + costheta*costheta)*0.5f) < park_miller_jb(&seed));
+		}
+		sinthetahalf = sqrt((1.0f - costheta) * 0.5f);
+		E = __fdividef(sinthetahalf, wphot * 0.1f);
+		FF = (E > 1.0e5f)? Rayleigh_FF(E, Z) : Rayleigh_FF(0.0f, Z);
+		// reuse costheta as sintheta
+		costheta = sqrt(1.0f - costheta*costheta);
+	} while (FF*FF < (park_miller_jb(&seed) * Z*Z));
+
+	return asin(costheta);
+}
+
+/***********************************************************
+ * Materials
+ ***********************************************************/
 __device__ float Compton_mu_Water(float E) {
 	// H2O
 	return (2*Compton_CSPA(E, 1) + Compton_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
 }
-__device__ float Compton_mu_Plastic(float E) {
-	// 5C8H2O
-	return (5*Compton_CSPA(E, 6) + 8*Compton_CSPA(E, 1) + 2*Compton_CSPA(E, 8)) * 7.096901340e17f;
-}
-__device__ float Compton_mu_Al(float E) {
-	// Al
-	return Compton_CSPA(E, 13) * 6.024030465e+19f; // Avogadro*Al_density/a_Al
-}
-__device__ float Compton_mu_Air(float E) {
-	// O N Ar C
-	return (0.231781f*Compton_CSPA(E, 8) + 0.755268f*Compton_CSPA(E, 7)
-			+ 0.012827f*Compton_CSPA(E, 18) + 0.000124f*Compton_CSPA(E, 6)) * 5.247706935e17f;
-}
-__device__ float Compton_mu_Body(float E) {
-	// H O
-	return (0.112f*Compton_CSPA(E, 1) + 0.888f*Compton_CSPA(E, 8)) * 4.205077389e18f;
-}
-__device__ float Compton_mu_Lung(float E) {
-	// H C N O Na P S Cl K
-	return (0.103f*Compton_CSPA(E, 1)+ 0.105f*Compton_CSPA(E, 6) + 0.031f*Compton_CSPA(E, 7)
-			+ 0.749f*Compton_CSPA(E, 8) + 0.002f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
-			+ 0.003f*Compton_CSPA(E, 16) + 0.003f*Compton_CSPA(E, 17) + 0.002f*Compton_CSPA(E, 19)) * 1.232299227e18f;
-}
-__device__ float Compton_mu_RibBone(float E) {
-	// H C N O Na Mg P S Ca
-	return (0.034f*Compton_CSPA(E, 1) + 0.155f*Compton_CSPA(E, 6) + 0.042f*Compton_CSPA(E, 7)
-			+ 0.435f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 12)
-			+ 0.103f*Compton_CSPA(E, 15) + 0.003f*Compton_CSPA(E, 16) + 0.225f*Compton_CSPA(E, 20)) * 5.299038816e18f;
-}
-__device__ float Compton_mu_SpineBone(float E) {
-	// H C N O Na Mg P S Cl K Ca
-	return (0.063f*Compton_CSPA(E, 1) + 0.261f*Compton_CSPA(E, 6) + 0.039f*Compton_CSPA(E, 7)
-			+ 0.436f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 12)
-			+ 0.061f*Compton_CSPA(E, 15) + 0.003f*Compton_CSPA(E, 16) + 0.001f*Compton_CSPA(E, 17)
-			+ 0.001f*Compton_CSPA(E, 19) + 0.133f*Compton_CSPA(E, 20)) * 4.709337384e18f;
-}
-__device__ float Compton_mu_Heart(float E) {
-	// H C N O Na P S Cl K
-	return (0.104f*Compton_CSPA(E, 1) + 0.139f*Compton_CSPA(E, 6) + 0.029f*Compton_CSPA(E, 7)
-			+ 0.718f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
-			+ 0.002f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.003f*Compton_CSPA(E, 19)) * 4.514679219e18f;
-}
-__device__ float Compton_mu_Breast(float E) {
-	// H C N O Na P S Cl
-	return (0.106f*Compton_CSPA(E, 1) + 0.332f*Compton_CSPA(E, 6) + 0.03f*Compton_CSPA(E, 7)
-			+ 0.527f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 15)
-			+ 0.002f*Compton_CSPA(E, 16) + 0.001f*Compton_CSPA(E, 17)) * 4.688916436e18f;
-}
-
 __device__ float PhotoElec_mu_Water(float E) {
 	// H2O
 	return (2*PhotoElec_CSPA(E, 1) + PhotoElec_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
+}
+__device__ float Rayleigh_mu_Water(float E) {
+	// H2O
+	return Rayleigh_CSPA(E, 1);
+	//return (2*Rayleigh_CSPA(E, 1) + Rayleigh_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
+}
+
+__device__ float Compton_mu_Plastic(float E) {
+	// 5C8H2O
+	return (5*Compton_CSPA(E, 6) + 8*Compton_CSPA(E, 1) + 2*Compton_CSPA(E, 8)) * 7.096901340e17f;
 }
 __device__ float PhotoElec_mu_Plastic(float E) {
 	// 5C8H2O
 	return (5*PhotoElec_CSPA(E, 6) + 8*PhotoElec_CSPA(E, 1) + 2*PhotoElec_CSPA(E, 8)) * 7.096901340e17f;
 }
+__device__ float Rayleigh_mu_Plastic(float E) {
+	// 5C8H2O
+	return (5*Rayleigh_CSPA(E, 6) + 8*Rayleigh_CSPA(E, 1) + 2*Rayleigh_CSPA(E, 8)) * 7.096901340e17f;
+}
+
+__device__ float Compton_mu_Al(float E) {
+	// Al
+	return Compton_CSPA(E, 13) * 6.024030465e+19f; // Avogadro*Al_density/a_Al
+}
 __device__ float PhotoElec_mu_Al(float E) {
 	// Al
 	return PhotoElec_CSPA(E, 13) * 6.024030465e+19f; // Avogadro*Al_density/a_Al
+}
+__device__ float Rayleigh_mu_Al(float E) {
+	// Al
+	return Rayleigh_CSPA(E, 13) * 6.024030465e+19f; // Avogadro*Al_density/a_Al
+}
+
+__device__ float Compton_mu_Air(float E) {
+	// O N Ar C
+	return (0.231781f*Compton_CSPA(E, 8) + 0.755268f*Compton_CSPA(E, 7)
+			+ 0.012827f*Compton_CSPA(E, 18) + 0.000124f*Compton_CSPA(E, 6)) * 5.247706935e17f;
 }
 __device__ float PhotoElec_mu_Air(float E) {
 	// O N Ar C
 	return (0.231781f*PhotoElec_CSPA(E, 8) + 0.755268f*PhotoElec_CSPA(E, 7)
 			+ 0.012827f*PhotoElec_CSPA(E, 18) + 0.000124f*PhotoElec_CSPA(E, 6)) * 5.247706935e17f;
 }
+__device__ float Rayleigh_mu_Air(float E) {
+	// O N Ar C
+	return (0.231781f*Rayleigh_CSPA(E, 8) + 0.755268f*Rayleigh_CSPA(E, 7)
+			+ 0.012827f*Rayleigh_CSPA(E, 18) + 0.000124f*Rayleigh_CSPA(E, 6)) * 5.247706935e17f;
+}
+
+__device__ float Compton_mu_Body(float E) {
+	// H O
+	return (0.112f*Compton_CSPA(E, 1) + 0.888f*Compton_CSPA(E, 8)) * 4.205077389e18f;
+}
 __device__ float PhotoElec_mu_Body(float E) {
 	// H O
 	return (0.112f*PhotoElec_CSPA(E, 1) + 0.888f*PhotoElec_CSPA(E, 8)) * 4.205077389e18f;
+}
+__device__ float Rayleigh_mu_Body(float E) {
+	// H O
+	return (0.112f*Rayleigh_CSPA(E, 1) + 0.888f*Rayleigh_CSPA(E, 8)) * 4.205077389e18f;
+}
+
+__device__ float Compton_mu_Lung(float E) {
+	// H C N O Na P S Cl K
+	return (0.103f*Compton_CSPA(E, 1)+ 0.105f*Compton_CSPA(E, 6) + 0.031f*Compton_CSPA(E, 7)
+			+ 0.749f*Compton_CSPA(E, 8) + 0.002f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
+			+ 0.003f*Compton_CSPA(E, 16) + 0.003f*Compton_CSPA(E, 17) + 0.002f*Compton_CSPA(E, 19)) * 1.232299227e18f;
 }
 __device__ float PhotoElec_mu_Lung(float E) {
 	// H C N O Na P S Cl K
@@ -283,11 +358,38 @@ __device__ float PhotoElec_mu_Lung(float E) {
 			+ 0.749f*PhotoElec_CSPA(E, 8) + 0.002f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 15)
 			+ 0.003f*PhotoElec_CSPA(E, 16) + 0.003f*PhotoElec_CSPA(E, 17) + 0.002f*PhotoElec_CSPA(E, 19)) * 1.232299227e18f;
 }
+__device__ float Rayleigh_mu_Lung(float E) {
+	// H C N O Na P S Cl K
+	return (0.103f*Rayleigh_CSPA(E, 1)+ 0.105f*Rayleigh_CSPA(E, 6) + 0.031f*Rayleigh_CSPA(E, 7)
+			+ 0.749f*Rayleigh_CSPA(E, 8) + 0.002f*Rayleigh_CSPA(E, 11) + 0.002f*Rayleigh_CSPA(E, 15)
+			+ 0.003f*Rayleigh_CSPA(E, 16) + 0.003f*Rayleigh_CSPA(E, 17) + 0.002f*Rayleigh_CSPA(E, 19)) * 1.232299227e18f;
+}
+
+__device__ float Compton_mu_RibBone(float E) {
+	// H C N O Na Mg P S Ca
+	return (0.034f*Compton_CSPA(E, 1) + 0.155f*Compton_CSPA(E, 6) + 0.042f*Compton_CSPA(E, 7)
+			+ 0.435f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 12)
+			+ 0.103f*Compton_CSPA(E, 15) + 0.003f*Compton_CSPA(E, 16) + 0.225f*Compton_CSPA(E, 20)) * 5.299038816e18f;
+}
 __device__ float PhotoElec_mu_RibBone(float E) {
 	// H C N O Na Mg P S Ca
 	return (0.034f*PhotoElec_CSPA(E, 1) + 0.155f*PhotoElec_CSPA(E, 6) + 0.042f*PhotoElec_CSPA(E, 7)
 			+ 0.435f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 12)
 			+ 0.103f*PhotoElec_CSPA(E, 15) + 0.003f*PhotoElec_CSPA(E, 16) + 0.225f*PhotoElec_CSPA(E, 20)) * 5.299038816e18f;
+}
+__device__ float Rayleigh_mu_RibBone(float E) {
+	// H C N O Na Mg P S Ca
+	return (0.034f*Rayleigh_CSPA(E, 1) + 0.155f*Rayleigh_CSPA(E, 6) + 0.042f*Rayleigh_CSPA(E, 7)
+			+ 0.435f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.002f*Rayleigh_CSPA(E, 12)
+			+ 0.103f*Rayleigh_CSPA(E, 15) + 0.003f*Rayleigh_CSPA(E, 16) + 0.225f*Rayleigh_CSPA(E, 20)) * 5.299038816e18f;
+}
+
+__device__ float Compton_mu_SpineBone(float E) {
+	// H C N O Na Mg P S Cl K Ca
+	return (0.063f*Compton_CSPA(E, 1) + 0.261f*Compton_CSPA(E, 6) + 0.039f*Compton_CSPA(E, 7)
+			+ 0.436f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 12)
+			+ 0.061f*Compton_CSPA(E, 15) + 0.003f*Compton_CSPA(E, 16) + 0.001f*Compton_CSPA(E, 17)
+			+ 0.001f*Compton_CSPA(E, 19) + 0.133f*Compton_CSPA(E, 20)) * 4.709337384e18f;
 }
 __device__ float PhotoElec_mu_SpineBone(float E) {
 	// H C N O Na Mg P S Cl K Ca
@@ -296,11 +398,38 @@ __device__ float PhotoElec_mu_SpineBone(float E) {
 			+ 0.061f*PhotoElec_CSPA(E, 15) + 0.003f*PhotoElec_CSPA(E, 16) + 0.001f*PhotoElec_CSPA(E, 17)
 			+ 0.001f*PhotoElec_CSPA(E, 19) + 0.133f*PhotoElec_CSPA(E, 20)) * 4.709337384e18f;
 }
+__device__ float Rayleigh_mu_SpineBone(float E) {
+	// H C N O Na Mg P S Cl K Ca
+	return (0.063f*Rayleigh_CSPA(E, 1) + 0.261f*Rayleigh_CSPA(E, 6) + 0.039f*Rayleigh_CSPA(E, 7)
+			+ 0.436f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.001f*Rayleigh_CSPA(E, 12)
+			+ 0.061f*Rayleigh_CSPA(E, 15) + 0.003f*Rayleigh_CSPA(E, 16) + 0.001f*Rayleigh_CSPA(E, 17)
+			+ 0.001f*Rayleigh_CSPA(E, 19) + 0.133f*Rayleigh_CSPA(E, 20)) * 4.709337384e18f;
+}
+
+__device__ float Compton_mu_Heart(float E) {
+	// H C N O Na P S Cl K
+	return (0.104f*Compton_CSPA(E, 1) + 0.139f*Compton_CSPA(E, 6) + 0.029f*Compton_CSPA(E, 7)
+			+ 0.718f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
+			+ 0.002f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.003f*Compton_CSPA(E, 19)) * 4.514679219e18f;
+}
 __device__ float PhotoElec_mu_Heart(float E) {
 	// H C N O Na P S Cl K
 	return (0.104f*PhotoElec_CSPA(E, 1) + 0.139f*PhotoElec_CSPA(E, 6) + 0.029f*PhotoElec_CSPA(E, 7)
 			+ 0.718f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 15)
 			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.003f*PhotoElec_CSPA(E, 19)) * 4.514679219e18f;
+}
+__device__ float Rayleigh_mu_Heart(float E) {
+	// H C N O Na P S Cl K
+	return (0.104f*Rayleigh_CSPA(E, 1) + 0.139f*Rayleigh_CSPA(E, 6) + 0.029f*Rayleigh_CSPA(E, 7)
+			+ 0.718f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.002f*Rayleigh_CSPA(E, 15)
+			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.002f*Rayleigh_CSPA(E, 17) + 0.003f*Rayleigh_CSPA(E, 19)) * 4.514679219e18f;
+}
+
+__device__ float Compton_mu_Breast(float E) {
+	// H C N O Na P S Cl
+	return (0.106f*Compton_CSPA(E, 1) + 0.332f*Compton_CSPA(E, 6) + 0.03f*Compton_CSPA(E, 7)
+			+ 0.527f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 15)
+			+ 0.002f*Compton_CSPA(E, 16) + 0.001f*Compton_CSPA(E, 17)) * 4.688916436e18f;
 }
 __device__ float PhotoElec_mu_Breast(float E) {
 	// H C N O Na P S Cl
@@ -308,30 +437,57 @@ __device__ float PhotoElec_mu_Breast(float E) {
 			+ 0.527f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.001f*PhotoElec_CSPA(E, 15)
 			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.001f*PhotoElec_CSPA(E, 17)) * 4.688916436e18f;
 }
+__device__ float Rayleigh_mu_Breast(float E) {
+	// H C N O Na P S Cl
+	return (0.106f*Rayleigh_CSPA(E, 1) + 0.332f*Rayleigh_CSPA(E, 6) + 0.03f*Rayleigh_CSPA(E, 7)
+			+ 0.527f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.001f*Rayleigh_CSPA(E, 15)
+			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.001f*Rayleigh_CSPA(E, 17)) * 4.688916436e18f;
+}
 
 // return attenuation according materials 
 __device__ float att_from_mat(int mat, float E) {
 	switch (mat) {
-	case 0:     return Compton_mu_Air(E) + PhotoElec_mu_Air(E);
-	case 1:     return Compton_mu_Body(E) + PhotoElec_mu_Body(E);
-	case 2:     return Compton_mu_Lung(E) + PhotoElec_mu_Lung(E);
-	case 3:     return Compton_mu_Breast(E) + PhotoElec_mu_Breast(E);
-	case 4:     return Compton_mu_Heart(E) + PhotoElec_mu_Heart(E);
-	case 5:     return Compton_mu_SpineBone(E) + PhotoElec_mu_SpineBone(E);
-	case 6:     return Compton_mu_RibBone(E) + PhotoElec_mu_RibBone(E);
-	case 98:    return Compton_mu_Plastic(E) + PhotoElec_mu_Plastic(E);
-	case 99:	return Compton_mu_Water(E) + PhotoElec_mu_Water(E);
-	case 100:	return Compton_mu_Al(E) + PhotoElec_mu_Al(E);
+	case 0:     return Compton_mu_Air(E) + PhotoElec_mu_Air(E) + Rayleigh_mu_Air(E);
+	case 1:     return Compton_mu_Body(E) + PhotoElec_mu_Body(E) + Rayleigh_mu_Body(E);
+	case 2:     return Compton_mu_Lung(E) + PhotoElec_mu_Lung(E) + Rayleigh_mu_Lung(E);
+	case 3:     return Compton_mu_Breast(E) + PhotoElec_mu_Breast(E) + Rayleigh_mu_Breast(E);
+	case 4:     return Compton_mu_Heart(E) + PhotoElec_mu_Heart(E) + Rayleigh_mu_Heart(E);
+	case 5:     return Compton_mu_SpineBone(E) + PhotoElec_mu_SpineBone(E) + Rayleigh_mu_SpineBone(E);
+	case 6:     return Compton_mu_RibBone(E) + PhotoElec_mu_RibBone(E) + Rayleigh_mu_RibBone(E);
+	case 98:    return Compton_mu_Plastic(E) + PhotoElec_mu_Plastic(E) + Rayleigh_mu_Plastic(E);
+	case 99:	return Rayleigh_mu_Water(E); //Compton_mu_Water(E); // + PhotoElec_mu_Water(E) + Rayleigh_mu_Water(E);
+	case 100:	return Compton_mu_Al(E) + PhotoElec_mu_Al(E) + Rayleigh_mu_Al(E);
 	}
 	return 0.0f;
 }
 
+// return E element according materials and a random number (roulette-wheel method)
+__device__ int rnd_Z_from_mat(int mat, float rnd) {
+	int pos = 0;
+	switch (mat) {
+	case 0:     while(Air_cumul[pos] < rnd) {++pos;}; return Air_Z[pos];
+	case 1:     while(Body_cumul[pos] < rnd) {++pos;}; return Body_Z[pos];
+	case 2:     while(Lung_cumul[pos] < rnd) {++pos;}; return Lung_Z[pos];
+	case 3:     while(Breast_cumul[pos] < rnd) {++pos;}; return Breast_Z[pos];
+	case 4:     while(Heart_cumul[pos] < rnd) {++pos;}; return Heart_Z[pos];
+	case 5:     while(SpineBone_cumul[pos] < rnd) {++pos;}; return SpineBone_Z[pos];
+	case 6:     while(RibBone_cumul[pos] < rnd) {++pos;}; return RibBone_Z[pos];
+	case 98:    while(Plastic_cumul[pos] < rnd) {++pos;}; return Plastic_Z[pos];
+	case 99:	while(Water_cumul[pos] < rnd) {++pos;}; return Water_Z[pos];
+	case 100:	while(Al_cumul[pos] < rnd) {++pos;}; return Al_Z[pos];
+	}
+	return 0; // In order to avoid a warning during the compilation
+}
+
+/***********************************************************
+ * Interactions
+ ***********************************************************/
 
 // Kernel interactions
 __global__ void kernel_interactions(StackGamma stackgamma, float* ddose, int3 dimvol) {
 	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	float theta, phi, dx, dy, dz, oldE, depdose;
-	float Compton_CS, PhotoElec_CS, tot_CS, effect;
+	float Compton_CS, PhotoElec_CS, Rayleigh_CS, tot_CS, effect;
 	int px, py, pz, jump, mat;
 	int seed;
 	if (id < stackgamma.size) {
@@ -350,22 +506,52 @@ __global__ void kernel_interactions(StackGamma stackgamma, float* ddose, int3 di
 		mat = tex1Dfetch(tex_vol, pz*jump + py*dimvol.x + px);
 
 		switch (mat) {
-		case 0:     Compton_CS = Compton_mu_Air(oldE);       PhotoElec_CS = PhotoElec_mu_Air(oldE); break;
-		case 1:     Compton_CS = Compton_mu_Body(oldE);      PhotoElec_CS = PhotoElec_mu_Body(oldE); break;
-		case 2:     Compton_CS = Compton_mu_Lung(oldE);      PhotoElec_CS = PhotoElec_mu_Lung(oldE); break;
-		case 3:     Compton_CS = Compton_mu_Breast(oldE);    PhotoElec_CS = PhotoElec_mu_Breast(oldE); break;
-		case 4:     Compton_CS = Compton_mu_Heart(oldE);     PhotoElec_CS = PhotoElec_mu_Heart(oldE); break;
-		case 5:     Compton_CS = Compton_mu_SpineBone(oldE); PhotoElec_CS = PhotoElec_mu_SpineBone(oldE); break;
-		case 6:     Compton_CS = Compton_mu_RibBone(oldE);   PhotoElec_CS = PhotoElec_mu_RibBone(oldE); break;
-		case 98:    Compton_CS = Compton_mu_Plastic(oldE);   PhotoElec_CS = PhotoElec_mu_Plastic(oldE); break;
-		case 99:	Compton_CS = Compton_mu_Water(oldE);     PhotoElec_CS = PhotoElec_mu_Water(oldE); break;
-		case 100:	Compton_CS = Compton_mu_Al(oldE);        PhotoElec_CS = PhotoElec_mu_Al(oldE); break;
+		case 0:
+			Compton_CS = Compton_mu_Air(oldE);
+			PhotoElec_CS = PhotoElec_mu_Air(oldE);
+			Rayleigh_CS = Rayleigh_mu_Air(oldE); break;
+		case 1:
+			Compton_CS = Compton_mu_Body(oldE);
+			PhotoElec_CS = PhotoElec_mu_Body(oldE);
+			Rayleigh_CS = Rayleigh_mu_Body(oldE); break;
+		case 2:
+			Compton_CS = Compton_mu_Lung(oldE);
+			PhotoElec_CS = PhotoElec_mu_Lung(oldE);
+			Rayleigh_CS = Rayleigh_mu_Lung(oldE); break;
+		case 3:
+			Compton_CS = Compton_mu_Breast(oldE);
+			PhotoElec_CS = PhotoElec_mu_Breast(oldE);
+			Rayleigh_CS = Rayleigh_mu_Breast(oldE); break;
+		case 4:
+			Compton_CS = Compton_mu_Heart(oldE);
+			PhotoElec_CS = PhotoElec_mu_Heart(oldE);
+			Rayleigh_CS = Rayleigh_mu_Heart(oldE); break;
+		case 5:
+			Compton_CS = Compton_mu_SpineBone(oldE);
+			PhotoElec_CS = PhotoElec_mu_SpineBone(oldE);
+			Rayleigh_CS = Rayleigh_mu_SpineBone(oldE); break;
+		case 6:
+			Compton_CS = Compton_mu_RibBone(oldE);
+			PhotoElec_CS = PhotoElec_mu_RibBone(oldE);
+			Rayleigh_CS = Rayleigh_mu_RibBone(oldE); break;
+		case 98:
+			Compton_CS = Compton_mu_Plastic(oldE);
+			PhotoElec_CS = PhotoElec_mu_Plastic(oldE);
+			Rayleigh_CS = Rayleigh_mu_Plastic(oldE); break;
+		case 99:
+			Compton_CS = Compton_mu_Water(oldE);
+			PhotoElec_CS = PhotoElec_mu_Water(oldE);
+			Rayleigh_CS = Rayleigh_mu_Water(oldE); break;
+		case 100:
+			Compton_CS = Compton_mu_Al(oldE);
+			PhotoElec_CS = PhotoElec_mu_Al(oldE);
+			Rayleigh_CS = Rayleigh_mu_Al(oldE); break;
 		}
-
+		
 		// Select effect
-		tot_CS = Compton_CS + PhotoElec_CS;
+		tot_CS = Compton_CS + PhotoElec_CS + Rayleigh_CS;
 		PhotoElec_CS = __fdividef(PhotoElec_CS, tot_CS);
-		Compton_CS = 1.0f;
+		Compton_CS = __fdividef(Compton_CS, tot_CS) + PhotoElec_CS;
 		effect = park_miller_jb(&seed);
 
 		if (effect <= PhotoElec_CS) {
@@ -380,12 +566,22 @@ __global__ void kernel_interactions(StackGamma stackgamma, float* ddose, int3 di
 		if (effect > PhotoElec_CS && effect <= Compton_CS) {
 			// Compton scattering
 			theta = Compton_scatter(stackgamma, id);
-			phi = park_miller_jb(&seed) * 2 * twopi;
+			phi = park_miller_jb(&seed) * 2.0f * twopi;
 			// !!!!! WARNING: should be 2*pi instead of 4*pi, it is to fix a pb with ParkMiller
 			//                only uniform in half range ?! so the range must be twice.
 			depdose = oldE - stackgamma.E[id];
 			++stackgamma.ct_eff[id];
 			++stackgamma.ct_Cpt[id];
+		}
+		if (effect > Compton_CS) {
+			phi = park_miller_jb(&seed); // rnd number
+			theta = Rayleigh_scatter(stackgamma, id, rnd_Z_from_mat(mat, phi)); // phi is a random number
+			phi = park_miller_jb(&seed) * 2.0f * twopi;
+			// !!!!! WARNING: should be 2*pi instead of 4*pi, it is to fix a pb with ParkMiller
+			//                only uniform in half range ?! so the range must be twice.
+			++stackgamma.ct_eff[id];
+			++stackgamma.ct_Ray[id];
+			depdose = 0.0f;
 		}
 
 		// Dose depot
@@ -425,7 +621,7 @@ __global__ void kernel_interactions(StackGamma stackgamma, float* ddose, int3 di
 
 
 /***********************************************************
- * Managment
+ * Sources
  ***********************************************************/
 __global__ void kernel_particle_rnd(StackGamma stackgamma, int3 dimvol) {
 	unsigned int id = __umul24(blockIdx.x, blockDim.x)+threadIdx.x;
@@ -471,6 +667,7 @@ __global__ void kernel_particle_gun(StackGamma stackgamma, int3 dimvol,
 			stackgamma.ct_eff[id] = 0;
 			stackgamma.ct_Cpt[id] = 0;
 			stackgamma.ct_PE[id] = 0;
+			stackgamma.ct_Ray[id] = 0;
 		}
 	}
 }
@@ -499,6 +696,7 @@ __global__ void kernel_particle_largegun(StackGamma stackgamma, int3 dimvol,
 			stackgamma.ct_eff[id] = 0;
 			stackgamma.ct_Cpt[id] = 0;
 			stackgamma.ct_PE[id] = 0;
+			stackgamma.ct_Ray[id] = 0;
 		}
 	}
 
@@ -616,6 +814,17 @@ __global__ void kernel_siddon(int3 dimvol, StackGamma stackgamma, float* dtrack,
 
 	} // id < nx
 
+}
+
+
+/***********************************************************
+ * Utils
+ ***********************************************************/
+__global__ void kernel_CS_from_mat(float* dCS, float* dE, int nE, int mat) {
+	unsigned int id = __umul24(blockIdx.x, blockDim.x)+threadIdx.x;
+	if (id < nE) {
+		dCS[id] = att_from_mat(mat, dE[id]);
+	}
 }
 
 /*
@@ -843,7 +1052,33 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 	cudaMalloc((void**) &ddose, mem_vol);
 	cudaMemset(ddose, 0, mem_vol);
 
-	// Stacks
+	// Load Rayleigh cross section to the texture mem
+	FILE *pfile;
+	const int ncs = 213816;  // CS file contains 213,816 floats
+	const int nff = 28824;   // FF file contains  28,824 floats
+	unsigned int mem_cs = ncs * sizeof(float);
+	unsigned int mem_ff = nff * sizeof(float);
+	float* raylcs = (float*)malloc(mem_cs);
+	float* raylff = (float*)malloc(mem_ff);
+	pfile = fopen("rayleigh_cs.bin", "rb");
+	fread(raylcs, sizeof(float), ncs, pfile);
+	fclose(pfile);
+	pfile = fopen("rayleigh_ff.bin", "rb");
+	fread(raylff, sizeof(float), nff, pfile);
+	fclose(pfile);
+
+	float* draylcs;
+	cudaMalloc((void**) &draylcs, mem_cs);
+	cudaMemcpy(draylcs, raylcs, mem_cs, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_rayl_cs, draylcs, mem_cs);
+	free(raylcs);
+	float* draylff;	
+	cudaMalloc((void**) &draylff, mem_ff);
+	cudaMemcpy(draylff, raylff, mem_ff, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_rayl_ff, draylff, mem_ff);
+	free(raylff);
+	
+	// Defined Stacks
 	StackGamma stackgamma;
 	StackGamma collector;
 	stackgamma.size = nparticles;
@@ -865,6 +1100,7 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 	collector.ct_eff = (int*)malloc(mem_stack_int);
 	collector.ct_Cpt = (int*)malloc(mem_stack_int);
 	collector.ct_PE = (int*)malloc(mem_stack_int);
+	collector.ct_Ray = (int*)malloc(mem_stack_int);
 
 	// Device stack allocation memory
 	cudaMalloc((void**) &stackgamma.E, mem_stack_float);
@@ -880,6 +1116,7 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 	cudaMalloc((void**) &stackgamma.ct_eff, mem_stack_int);
 	cudaMalloc((void**) &stackgamma.ct_Cpt, mem_stack_int);
 	cudaMalloc((void**) &stackgamma.ct_PE, mem_stack_int);
+	cudaMalloc((void**) &stackgamma.ct_Ray, mem_stack_int);
 	cudaMemset(stackgamma.live, 0, mem_stack_char); // at beginning all particles are dead
 	cudaMemset(stackgamma.in, 0, mem_stack_char);   // and outside the volume
 	
@@ -904,7 +1141,7 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 		// Init particles
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
-		kernel_particle_largegun<<<grid, threads>>>(stackgamma, dimvol, 45.0, 0.0, 35.0, 0.0, 1.0, 0.0, 0.511, 5.0);
+		kernel_particle_largegun<<<grid, threads>>>(stackgamma, dimvol, 45.0, 0.0, 35.0, 0.0, 1.0, 0.0, 0.025, 5.0);
 		cudaThreadSynchronize();
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
@@ -945,7 +1182,8 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 		cudaMemcpy(collector.in, stackgamma.in, mem_stack_char, cudaMemcpyDeviceToHost);
 		cudaMemcpy(collector.ct_eff, stackgamma.ct_eff, mem_stack_int, cudaMemcpyDeviceToHost);
 		cudaMemcpy(collector.ct_Cpt, stackgamma.ct_Cpt, mem_stack_int, cudaMemcpyDeviceToHost);
-		cudaMemcpy(collector.ct_PE, stackgamma.ct_PE, mem_stack_int, cudaMemcpyDeviceToHost);			
+		cudaMemcpy(collector.ct_PE, stackgamma.ct_PE, mem_stack_int, cudaMemcpyDeviceToHost);
+		cudaMemcpy(collector.ct_Ray, stackgamma.ct_Ray, mem_stack_int, cudaMemcpyDeviceToHost);
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
 		diff = t2 - t1;
@@ -957,6 +1195,7 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 		int c2=0;
 		int c3=0;
 		int c4=0;
+		int c5=0;
 		n=0;
 		while(n<nparticles && countparticle<nparticles) {
 			if (collector.in[n] == 0) {
@@ -973,6 +1212,7 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 			c2 += collector.ct_eff[n];
 			c3 += collector.ct_Cpt[n];
 			c4 += collector.ct_PE[n];
+			c5 += collector.ct_Ray[n];
 			++n;
 		}
 		gettimeofday(&end, NULL);
@@ -981,7 +1221,7 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 		
 		printf("   Store gamma particles %f s\n", diff);
 		printf("   Nb particles outside %i absorbed %i\n", countparticle, c1);
-		printf("   Tot interaction %i: %i Compton %i Photo-Electric\n", c2, c3, c4);
+		printf("   Tot interaction %i: %i Compton %i Photo-Electric %i Rayleigh\n", c2, c3, c4, c5);
 
 	} // outter loop (step)
 	
@@ -1002,8 +1242,13 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 	free(collector.ct_eff);
 	free(collector.ct_Cpt);
 	free(collector.ct_PE);
+	free(collector.ct_Ray);
 	
 	cudaUnbindTexture(tex_vol);
+	cudaUnbindTexture(tex_rayl_cs);
+	cudaUnbindTexture(tex_rayl_ff);
+	cudaFree(draylcs);
+	cudaFree(draylff);
 	cudaFree(dvol);
 	cudaFree(ddose);
 	cudaFree(stackgamma.E);
@@ -1019,6 +1264,62 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 	cudaFree(stackgamma.ct_eff);
 	cudaFree(stackgamma.ct_Cpt);
 	cudaFree(stackgamma.ct_PE);
+	cudaFree(stackgamma.ct_Ray);
 	cudaThreadExit();
 
+}
+
+void mc_get_cs_cuda(float* CS, int nncs, float* E, int nE, int mat) {
+	cudaSetDevice(1);
+
+	// Load Rayleigh cross section to the texture mem
+	FILE *pfile;
+	const int ncs = 213816;  // CS file contains 213,816 floats
+	const int nff = 28824;   // FF file contains  28,824 floats
+	unsigned int mem_cs = ncs * sizeof(float);
+	unsigned int mem_ff = nff * sizeof(float);
+	float* raylcs = (float*)malloc(mem_cs);
+	float* raylff = (float*)malloc(mem_ff);
+	pfile = fopen("rayleigh_cs.bin", "rb");
+	fread(raylcs, sizeof(float), ncs, pfile);
+	fclose(pfile);
+	pfile = fopen("rayleigh_ff.bin", "rb");
+	fread(raylff, sizeof(float), nff, pfile);
+	fclose(pfile);
+	float* draylcs;
+	cudaMalloc((void**) &draylcs, mem_cs);
+	cudaMemcpy(draylcs, raylcs, mem_cs, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_rayl_cs, draylcs, mem_cs);
+	free(raylcs);
+	float* draylff;	
+	cudaMalloc((void**) &draylff, mem_ff);
+	cudaMemcpy(draylff, raylff, mem_ff, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_rayl_ff, draylff, mem_ff);
+	free(raylff);
+	
+	unsigned int mem_size = nE * sizeof(float);
+	float* dE;
+	cudaMalloc((void**) &dE, mem_size);
+	cudaMemcpy(dE, E, mem_size, cudaMemcpyHostToDevice);
+	float* dCS;
+	cudaMalloc((void**) &dCS, mem_size);
+	cudaMemset(dCS, 0, mem_size);
+
+	dim3 threads, grid;
+	int block_size = 256;
+	int grid_size = (nE + block_size - 1) / block_size;
+	threads.x = block_size;
+	grid.x = grid_size;
+	kernel_CS_from_mat<<<grid, threads>>>(dCS, dE, nE, mat);
+	
+	cudaMemcpy(CS, dCS, mem_size, cudaMemcpyDeviceToHost);
+
+	cudaUnbindTexture(tex_vol);
+	cudaUnbindTexture(tex_rayl_cs);
+	cudaUnbindTexture(tex_rayl_ff);
+	cudaFree(draylcs);
+	cudaFree(draylff);
+	cudaFree(dCS);
+	cudaFree(dE);
+	cudaThreadExit();
 }

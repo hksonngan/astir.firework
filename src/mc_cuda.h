@@ -19,3 +19,4 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 			 float* E, int nE, float* dx, int ndx, float* dy, int ndy, float* dz, int ndz,
 			 float* px, int npx, float* py, int npy, float* pz, int npz,
 			 int nparticles);
+void mc_get_cs_cuda(float* CS, int ncs, float* E, int nE, int mat);

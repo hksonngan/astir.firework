@@ -33,3 +33,5 @@ void mc_cuda(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
 			 float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
 			 float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
 			 int nparticles);
+
+void mc_get_cs_cuda(float* INPLACE_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, int mat);

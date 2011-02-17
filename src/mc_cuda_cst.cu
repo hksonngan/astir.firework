@@ -1598,16 +1598,203 @@ __constant__ float fIonizationPotentials[101] =
 
 };     // ............... end of fIonizationPotentials array
 
+// ************************************************************************
+// * Usefull to find cross section from Rayleigh table. 
+// * The table contains [E, cross section, E, cross section, ...] for all Z
+// * JB - 2011-02-17 08:46:56
 
+__constant__ int Rayleigh_cs_CumulIntervals [101] =
+{
+	    0, // nonexisting 'zero' element
+	
+//      H,                                                              He,          (2)
+	    0,                                                             724,
+	
+//     Li,      Be,      B,      C,      N,      O,      F,             Ne,         (10)
+	 1384,    2392,   3352,   4564,   5832,   7144,   8442,           9584,
+	
+//     Na,      Mg,     Al,     Si,      P,      S,     Cl,             Ar,         (18)
+	10464,   11652,  12748,  14528,  16162,  17626,  18996,          20302,
+	
+//      K,      Ca,     Sc,     Ti,      V,     Cr,     Mn,     Fe,     Co,     Ni, (28)
+	21470,   22964,  24530,  26242,  27954,  29606,  31232,  33034,  34834,  36610,
+	
+//     Cu,      Zn,     Ga,     Ge,     As,     Se,     Br,             Kr,         (36)
+	38360,   40022,  41598,  43976,  46176,  48170,  50000,          51762,
+	
+//     Rb,      Sr,      Y,     Zr,     Nb,     Mo,     Tc,     Ru,     Rh,     Pd, (46)
+	53174,   54932,  56688,  58474,  60308,  62118,  64228,  66372,  68516,  70738,
+	
+//     Ag,      Cd,     In,     Sn,     Sb,     Te,      J,             Xe,         (54)
+	72418,   74566,  76542,  79532,  82246,  84688,  86938,          89036,
+	
+//     Cs,      Ba,     La,     Ce,     Pr,     Nd,     Pm,     Sm,     Eu,     Gd, (64)
+	90860,   93094,  95420,  97738, 100198, 102636, 105000, 107432, 110000, 112622,
+	
+//      Tb,     Dy,     Ho,     Er,     Tm,     Yb,     Lu,     Hf,     Ta,      W, (74)
+	115364, 118050, 120826, 123548, 126050, 128678, 131138, 133880, 136530, 138866,
+	
+//      Re,     Os,     Ir,     Pt,     Au,     Hg,     Tl,     Pb,     Bi,     Po, (84)
+	140858, 143108, 145294, 147348, 149674, 151894, 154120, 157430, 160686, 163556,
+	
+//      At,     Rn,     Fr,     Ra,     Ac,     Th,     Pa,      U,     Np,     Pu, (94)
+	166206, 168652, 170824, 173534, 176404, 179562, 182544, 185612, 188852, 192076,
 
-__constant__ int fNumberOfElements  = 100 ;
+//      Am,     Cm,     Bk,     Cf,     Es,     Fm                                  (100)
+	194904, 197808, 201370, 204620, 207702, 210732
+};
 
-__constant__ int fIntervalLimit     = 100 ;
+__constant__ int Rayleigh_cs_NbIntervals [101] =
+{
+	   0, // nonexisting 'zero' element
+	   
+//     H,                                             He,                (2)	
+	 362,                                            330,
+	   
+//    Li,   Be,    B,    C,    N,    O,    F,         Ne,               (10)	
+	 504,  480,  606,  634,  656,  649,  571,        440,
+	   
+//    Na,   Mg,   Al,   Si,    P,    S,   Cl,         Ar,               (18)	
+	 594,  548,  890,  817,  732,  685,  653,        584,
+	   
+//     K,   Ca,   Sc,   Ti,    V,   Cr,   Mn,   Fe,   Co,   Ni,         (28)	
+	 747,  783,  856,  856,  826,  813,  901,  900,  888,  875,
+	   
+//    Cu,   Zn,   Ga,   Ge,   As,   Se,   Br,         Kr,               (36)	
+	 831,  788, 1189, 1100,  997,  915,  881,        706,
+	   
+//    Rb,   Sr,    Y,   Zr,   Nb,   Mo,   Tc,   Ru,   Rh,   Pd,         (46)	
+	 879,  878,  893,  917,  905, 1055, 1072, 1072, 1111,  840,
+	   
+//    Ag,   Cd,   In,   Sn,   Sb,   Te,    J,         Xe,               (54)	
+	1074,  988, 1495, 1357, 1221, 1125, 1049,        912,
+	   
+//    Cs,   Ba,   La,   Ce,   Pr,   Nd,   Pm,   Sm,   Eu,   Gd,         (64)	
+	1117, 1163, 1159, 1230, 1219, 1182, 1216, 1284, 1311, 1371,
+	   
+//    Tb,   Dy,   Ho,   Er,   Tm,   Yb,   Lu,   Hf,   Ta,    W,         (74)	
+	1343, 1388, 1361, 1251, 1314, 1230, 1371, 1325, 1168,  996,
+	   
+//    Re,   Os,   Ir,   Pt,   Au,   Hg,   Tl,   Pb,   Bi,   Po,         (84)	
+	1125, 1093, 1027, 1163, 1110, 1113, 1655, 1628, 1435, 1325,
+	   
+//    At,   Rn,   Fr,   Ra,   Ac,   Th,   Pa,    U,   Np,   Pu,         (94)	
+	1223, 1086, 1355, 1435, 1579, 1491, 1534, 1620, 1612, 1414,
+	   
+//    Am,   Cm,   Bk,   Cf,   Es,   Fm                                  (100)	
+	1452, 1781, 1625, 1541, 1515, 1542
+};
 
-__constant__ int fNumberOfIntervals = 980 ;
+__constant__ int Rayleigh_ff_CumulIntervals [101] =
+{
+	    0, // nonexisting 'zero' element
+	
+//      H,                                                              He,          (2)
+        0,                                                             180,
+	
+//     Li,      Be,      B,      C,      N,      O,      F,             Ne,         (10)
+      434,     698,    966,   1228,   1504,   1818,   2136,           2470,
+	
+//     Na,      Mg,     Al,     Si,      P,      S,     Cl,             Ar,         (18)
+     2794,    3134,   3460,   3758,   4064,   4362,   4658,           4962,
+	
+//      K,      Ca,     Sc,     Ti,      V,     Cr,     Mn,     Fe,     Co,     Ni, (28)
+     5250,    5550,   5852,   6142,   6434,   6724,   7028,   7322,   7622,   7918,
+	
+//     Cu,      Zn,     Ga,     Ge,     As,     Se,     Br,             Kr,         (36)
+     8230,    8530,   8832,   9130,   9432,   9732,  10036,          10336,
+	
+//     Rb,      Sr,      Y,     Zr,     Nb,     Mo,     Tc,     Ru,     Rh,     Pd, (46)
+    10618,   10904,  11192,  11480,  11786,  12096,  12396,  12690,  12976,  13262,
+	
+//     Ag,      Cd,     In,     Sn,     Sb,     Te,      J,             Xe,         (54)
+    13552,   13842,  14136,  14432,  14714,  14992,  15274,          15566,
+	
+//     Cs,      Ba,     La,     Ce,     Pr,     Nd,     Pm,     Sm,     Eu,     Gd, (64)
+    15858,   16140,  16428,  16730,  17030,  17320,  17600,  17904,  18208,  18494,
+	
+//      Tb,     Dy,     Ho,     Er,     Tm,     Yb,     Lu,     Hf,     Ta,      W, (74)
+     18792,  19084,  19366,  19668,  19952,  20246,  20550,  20840,  21132,  21428,
+	
+//      Re,     Os,     Ir,     Pt,     Au,     Hg,     Tl,     Pb,     Bi,     Po, (84)
+     21722,  22010,  22286,  22556,  22822,  23084,  23356,  23638,  23912,  24196,
+	
+//      At,     Rn,     Fr,     Ra,     Ac,     Th,     Pa,      U,     Np,     Pu, (94)
+     24474,  24764,  25038,  25312,  25584,  25852,  26124,  26392,  26672,  26942,
 
+//      Am,     Cm,     Bk,     Cf,     Es,     Fm                                  (100)
+     27216,  27484,  27752,  28018,  28288,  28558
+};
 
+__constant__ int Rayleigh_ff_NbIntervals [101] =
+{
+	   0, // nonexisting 'zero' element
+	   
+//     H,                                             He,                (2)	
+      90,                                            127,
+	   
+//    Li,   Be,    B,    C,    N,    O,    F,         Ne,               (10)	
+     132,  134,  131,  138,  157,  159,  167,        162,
+	   
+//    Na,   Mg,   Al,   Si,    P,    S,   Cl,         Ar,               (18)	
+     170,  163,  149,  153,  149,  148,  152,        144,
+	   
+//     K,   Ca,   Sc,   Ti,    V,   Cr,   Mn,   Fe,   Co,   Ni,         (28)	
+     150,  151,  145,  146,  145,  152,  147,  150,  148,  156,
+	   
+//    Cu,   Zn,   Ga,   Ge,   As,   Se,   Br,         Kr,               (36)	
+     150,  151,  149,  151,  150,  152,  150,        141,
+	   
+//    Rb,   Sr,    Y,   Zr,   Nb,   Mo,   Tc,   Ru,   Rh,   Pd,         (46)	
+     143,  144,  144,  153,  155,  150,  147,  143,  143,  145,
+	   
+//    Ag,   Cd,   In,   Sn,   Sb,   Te,    J,         Xe,               (54)	
+     145,  147,  148,  141,  139,  141,  146,        146,
+	   
+//    Cs,   Ba,   La,   Ce,   Pr,   Nd,   Pm,   Sm,   Eu,   Gd,         (64)	
+     141,  144,  151,  150,  145,  140,  152,  152,  143,  149,
+	   
+//    Tb,   Dy,   Ho,   Er,   Tm,   Yb,   Lu,   Hf,   Ta,    W,         (74)	
+     146,  141,  151,  142,  147,  152,  145,  146,  148,  147,
+	   
+//    Re,   Os,   Ir,   Pt,   Au,   Hg,   Tl,   Pb,   Bi,   Po,         (84)	
+     144,  138,  135,  133,  131,  136,  141,  137,  142,  139,
+	   
+//    At,   Rn,   Fr,   Ra,   Ac,   Th,   Pa,    U,   Np,   Pu,         (94)	
+     145,  137,  137,  136,  134,  136,  134,  140,  135,  137,
+	   
+//    Am,   Cm,   Bk,   Cf,   Es,   Fm                                  (100)	
+     134,  134,  133,  135,  135,  133
+};
 
-//....oooOO0OOooo........oooOO0OOooo........oooOO0OOooo.... ....oooOO0OOooo....
-
-
+// Materials definition for Rayleigh scattering, a random element is requited
+// C N O Ar
+__constant__ int Air_Z [4] = {6, 7, 8, 18};
+__constant__ float Air_cumul [4] = {0.000124, 0.755392, 0.987173, 1.0};
+// H 2O
+__constant__ int Water_Z [2] = {1, 8};
+__constant__ float Water_cumul [2] = {0.333333, 1.0};
+// 5C 8H 2O
+__constant__ int Plastic_Z [3] = {1, 6, 8};
+__constant__ float Plastic_cumul [3] = {0.533333, 0.866666, 1.0};
+// Al
+__constant__ int Al_Z [1] = {13};
+__constant__ float Al_cumul [1] = {1.0};
+// H O
+__constant__ int Body_Z [2] = {1, 8};
+__constant__ float Body_cumul [2] = {0.112, 1.0};
+// H C N O Na P S Cl K
+__constant__ int Lung_Z [9] = {1, 6, 7, 8, 11, 15, 16, 17, 19};
+__constant__ float Lung_cumul [9] = {0.103, 0.208, 0.239, 0.988, 0.990, 0.992, 0.995, 0.998, 1.0};
+// H C N O Na Mg P S Ca
+__constant__ int RibBone_Z [9] = {1, 6, 7, 8, 11, 12, 15, 16, 20};
+__constant__ float RibBone_cumul [9] = {0.034, 0.189, 0.231, 0.666, 0.667, 0.669, 0.772, 0.775, 1.0};
+// H C N O Na Mg P S Cl K Ca
+__constant__ int SpineBone_Z [11] = {1, 6, 7, 8, 11, 12, 15, 16, 17, 19, 20};
+__constant__ float SpineBone_cumul [11] = {0.063, 0.324, 0.363, 0.799, 0.8, 0.801, 0.862, 0.865, 0.866, 0.867, 1.0};
+// H C N O Na P S Cl K
+__constant__ int Heart_Z [9] = {1, 6, 7, 8, 11, 15, 16, 17, 19};
+__constant__ float Heart_cumul [9] = {0.104, 0.243, 0.272, 0.990, 0.991, 0.993, 0.995, 0.997, 1.0};
+// H C N O Na P S Cl
+__constant__ int Breast_Z [8] = {1, 6, 7, 8, 11, 15, 16, 17};
+__constant__ float Breast_cumul [8] = {0.106, 0.438, 0.468, 0.995, 0.996, 0.997, 0.999, 1.0};

@@ -1798,3 +1798,24 @@ __constant__ float Heart_cumul [9] = {0.104, 0.243, 0.272, 0.990, 0.991, 0.993, 
 // H C N O Na P S Cl
 __constant__ int Breast_Z [8] = {1, 6, 7, 8, 11, 15, 16, 17};
 __constant__ float Breast_cumul [8] = {0.106, 0.438, 0.468, 0.995, 0.996, 0.997, 0.999, 1.0};
+// H C N O Na P S Cl K
+__constant__ int Intestine_Z [9] = {1, 6, 7, 8, 11, 15, 16, 17, 19};
+__constant__ float Intestine_cumul [9] = {0.106, 0.221, 0.243, 0.994, 0.995, 0.996, 0.997, 0.998, 1.0};
+// H C N O Na P S Cl K
+__constant__ int Spleen_Z [9] = {1, 6, 7, 8, 11, 15, 16, 17, 19};
+__constant__ float Spleen_cumul [9] = {0.103, 0.216, 0.248, 0.989, 0.990, 0.993, 0.995, 0.997, 1.0};
+// H C N O Na P S Cl K Fe
+__constant__ int Blood_Z [10] = {1, 6, 7, 8, 11, 15, 16, 17, 19, 26};
+__constant__ float Blood_cumul [10] = {0.102, 0.212, 0.245, 0.990, 0.991, 0.992, 0.994, 0.997, 0.999, 1.0};
+// H C N O Na P S Cl K
+__constant__ int Liver_Z [9] = {1, 6, 7, 8, 11, 15, 16, 17, 19};
+__constant__ float Liver_cumul [9] = {0.102, 0.241, 0.271, 0.987, 0.989, 0.992, 0.995, 0.997, 1.0};
+// H C N O Na P S Cl K Ca
+__constant__ int Kidney_Z [10] = {1, 6, 7, 8, 11, 15, 16, 17, 19, 20};
+__constant__ float Kidney_cumul [10] = {0.103, 0.235, 0.265, 0.989, 0.991, 0.993, 0.995, 0.997, 0.998, 1.0};
+// H C N O Na P S Cl K
+__constant__ int Brain_Z [9] = {1, 6, 7, 8, 11, 15, 16, 17, 19};
+__constant__ float Brain_cumul [9] = {0.107, 0.252, 0.274, 0.986, 0.988, 0.992, 0.994, 0.997, 1.0};
+// H C N O Na P S Cl K
+__constant__ int Pancreas_Z [9] = {1, 6, 7, 8, 11, 15, 16, 17, 19};
+__constant__ float Pancreas_cumul [9] = {0.106, 0.275, 0.297, 0.991, 0.993, 0.995, 0.996, 0.998, 1.0};

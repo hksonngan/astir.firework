@@ -218,13 +218,13 @@ __device__ float Rayleigh_CSPA(float E, int Z) {
 	for (pos=start; pos<stop; pos+=2) {
 		if (tex1Dfetch(tex_rayl_cs, pos) >= E) {break;}
 	}
-	return tex1Dfetch(tex_rayl_cs, pos+1);
-	float hi_E = tex1Dfetch(tex_rayl_cs, pos);
+
+	//float hi_E = tex1Dfetch(tex_rayl_cs, pos);
 	float lo_cs = tex1Dfetch(tex_rayl_cs, pos-1);
 	if (E < 1e3f) { // 1 Gev
 		float rlo_E = __fdividef(1.0f, tex1Dfetch(tex_rayl_cs, pos-2));
-		float logcs = __log10f(tex1Dfetch(tex_rayl_cs, pos-1)) * __log10f(__fdividef(hi_E, E))
-			+ __log10f(tex1Dfetch(tex_rayl_cs, pos+1)) * __fdividef(__log10f(E * rlo_E), __log10f(hi_E * rlo_E));
+		float logcs = __log10f(lo_cs) + __fdividef(__log10f(__fdividef(tex1Dfetch(tex_rayl_cs, pos+1), lo_cs))
+												   * __log10f(E * rlo_E), __log10f(tex1Dfetch(tex_rayl_cs, pos) * rlo_E));
 		return __powf(10.0f, logcs) * 1.0e-22f;
 	}
 	else {return lo_cs * 1.0e-22f;}
@@ -277,128 +277,127 @@ __device__ float Rayleigh_scatter(StackGamma stackgamma, unsigned int id, int Z)
 /***********************************************************
  * Materials
  ***********************************************************/
-__device__ float Compton_mu_Water(float E) {
+__device__  float Compton_mu_Water(float E) {
 	// H2O
 	return (2*Compton_CSPA(E, 1) + Compton_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
 }
-__device__ float PhotoElec_mu_Water(float E) {
+__device__  float PhotoElec_mu_Water(float E) {
 	// H2O
 	return (2*PhotoElec_CSPA(E, 1) + PhotoElec_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
 }
-__device__ float Rayleigh_mu_Water(float E) {
+__device__  float Rayleigh_mu_Water(float E) {
 	// H2O
-	return Rayleigh_CSPA(E, 1);
-	//return (2*Rayleigh_CSPA(E, 1) + Rayleigh_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
+	return (2*Rayleigh_CSPA(E, 1) + Rayleigh_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
 }
 
-__device__ float Compton_mu_Plastic(float E) {
+__device__  float Compton_mu_Plastic(float E) {
 	// 5C8H2O
 	return (5*Compton_CSPA(E, 6) + 8*Compton_CSPA(E, 1) + 2*Compton_CSPA(E, 8)) * 7.096901340e17f;
 }
-__device__ float PhotoElec_mu_Plastic(float E) {
+__device__  float PhotoElec_mu_Plastic(float E) {
 	// 5C8H2O
 	return (5*PhotoElec_CSPA(E, 6) + 8*PhotoElec_CSPA(E, 1) + 2*PhotoElec_CSPA(E, 8)) * 7.096901340e17f;
 }
-__device__ float Rayleigh_mu_Plastic(float E) {
+__device__  float Rayleigh_mu_Plastic(float E) {
 	// 5C8H2O
 	return (5*Rayleigh_CSPA(E, 6) + 8*Rayleigh_CSPA(E, 1) + 2*Rayleigh_CSPA(E, 8)) * 7.096901340e17f;
 }
 
-__device__ float Compton_mu_Al(float E) {
+__device__  float Compton_mu_Al(float E) {
 	// Al
 	return Compton_CSPA(E, 13) * 6.024030465e+19f; // Avogadro*Al_density/a_Al
 }
-__device__ float PhotoElec_mu_Al(float E) {
+__device__  float PhotoElec_mu_Al(float E) {
 	// Al
 	return PhotoElec_CSPA(E, 13) * 6.024030465e+19f; // Avogadro*Al_density/a_Al
 }
-__device__ float Rayleigh_mu_Al(float E) {
+__device__  float Rayleigh_mu_Al(float E) {
 	// Al
 	return Rayleigh_CSPA(E, 13) * 6.024030465e+19f; // Avogadro*Al_density/a_Al
 }
 
-__device__ float Compton_mu_Air(float E) {
+__device__  float Compton_mu_Air(float E) {
 	// O N Ar C
 	return (0.231781f*Compton_CSPA(E, 8) + 0.755268f*Compton_CSPA(E, 7)
 			+ 0.012827f*Compton_CSPA(E, 18) + 0.000124f*Compton_CSPA(E, 6)) * 5.247706935e17f;
 }
-__device__ float PhotoElec_mu_Air(float E) {
+__device__  float PhotoElec_mu_Air(float E) {
 	// O N Ar C
 	return (0.231781f*PhotoElec_CSPA(E, 8) + 0.755268f*PhotoElec_CSPA(E, 7)
 			+ 0.012827f*PhotoElec_CSPA(E, 18) + 0.000124f*PhotoElec_CSPA(E, 6)) * 5.247706935e17f;
 }
-__device__ float Rayleigh_mu_Air(float E) {
+__device__  float Rayleigh_mu_Air(float E) {
 	// O N Ar C
 	return (0.231781f*Rayleigh_CSPA(E, 8) + 0.755268f*Rayleigh_CSPA(E, 7)
 			+ 0.012827f*Rayleigh_CSPA(E, 18) + 0.000124f*Rayleigh_CSPA(E, 6)) * 5.247706935e17f;
 }
 
-__device__ float Compton_mu_Body(float E) {
+__device__  float Compton_mu_Body(float E) {
 	// H O
 	return (0.112f*Compton_CSPA(E, 1) + 0.888f*Compton_CSPA(E, 8)) * 4.205077389e18f;
 }
-__device__ float PhotoElec_mu_Body(float E) {
+__device__  float PhotoElec_mu_Body(float E) {
 	// H O
 	return (0.112f*PhotoElec_CSPA(E, 1) + 0.888f*PhotoElec_CSPA(E, 8)) * 4.205077389e18f;
 }
-__device__ float Rayleigh_mu_Body(float E) {
+__device__  float Rayleigh_mu_Body(float E) {
 	// H O
 	return (0.112f*Rayleigh_CSPA(E, 1) + 0.888f*Rayleigh_CSPA(E, 8)) * 4.205077389e18f;
 }
 
-__device__ float Compton_mu_Lung(float E) {
+__device__  float Compton_mu_Lung(float E) {
 	// H C N O Na P S Cl K
 	return (0.103f*Compton_CSPA(E, 1)+ 0.105f*Compton_CSPA(E, 6) + 0.031f*Compton_CSPA(E, 7)
 			+ 0.749f*Compton_CSPA(E, 8) + 0.002f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
 			+ 0.003f*Compton_CSPA(E, 16) + 0.003f*Compton_CSPA(E, 17) + 0.002f*Compton_CSPA(E, 19)) * 1.232299227e18f;
 }
-__device__ float PhotoElec_mu_Lung(float E) {
+__device__  float PhotoElec_mu_Lung(float E) {
 	// H C N O Na P S Cl K
 	return (0.103f*PhotoElec_CSPA(E, 1)+ 0.105f*PhotoElec_CSPA(E, 6) + 0.031f*PhotoElec_CSPA(E, 7)
 			+ 0.749f*PhotoElec_CSPA(E, 8) + 0.002f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 15)
 			+ 0.003f*PhotoElec_CSPA(E, 16) + 0.003f*PhotoElec_CSPA(E, 17) + 0.002f*PhotoElec_CSPA(E, 19)) * 1.232299227e18f;
 }
-__device__ float Rayleigh_mu_Lung(float E) {
+__device__  float Rayleigh_mu_Lung(float E) {
 	// H C N O Na P S Cl K
 	return (0.103f*Rayleigh_CSPA(E, 1)+ 0.105f*Rayleigh_CSPA(E, 6) + 0.031f*Rayleigh_CSPA(E, 7)
 			+ 0.749f*Rayleigh_CSPA(E, 8) + 0.002f*Rayleigh_CSPA(E, 11) + 0.002f*Rayleigh_CSPA(E, 15)
 			+ 0.003f*Rayleigh_CSPA(E, 16) + 0.003f*Rayleigh_CSPA(E, 17) + 0.002f*Rayleigh_CSPA(E, 19)) * 1.232299227e18f;
 }
 
-__device__ float Compton_mu_RibBone(float E) {
+__device__  float Compton_mu_RibBone(float E) {
 	// H C N O Na Mg P S Ca
 	return (0.034f*Compton_CSPA(E, 1) + 0.155f*Compton_CSPA(E, 6) + 0.042f*Compton_CSPA(E, 7)
 			+ 0.435f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 12)
 			+ 0.103f*Compton_CSPA(E, 15) + 0.003f*Compton_CSPA(E, 16) + 0.225f*Compton_CSPA(E, 20)) * 5.299038816e18f;
 }
-__device__ float PhotoElec_mu_RibBone(float E) {
+__device__  float PhotoElec_mu_RibBone(float E) {
 	// H C N O Na Mg P S Ca
 	return (0.034f*PhotoElec_CSPA(E, 1) + 0.155f*PhotoElec_CSPA(E, 6) + 0.042f*PhotoElec_CSPA(E, 7)
 			+ 0.435f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 12)
 			+ 0.103f*PhotoElec_CSPA(E, 15) + 0.003f*PhotoElec_CSPA(E, 16) + 0.225f*PhotoElec_CSPA(E, 20)) * 5.299038816e18f;
 }
-__device__ float Rayleigh_mu_RibBone(float E) {
+__device__  float Rayleigh_mu_RibBone(float E) {
 	// H C N O Na Mg P S Ca
 	return (0.034f*Rayleigh_CSPA(E, 1) + 0.155f*Rayleigh_CSPA(E, 6) + 0.042f*Rayleigh_CSPA(E, 7)
 			+ 0.435f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.002f*Rayleigh_CSPA(E, 12)
 			+ 0.103f*Rayleigh_CSPA(E, 15) + 0.003f*Rayleigh_CSPA(E, 16) + 0.225f*Rayleigh_CSPA(E, 20)) * 5.299038816e18f;
 }
 
-__device__ float Compton_mu_SpineBone(float E) {
+__device__  float Compton_mu_SpineBone(float E) {
 	// H C N O Na Mg P S Cl K Ca
 	return (0.063f*Compton_CSPA(E, 1) + 0.261f*Compton_CSPA(E, 6) + 0.039f*Compton_CSPA(E, 7)
 			+ 0.436f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 12)
 			+ 0.061f*Compton_CSPA(E, 15) + 0.003f*Compton_CSPA(E, 16) + 0.001f*Compton_CSPA(E, 17)
 			+ 0.001f*Compton_CSPA(E, 19) + 0.133f*Compton_CSPA(E, 20)) * 4.709337384e18f;
 }
-__device__ float PhotoElec_mu_SpineBone(float E) {
+__device__  float PhotoElec_mu_SpineBone(float E) {
 	// H C N O Na Mg P S Cl K Ca
 	return (0.063f*PhotoElec_CSPA(E, 1) + 0.261f*PhotoElec_CSPA(E, 6) + 0.039f*PhotoElec_CSPA(E, 7)
 			+ 0.436f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.001f*PhotoElec_CSPA(E, 12)
 			+ 0.061f*PhotoElec_CSPA(E, 15) + 0.003f*PhotoElec_CSPA(E, 16) + 0.001f*PhotoElec_CSPA(E, 17)
 			+ 0.001f*PhotoElec_CSPA(E, 19) + 0.133f*PhotoElec_CSPA(E, 20)) * 4.709337384e18f;
 }
-__device__ float Rayleigh_mu_SpineBone(float E) {
+__device__  float Rayleigh_mu_SpineBone(float E) {
 	// H C N O Na Mg P S Cl K Ca
 	return (0.063f*Rayleigh_CSPA(E, 1) + 0.261f*Rayleigh_CSPA(E, 6) + 0.039f*Rayleigh_CSPA(E, 7)
 			+ 0.436f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.001f*Rayleigh_CSPA(E, 12)
@@ -406,43 +405,183 @@ __device__ float Rayleigh_mu_SpineBone(float E) {
 			+ 0.001f*Rayleigh_CSPA(E, 19) + 0.133f*Rayleigh_CSPA(E, 20)) * 4.709337384e18f;
 }
 
-__device__ float Compton_mu_Heart(float E) {
+__device__  float Compton_mu_Heart(float E) {
 	// H C N O Na P S Cl K
 	return (0.104f*Compton_CSPA(E, 1) + 0.139f*Compton_CSPA(E, 6) + 0.029f*Compton_CSPA(E, 7)
 			+ 0.718f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
 			+ 0.002f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.003f*Compton_CSPA(E, 19)) * 4.514679219e18f;
 }
-__device__ float PhotoElec_mu_Heart(float E) {
+__device__  float PhotoElec_mu_Heart(float E) {
 	// H C N O Na P S Cl K
 	return (0.104f*PhotoElec_CSPA(E, 1) + 0.139f*PhotoElec_CSPA(E, 6) + 0.029f*PhotoElec_CSPA(E, 7)
 			+ 0.718f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 15)
 			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.003f*PhotoElec_CSPA(E, 19)) * 4.514679219e18f;
 }
-__device__ float Rayleigh_mu_Heart(float E) {
+__device__  float Rayleigh_mu_Heart(float E) {
 	// H C N O Na P S Cl K
 	return (0.104f*Rayleigh_CSPA(E, 1) + 0.139f*Rayleigh_CSPA(E, 6) + 0.029f*Rayleigh_CSPA(E, 7)
 			+ 0.718f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.002f*Rayleigh_CSPA(E, 15)
 			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.002f*Rayleigh_CSPA(E, 17) + 0.003f*Rayleigh_CSPA(E, 19)) * 4.514679219e18f;
 }
 
-__device__ float Compton_mu_Breast(float E) {
+__device__  float Compton_mu_Breast(float E) {
 	// H C N O Na P S Cl
 	return (0.106f*Compton_CSPA(E, 1) + 0.332f*Compton_CSPA(E, 6) + 0.03f*Compton_CSPA(E, 7)
 			+ 0.527f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 15)
 			+ 0.002f*Compton_CSPA(E, 16) + 0.001f*Compton_CSPA(E, 17)) * 4.688916436e18f;
 }
-__device__ float PhotoElec_mu_Breast(float E) {
+__device__  float PhotoElec_mu_Breast(float E) {
 	// H C N O Na P S Cl
 	return (0.106f*PhotoElec_CSPA(E, 1) + 0.332f*PhotoElec_CSPA(E, 6) + 0.03f*PhotoElec_CSPA(E, 7)
 			+ 0.527f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.001f*PhotoElec_CSPA(E, 15)
 			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.001f*PhotoElec_CSPA(E, 17)) * 4.688916436e18f;
 }
-__device__ float Rayleigh_mu_Breast(float E) {
+__device__  float Rayleigh_mu_Breast(float E) {
 	// H C N O Na P S Cl
 	return (0.106f*Rayleigh_CSPA(E, 1) + 0.332f*Rayleigh_CSPA(E, 6) + 0.03f*Rayleigh_CSPA(E, 7)
 			+ 0.527f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.001f*Rayleigh_CSPA(E, 15)
 			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.001f*Rayleigh_CSPA(E, 17)) * 4.688916436e18f;
 }
+
+__device__  float Compton_mu_Intestine(float E) {
+	// H C N O Na P S Cl K
+	return (0.106f*Compton_CSPA(E, 1) + 0.115f*Compton_CSPA(E, 6) + 0.022f*Compton_CSPA(E, 7)
+			+ 0.751f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 15)
+			+ 0.001f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.001f*Compton_CSPA(E, 19)) * 4.427901925e18f;	
+}
+__device__  float PhotoElec_mu_Intestine(float E) {
+	// H C N O Na P S Cl K
+	return (0.106f*PhotoElec_CSPA(E, 1) + 0.115f*PhotoElec_CSPA(E, 6) + 0.022f*PhotoElec_CSPA(E, 7)
+			+ 0.751f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.001f*PhotoElec_CSPA(E, 15)
+			+ 0.001f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.001f*PhotoElec_CSPA(E, 19)) * 4.427901925e18f;	
+}
+__device__  float Rayleigh_mu_Intestine(float E) {
+	// H C N O Na P S Cl K
+	return (0.106f*Rayleigh_CSPA(E, 1) + 0.115f*Rayleigh_CSPA(E, 6) + 0.022f*Rayleigh_CSPA(E, 7)
+			+ 0.751f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.001f*Rayleigh_CSPA(E, 15)
+			+ 0.001f*Rayleigh_CSPA(E, 16) + 0.002f*Rayleigh_CSPA(E, 17) + 0.001f*Rayleigh_CSPA(E, 19)) * 4.427901925e18f;	
+}
+
+__device__  float Compton_mu_Spleen(float E) {
+	// H C N O Na P S Cl K
+	return (0.103f*Compton_CSPA(E, 1) + 0.113f*Compton_CSPA(E, 6) + 0.032f*Compton_CSPA(E, 7)
+			+ 0.741f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.003f*Compton_CSPA(E, 15)
+			+ 0.002f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.003f*Compton_CSPA(E, 19)) * 4.516487252e18f;	
+}
+__device__  float PhotoElec_mu_Spleen(float E) {
+	// H C N O Na P S Cl K
+	return (0.103f*PhotoElec_CSPA(E, 1) + 0.113f*PhotoElec_CSPA(E, 6) + 0.032f*PhotoElec_CSPA(E, 7)
+			+ 0.741f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.003f*PhotoElec_CSPA(E, 15)
+			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.003f*PhotoElec_CSPA(E, 19)) * 4.516487252e18f;	
+}
+__device__  float Rayleigh_mu_Spleen(float E) {
+	// H C N O Na P S Cl K
+	return (0.103f*Rayleigh_CSPA(E, 1) + 0.113f*Rayleigh_CSPA(E, 6) + 0.032f*Rayleigh_CSPA(E, 7)
+			+ 0.741f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.003f*Rayleigh_CSPA(E, 15)
+			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.002f*Rayleigh_CSPA(E, 17) + 0.003f*Rayleigh_CSPA(E, 19)) * 4.516487252e18f;	
+}
+
+__device__  float Compton_mu_Blood(float E) {
+	// H C N O Na P S Cl K Fe
+	return (0.102f*Compton_CSPA(E, 1) + 0.11f*Compton_CSPA(E, 6) + 0.033f*Compton_CSPA(E, 7)
+			+ 0.745f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 15)
+			+ 0.002f*Compton_CSPA(E, 16) + 0.003f*Compton_CSPA(E, 17) + 0.002f*Compton_CSPA(E, 19)
+			+ 0.001f*Compton_CSPA(E, 26)) * 4.506530526e18f;	
+}
+__device__  float PhotoElec_mu_Blood(float E) {
+	// H C N O Na P S Cl K Fe
+	return (0.102f*PhotoElec_CSPA(E, 1) + 0.11f*PhotoElec_CSPA(E, 6) + 0.033f*PhotoElec_CSPA(E, 7)
+			+ 0.745f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.001f*PhotoElec_CSPA(E, 15)
+			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.003f*PhotoElec_CSPA(E, 17) + 0.002f*PhotoElec_CSPA(E, 19)
+			+ 0.001f*PhotoElec_CSPA(E, 26)) * 4.506530526e18f;	
+}
+__device__  float Rayleigh_mu_Blood(float E) {
+	// H C N O Na P S Cl K Fe
+	return (0.102f*Rayleigh_CSPA(E, 1) + 0.11f*Rayleigh_CSPA(E, 6) + 0.033f*Rayleigh_CSPA(E, 7)
+			+ 0.745f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.001f*Rayleigh_CSPA(E, 15)
+			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.003f*Rayleigh_CSPA(E, 17) + 0.002f*Rayleigh_CSPA(E, 19)
+			+ 0.001f*Rayleigh_CSPA(E, 26)) * 4.506530526e18f;	
+}
+
+__device__  float Compton_mu_Liver(float E) {
+	// H C N O Na P S Cl K
+	return (0.102f*Compton_CSPA(E, 1) + 0.139f*Compton_CSPA(E, 6) + 0.03f*Compton_CSPA(E, 7)
+			+ 0.716f*Compton_CSPA(E, 8) + 0.002f*Compton_CSPA(E, 11) + 0.003f*Compton_CSPA(E, 15)
+			+ 0.003f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.003f*Compton_CSPA(E, 19)) * 4.536294717e18f;	
+}
+__device__  float PhotoElec_mu_Liver(float E) {
+	// H C N O Na P S Cl K
+	return (0.102f*PhotoElec_CSPA(E, 1) + 0.139f*PhotoElec_CSPA(E, 6) + 0.03f*PhotoElec_CSPA(E, 7)
+			+ 0.716f*PhotoElec_CSPA(E, 8) + 0.002f*PhotoElec_CSPA(E, 11) + 0.003f*PhotoElec_CSPA(E, 15)
+			+ 0.003f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.003f*PhotoElec_CSPA(E, 19)) * 4.536294717e18f;	
+}
+__device__  float Rayleigh_mu_Liver(float E) {
+	// H C N O Na P S Cl K
+	return (0.102f*Rayleigh_CSPA(E, 1) + 0.139f*Rayleigh_CSPA(E, 6) + 0.03f*Rayleigh_CSPA(E, 7)
+			+ 0.716f*Rayleigh_CSPA(E, 8) + 0.002f*Rayleigh_CSPA(E, 11) + 0.003f*Rayleigh_CSPA(E, 15)
+			+ 0.003f*Rayleigh_CSPA(E, 16) + 0.002f*Rayleigh_CSPA(E, 17) + 0.003f*Rayleigh_CSPA(E, 19)) * 4.536294717e18f;	
+}
+
+__device__  float Compton_mu_Kidney(float E) {
+	// H C N O Na P S Cl K Ca
+	return (0.103f*Compton_CSPA(E, 1) + 0.132f*Compton_CSPA(E, 6) + 0.03f*Compton_CSPA(E, 7)
+			+ 0.724f*Compton_CSPA(E, 8) + 0.002f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
+			+ 0.002f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.002f*Compton_CSPA(E, 19)
+			+ 0.001f*Compton_CSPA(E, 20)) * 4.498971018e18f;	
+}
+__device__  float PhotoElec_mu_Kidney(float E) {
+	// H C N O Na P S Cl K Ca
+	return (0.103f*PhotoElec_CSPA(E, 1) + 0.132f*PhotoElec_CSPA(E, 6) + 0.03f*PhotoElec_CSPA(E, 7)
+			+ 0.724f*PhotoElec_CSPA(E, 8) + 0.002f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 15)
+			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.002f*PhotoElec_CSPA(E, 19)
+			+ 0.001f*PhotoElec_CSPA(E, 20)) * 4.498971018e18f;	
+}
+__device__  float Rayleigh_mu_Kidney(float E) {
+	// H C N O Na P S Cl K Ca
+	return (0.103f*Rayleigh_CSPA(E, 1) + 0.132f*Rayleigh_CSPA(E, 6) + 0.03f*Rayleigh_CSPA(E, 7)
+			+ 0.724f*Rayleigh_CSPA(E, 8) + 0.002f*Rayleigh_CSPA(E, 11) + 0.002f*Rayleigh_CSPA(E, 15)
+			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.002f*Rayleigh_CSPA(E, 17) + 0.002f*Rayleigh_CSPA(E, 19)
+			+ 0.001f*Rayleigh_CSPA(E, 20)) * 4.498971018e18f;	
+}
+
+__device__  float Compton_mu_Brain(float E) {
+	// H C N O Na P S Cl K
+	return (0.107f*Compton_CSPA(E, 1) + 0.145f*Compton_CSPA(E, 6) + 0.022f*Compton_CSPA(E, 7)
+			+ 0.712f*Compton_CSPA(E, 8) + 0.002f*Compton_CSPA(E, 11) + 0.004f*Compton_CSPA(E, 15)
+			+ 0.002f*Compton_CSPA(E, 16) + 0.003f*Compton_CSPA(E, 17) + 0.003f*Compton_CSPA(E, 19)) * 4.471235341e18f;	
+}
+__device__  float PhotoElec_mu_Brain(float E) {
+	// H C N O Na P S Cl K
+	return (0.107f*PhotoElec_CSPA(E, 1) + 0.145f*PhotoElec_CSPA(E, 6) + 0.022f*PhotoElec_CSPA(E, 7)
+			+ 0.712f*PhotoElec_CSPA(E, 8) + 0.002f*PhotoElec_CSPA(E, 11) + 0.004f*PhotoElec_CSPA(E, 15)
+			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.003f*PhotoElec_CSPA(E, 17) + 0.003f*PhotoElec_CSPA(E, 19)) * 4.471235341e18f;	
+}
+__device__  float Rayleigh_mu_Brain(float E) {
+	// H C N O Na P S Cl K
+	return (0.107f*Rayleigh_CSPA(E, 1) + 0.145f*Rayleigh_CSPA(E, 6) + 0.022f*Rayleigh_CSPA(E, 7)
+			+ 0.712f*Rayleigh_CSPA(E, 8) + 0.002f*Rayleigh_CSPA(E, 11) + 0.004f*Rayleigh_CSPA(E, 15)
+			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.003f*Rayleigh_CSPA(E, 17) + 0.003f*Rayleigh_CSPA(E, 19)) * 4.471235341e18f;	
+}
+
+__device__  float Compton_mu_Pancreas(float E) {
+	// H C N O Na P S Cl K
+	return (0.106f*Compton_CSPA(E, 1) + 0.169f*Compton_CSPA(E, 6) + 0.022f*Compton_CSPA(E, 7)
+			+ 0.694f*Compton_CSPA(E, 8) + 0.002f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
+			+ 0.001f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.002f*Compton_CSPA(E, 19)) * 4.525945892e18f;	
+}
+__device__  float PhotoElec_mu_Pancreas(float E) {
+	// H C N O Na P S Cl K
+	return (0.106f*PhotoElec_CSPA(E, 1) + 0.169f*PhotoElec_CSPA(E, 6) + 0.022f*PhotoElec_CSPA(E, 7)
+			+ 0.694f*PhotoElec_CSPA(E, 8) + 0.002f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 15)
+			+ 0.001f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.002f*PhotoElec_CSPA(E, 19)) * 4.525945892e18f;	
+}
+__device__  float Rayleigh_mu_Pancreas(float E) {
+	// H C N O Na P S Cl K
+	return (0.106f*Rayleigh_CSPA(E, 1) + 0.169f*Rayleigh_CSPA(E, 6) + 0.022f*Rayleigh_CSPA(E, 7)
+			+ 0.694f*Rayleigh_CSPA(E, 8) + 0.002f*Rayleigh_CSPA(E, 11) + 0.002f*Rayleigh_CSPA(E, 15)
+			+ 0.001f*Rayleigh_CSPA(E, 16) + 0.002f*Rayleigh_CSPA(E, 17) + 0.002f*Rayleigh_CSPA(E, 19)) * 4.525945892e18f;	
+}
+
 
 // return attenuation according materials 
 __device__ float att_from_mat(int mat, float E) {
@@ -454,8 +593,16 @@ __device__ float att_from_mat(int mat, float E) {
 	case 4:     return Compton_mu_Heart(E) + PhotoElec_mu_Heart(E) + Rayleigh_mu_Heart(E);
 	case 5:     return Compton_mu_SpineBone(E) + PhotoElec_mu_SpineBone(E) + Rayleigh_mu_SpineBone(E);
 	case 6:     return Compton_mu_RibBone(E) + PhotoElec_mu_RibBone(E) + Rayleigh_mu_RibBone(E);
+	case 7:     return Compton_mu_Intestine(E) + PhotoElec_mu_Intestine(E) + Rayleigh_mu_Intestine(E);
+	case 8:     return Compton_mu_Spleen(E) + PhotoElec_mu_Spleen(E) + Rayleigh_mu_Spleen(E);
+	case 9:     return Compton_mu_Blood(E) + PhotoElec_mu_Blood(E) + Rayleigh_mu_Blood(E);
+	case 10:     return Compton_mu_Liver(E) + PhotoElec_mu_Liver(E) + Rayleigh_mu_Liver(E);
+	case 11:     return Compton_mu_Kidney(E) + PhotoElec_mu_Kidney(E) + Rayleigh_mu_Kidney(E);
+	case 12:     return Compton_mu_Brain(E) + PhotoElec_mu_Brain(E) + Rayleigh_mu_Brain(E);
+	case 13:     return Compton_mu_Pancreas(E) + PhotoElec_mu_Pancreas(E) + Rayleigh_mu_Pancreas(E);
+		
 	case 98:    return Compton_mu_Plastic(E) + PhotoElec_mu_Plastic(E) + Rayleigh_mu_Plastic(E);
-	case 99:	return Rayleigh_mu_Water(E); //Compton_mu_Water(E); // + PhotoElec_mu_Water(E) + Rayleigh_mu_Water(E);
+	case 99:	return Compton_mu_Water(E) + PhotoElec_mu_Water(E) + Rayleigh_mu_Water(E);
 	case 100:	return Compton_mu_Al(E) + PhotoElec_mu_Al(E) + Rayleigh_mu_Al(E);
 	}
 	return 0.0f;

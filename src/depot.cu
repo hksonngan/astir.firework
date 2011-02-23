@@ -1182,3 +1182,198 @@ __global__ void matrix_ell_spmv(float* d_vals, int* d_cols, float* d_res, int ni
 		d_res[idx] = sum;
 	}
 }
+
+
+
+/*
+__global__ void kernel_amanatides(float* dvol, float* dX0, float* dY0, float* dZ0,
+								  float* dXe, float* dYe, float* dZe, int nx0, int jump, int nx) {
+
+	int3 u, i, e, stepi;
+	float3 p0, pe, stept, astart, run;
+	float pq, oldv, totv, mu, val;
+	float eps = 1.0e-5f;
+	int id = threadIdx.x + blockIdx.x * blockDim.x;
+	if (id < nx0) {
+		p0.x = dX0[id];
+		p0.y = dY0[id];
+		p0.z = dZ0[id];
+		pe.x = dXe[id];
+		pe.y = dYe[id];
+		pe.z = dZe[id];
+
+		e.x = int(p0.x);
+		e.y = int(p0.y);
+		e.z = int(p0.z);
+
+		if ((pe.x-p0.x) > 0) {stepi.x = 1; u.x = e.x + 1;}
+		if ((pe.x-p0.x) < 0) {stepi.x = -1; u.x = e.x;}
+		if ((pe.x-p0.x) == 0) {stepi.x = 0; u.x = e.x; pe.x = eps;}
+
+		if ((pe.y-p0.y) > 0) {stepi.y = 1; u.y = e.y+1;}
+		if ((pe.y-p0.y) < 0) {stepi.y = -1; u.y = e.y;}
+		if ((pe.y-p0.y) == 0) {stepi.y = 0; u.y = e.y; pe.y = eps;}
+
+		if ((pe.z-p0.z) > 0) {stepi.z = 1; u.z = e.z+1;}
+		if ((pe.z-p0.z) < 0) {stepi.z = -1; u.z = e.z;}
+		if ((pe.z-p0.z) == 0) {stepi.z = 0; u.z = e.z; pe.z = eps;}
+
+		astart.x = (u.x - p0.x) / (pe.x - p0.x);
+		astart.y = (u.y - p0.y) / (pe.y - p0.y);
+		astart.z = (u.z - p0.z) / (pe.z - p0.z);
+		
+		pq = sqrtf((p0.x-pe.x)*(p0.x-pe.x)+(p0.y-pe.y)*(p0.y-pe.y)+(p0.z-pe.z)*(p0.z-pe.z));
+		run.x = astart.x * pq;
+		run.y = astart.y * pq;
+		run.z = astart.z * pq;
+		oldv = run.x;
+		if (run.y < oldv) {oldv = run.y;}
+		if (run.z < oldv) {oldv = run.z;}
+
+		stept.x = fabsf((pq / (pe.x - p0.x)));
+		stept.y = fabsf((pq / (pe.y - p0.y)));
+		stept.z = fabsf((pq / (pe.z - p0.z)));
+		i.x = e.x;
+		i.y = e.y;
+		i.z = e.z;
+
+		mu = oldv*dvol[e.z*jump + e.y*nx + e.x];
+		//dvol[e.z*jump + e.y*nx + e.x] += oldv;
+		
+		totv = 0.0f;
+		while (totv < pq) {
+			if (run.x < run.y) {
+				if (run.x < run.z) {i.x += stepi.x; run.x += stept.x;}
+				else {i.z += stepi.z; run.z += stept.z;}
+			} else {
+				if (run.y < run.z) {i.y += stepi.y; run.y += stept.y;}
+				else {i.z += stepi.z; run.z += stept.z;}
+			}
+			totv = run.x;
+			if (run.y < totv) {totv=run.y;}
+			if (run.z < totv) {totv=run.z;}
+			val = totv-oldv;
+			mu = val * dvol[i.z*jump + i.y*nx + i.x];
+			//dvol[i.z*jump + i.y*nx + i.x] += val;
+			oldv = totv;
+		}
+		
+		mu = (pq-totv)*dvol[i.z*jump + i.y*nx + i.x];
+		//dvol[i.z*jump + i.y*nx + i.x] += (pq - totv);
+
+	} // id < nx
+
+}
+*/
+/*
+__global__ void kernel_raypro(float* dvol, int3 dimvol, StackGamma stackgamma) {
+	float3 xi, x0, d, rd, db, sd;
+	int3 p, b, ob;
+	float t, tn, tot_t, dist, mu, phi, theta;
+	float eps = 1.0e-5f;
+	int jump = dimvol.x*dimvol.y;
+
+	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	int seed = stackgamma.seed[id];
+	int inside;
+	int watchdog;
+	if (id < stackgamma.size) {
+		x0.x = stackgamma.px[id];
+		x0.y = stackgamma.py[id];
+		x0.z = stackgamma.pz[id];
+		d.x = stackgamma.dx[id];
+		d.y = stackgamma.dy[id];
+		d.z = stackgamma.dz[id];
+
+		dist = -__logf(park_miller_jb(&seed)) / 0.018f;
+
+		if (d.x==0) {d.x=eps;}
+		if (d.y==0) {d.y=eps;}
+		if (d.z==0) {d.z=eps;}
+
+		rd.x = __fdividef(1.0f, d.x);
+		rd.y = __fdividef(1.0f, d.y);
+		rd.z = __fdividef(1.0f, d.z);
+
+		db.x = (d.x > 0) - (d.x < 0) * eps;
+		db.y = (d.y > 0) - (d.y < 0) * eps;
+		db.z = (d.z > 0) - (d.z < 0) * eps;
+
+		b.x = int(x0.x+db.x);
+		b.y = int(x0.y+db.y);
+		b.z = int(x0.z+db.z);
+		ob.x = b.x; ob.y = b.y; ob.z = b.z;
+
+		t = (b.x - x0.x) * rd.x;
+		tn = (b.y - x0.y) * rd.y;
+		t = fminf(t, tn);
+		tn = (b.z - x0.z) * rd.z;
+		t = fminf(t, tn);
+
+		xi.x = x0.x + (d.x * t);
+		xi.y = x0.y + (d.y * t);
+		xi.z = x0.z + (d.z * t);
+
+		tn = 1.0f + int(xi.x) - xi.x;
+		xi.x += (tn * (tn < eps));
+		tn = 1.0f + int(xi.y) - xi.y;
+		xi.y += (tn * (tn < eps));
+		tn = 1.0f + int(xi.z) - xi.z;
+		xi.z += (tn * (tn < eps));
+
+		tot_t = t;
+		p.x = int(x0.x);
+		p.y = int(x0.y);
+		p.z = int(x0.z);
+
+		inside = 1;
+		watchdog=0;
+		while ((tot_t < dist) & inside) {
+			mu = t * dvol[p.z*jump + p.y*dimvol.x + p.x];
+			//dvol[p.z*jump + p.y*dimvol.x + p.x] += t;
+			
+			b.x = int(xi.x + db.x);
+			b.y = int(xi.y + db.y);
+			b.z = int(xi.z + db.z);
+
+			t = (b.x - xi.x) * rd.x;
+			tn = (b.y - xi.y) * rd.y;
+			t = fminf(t, tn);
+			tn = (b.z - xi.z) * rd.z;
+			t = fminf(t, tn);
+			
+			xi.x = xi.x + (d.x * t);
+			xi.y = xi.y + (d.y * t);
+			xi.z = xi.z + (d.z * t);
+
+			tot_t += t;
+			p.x += (b.x - ob.x);
+			p.y += (b.y - ob.y);
+			p.z += (b.z - ob.z);
+			ob.x = b.x; ob.y = b.y; ob.z = b.z;
+			
+			inside = (p.x >= 0) & (p.x < dimvol.x) & (p.y >= 0) & (p.y < dimvol.y) & (p.z >= 0) & (p.z < dimvol.z);
+			dvol[watchdog] = p.x;
+			++watchdog;
+			if (watchdog > 500) {
+				//dvol[0] = b.x;
+				//dvol[1] = p.z;
+				break;
+			}
+
+		}
+
+		if (!inside) {
+			stackgamma.in[id] = 0;
+			return;
+		}
+
+		mu = (dist-tot_t) * dvol[p.z*jump + p.y*dimvol.x + p.x];
+		//dvol[p.z*jump + p.y*dimvol.x + p.x] += (dist-tot_t);
+
+		stackgamma.seed[id] = seed;
+		
+	} // id
+	
+}
+*/

@@ -30,3 +30,4 @@ void dev_raypro_3D(float* vol, int nz, int ny, int nx,
 				   float* DX, int ndx, float* DY, int ndy, float* DZ, int ndz,
 				   float* D, int nd);
 
+void dev_mc_distribution(float* dist, int nz, int ny, int nx, float* res, int nrz, int nry, int nrx, int N);

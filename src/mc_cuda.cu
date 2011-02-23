@@ -587,12 +587,14 @@ __device__  float Rayleigh_mu_Pancreas(float E) {
 __device__ float att_from_mat(int mat, float E) {
 	switch (mat) {
 	case 0:     return Compton_mu_Air(E) + PhotoElec_mu_Air(E) + Rayleigh_mu_Air(E);
-	case 1:     return Compton_mu_Body(E) + PhotoElec_mu_Body(E) + Rayleigh_mu_Body(E);
-	case 2:     return Compton_mu_Lung(E) + PhotoElec_mu_Lung(E) + Rayleigh_mu_Lung(E);
-	case 3:     return Compton_mu_Breast(E) + PhotoElec_mu_Breast(E) + Rayleigh_mu_Breast(E);
-	case 4:     return Compton_mu_Heart(E) + PhotoElec_mu_Heart(E) + Rayleigh_mu_Heart(E);
-	case 5:     return Compton_mu_SpineBone(E) + PhotoElec_mu_SpineBone(E) + Rayleigh_mu_SpineBone(E);
-	case 6:     return Compton_mu_RibBone(E) + PhotoElec_mu_RibBone(E) + Rayleigh_mu_RibBone(E);
+	case 1:     return Compton_mu_Water(E) + PhotoElec_mu_Water(E) + Rayleigh_mu_Water(E);
+	case 2:     return Compton_mu_Body(E) + PhotoElec_mu_Body(E) + Rayleigh_mu_Body(E);
+	case 3:     return Compton_mu_Lung(E) + PhotoElec_mu_Lung(E) + Rayleigh_mu_Lung(E);
+	case 4:     return Compton_mu_Breast(E) + PhotoElec_mu_Breast(E) + Rayleigh_mu_Breast(E);
+	case 5:     return Compton_mu_Heart(E) + PhotoElec_mu_Heart(E) + Rayleigh_mu_Heart(E);
+	case 6:     return Compton_mu_SpineBone(E) + PhotoElec_mu_SpineBone(E) + Rayleigh_mu_SpineBone(E);
+	case 7:     return Compton_mu_RibBone(E) + PhotoElec_mu_RibBone(E) + Rayleigh_mu_RibBone(E);
+		/*
 	case 7:     return Compton_mu_Intestine(E) + PhotoElec_mu_Intestine(E) + Rayleigh_mu_Intestine(E);
 	case 8:     return Compton_mu_Spleen(E) + PhotoElec_mu_Spleen(E) + Rayleigh_mu_Spleen(E);
 	case 9:     return Compton_mu_Blood(E) + PhotoElec_mu_Blood(E) + Rayleigh_mu_Blood(E);
@@ -600,10 +602,9 @@ __device__ float att_from_mat(int mat, float E) {
 	case 11:     return Compton_mu_Kidney(E) + PhotoElec_mu_Kidney(E) + Rayleigh_mu_Kidney(E);
 	case 12:     return Compton_mu_Brain(E) + PhotoElec_mu_Brain(E) + Rayleigh_mu_Brain(E);
 	case 13:     return Compton_mu_Pancreas(E) + PhotoElec_mu_Pancreas(E) + Rayleigh_mu_Pancreas(E);
-		
-	case 98:    return Compton_mu_Plastic(E) + PhotoElec_mu_Plastic(E) + Rayleigh_mu_Plastic(E);
-	case 99:	return Compton_mu_Water(E) + PhotoElec_mu_Water(E) + Rayleigh_mu_Water(E);
-	case 100:	return Compton_mu_Al(E) + PhotoElec_mu_Al(E) + Rayleigh_mu_Al(E);
+		*/
+		//case 99:    return Compton_mu_Plastic(E) + PhotoElec_mu_Plastic(E) + Rayleigh_mu_Plastic(E);
+		//case 100:	return Compton_mu_Al(E) + PhotoElec_mu_Al(E) + Rayleigh_mu_Al(E);
 	}
 	return 0.0f;
 }
@@ -613,15 +614,15 @@ __device__ int rnd_Z_from_mat(int mat, float rnd) {
 	int pos = 0;
 	switch (mat) {
 	case 0:     while(Air_cumul[pos] < rnd) {++pos;}; return Air_Z[pos];
-	case 1:     while(Body_cumul[pos] < rnd) {++pos;}; return Body_Z[pos];
-	case 2:     while(Lung_cumul[pos] < rnd) {++pos;}; return Lung_Z[pos];
-	case 3:     while(Breast_cumul[pos] < rnd) {++pos;}; return Breast_Z[pos];
-	case 4:     while(Heart_cumul[pos] < rnd) {++pos;}; return Heart_Z[pos];
-	case 5:     while(SpineBone_cumul[pos] < rnd) {++pos;}; return SpineBone_Z[pos];
-	case 6:     while(RibBone_cumul[pos] < rnd) {++pos;}; return RibBone_Z[pos];
-	case 98:    while(Plastic_cumul[pos] < rnd) {++pos;}; return Plastic_Z[pos];
-	case 99:	while(Water_cumul[pos] < rnd) {++pos;}; return Water_Z[pos];
-	case 100:	while(Al_cumul[pos] < rnd) {++pos;}; return Al_Z[pos];
+	case 1:	    while(Water_cumul[pos] < rnd) {++pos;}; return Water_Z[pos];		
+	case 2:     while(Body_cumul[pos] < rnd) {++pos;}; return Body_Z[pos];
+	case 3:     while(Lung_cumul[pos] < rnd) {++pos;}; return Lung_Z[pos];
+	case 4:     while(Breast_cumul[pos] < rnd) {++pos;}; return Breast_Z[pos];
+	case 5:     while(Heart_cumul[pos] < rnd) {++pos;}; return Heart_Z[pos];
+	case 6:     while(SpineBone_cumul[pos] < rnd) {++pos;}; return SpineBone_Z[pos];
+	case 7:     while(RibBone_cumul[pos] < rnd) {++pos;}; return RibBone_Z[pos];
+		//case 99:    while(Plastic_cumul[pos] < rnd) {++pos;}; return Plastic_Z[pos];
+		//case 100:	while(Al_cumul[pos] < rnd) {++pos;}; return Al_Z[pos];
 	}
 	return 0; // In order to avoid a warning during the compilation
 }
@@ -651,50 +652,56 @@ __global__ void kernel_interactions(StackGamma stackgamma, float* ddose, int3 di
 		jump = dimvol.x * dimvol.y;
 		//mat = int(dvol[pz*jump + py*dimvol.x + px]);
 		mat = tex1Dfetch(tex_vol, pz*jump + py*dimvol.x + px);
+		
 
 		switch (mat) {
 		case 0:
 			Compton_CS = Compton_mu_Air(oldE);
 			PhotoElec_CS = PhotoElec_mu_Air(oldE);
-			Rayleigh_CS = Rayleigh_mu_Air(oldE); break;
+			Rayleigh_CS = Rayleigh_mu_Air(oldE);
+			break;
 		case 1:
+			Compton_CS = Compton_mu_Water(oldE);
+			PhotoElec_CS = PhotoElec_mu_Water(oldE);
+			Rayleigh_CS = Rayleigh_mu_Water(oldE);
+			break;
+		case 2:
 			Compton_CS = Compton_mu_Body(oldE);
 			PhotoElec_CS = PhotoElec_mu_Body(oldE);
 			Rayleigh_CS = Rayleigh_mu_Body(oldE); break;
-		case 2:
+		case 3:
 			Compton_CS = Compton_mu_Lung(oldE);
 			PhotoElec_CS = PhotoElec_mu_Lung(oldE);
 			Rayleigh_CS = Rayleigh_mu_Lung(oldE); break;
-		case 3:
+		case 4:
 			Compton_CS = Compton_mu_Breast(oldE);
 			PhotoElec_CS = PhotoElec_mu_Breast(oldE);
 			Rayleigh_CS = Rayleigh_mu_Breast(oldE); break;
-		case 4:
+		case 5:
 			Compton_CS = Compton_mu_Heart(oldE);
 			PhotoElec_CS = PhotoElec_mu_Heart(oldE);
 			Rayleigh_CS = Rayleigh_mu_Heart(oldE); break;
-		case 5:
+		case 6:
 			Compton_CS = Compton_mu_SpineBone(oldE);
 			PhotoElec_CS = PhotoElec_mu_SpineBone(oldE);
 			Rayleigh_CS = Rayleigh_mu_SpineBone(oldE); break;
-		case 6:
+		case 7:
 			Compton_CS = Compton_mu_RibBone(oldE);
 			PhotoElec_CS = PhotoElec_mu_RibBone(oldE);
-			Rayleigh_CS = Rayleigh_mu_RibBone(oldE); break;
+			Rayleigh_CS = Rayleigh_mu_RibBone(oldE);
+			break;
+			/*
 		case 98:
 			Compton_CS = Compton_mu_Plastic(oldE);
 			PhotoElec_CS = PhotoElec_mu_Plastic(oldE);
 			Rayleigh_CS = Rayleigh_mu_Plastic(oldE); break;
-		case 99:
-			Compton_CS = Compton_mu_Water(oldE);
-			PhotoElec_CS = PhotoElec_mu_Water(oldE);
-			Rayleigh_CS = Rayleigh_mu_Water(oldE); break;
 		case 100:
 			Compton_CS = Compton_mu_Al(oldE);
 			PhotoElec_CS = PhotoElec_mu_Al(oldE);
 			Rayleigh_CS = Rayleigh_mu_Al(oldE); break;
+			*/
 		}
-		
+
 		// Select effect
 		tot_CS = Compton_CS + PhotoElec_CS + Rayleigh_CS;
 		PhotoElec_CS = __fdividef(PhotoElec_CS, tot_CS);
@@ -730,9 +737,9 @@ __global__ void kernel_interactions(StackGamma stackgamma, float* ddose, int3 di
 			++stackgamma.ct_Ray[id];
 			depdose = 0.0f;
 		}
-
+			
 		// Dose depot
-		ddose[pz*jump + py*dimvol.x + px] += depdose;
+		//ddose[pz*jump + py*dimvol.x + px] += depdose;
 		// !!!!! WARNING: Atomic function is required (w/ ddose in uint)
 
 		//*****************************************************
@@ -824,20 +831,63 @@ __global__ void kernel_particle_largegun(StackGamma stackgamma, int3 dimvol,
 										 float dx, float dy, float dz, float E, float rad) {
 	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (id < stackgamma.size) {
-		float phi, r;
+		float x, y;
 		int seed;
 		if (stackgamma.in[id]==0 || stackgamma.live[id]==0) {
 			seed = stackgamma.seed[id];
-			phi = park_miller_jb(&seed) * twopi;
-			r   = park_miller_jb(&seed) * rad;
+			//phi = park_miller_jb(&seed) * twopi;
+			//r   = park_miller_jb(&seed) * 5.0f;
+			x = park_miller_jb(&seed) * 2.0f * rad;
+			y = park_miller_jb(&seed) * 2.0f * rad;			
 			stackgamma.seed[id] = seed;
 			stackgamma.E[id] = E;
-			stackgamma.px[id] = posx + r * __cosf(phi);
-			stackgamma.py[id] = posy;
-			stackgamma.pz[id] = posz + r * __sinf(phi);
+			
+			//stackgamma.px[id] = posx + r * __cosf(phi);
+			//stackgamma.py[id] = posy + r * __sinf(phi);
+			stackgamma.px[id] = posx + x - rad;
+			stackgamma.py[id] = posy + y - rad;
+			stackgamma.pz[id] = posz;
 			stackgamma.dx[id] = dx;
 			stackgamma.dy[id] = dy;
 			stackgamma.dz[id] = dz;
+			stackgamma.live[id] = 1;
+			stackgamma.in[id] = 1;
+			stackgamma.ct_eff[id] = 0;
+			stackgamma.ct_Cpt[id] = 0;
+			stackgamma.ct_PE[id] = 0;
+			stackgamma.ct_Ray[id] = 0;
+		}
+	}
+
+}
+
+__global__ void kernel_particle_isotrope(StackGamma stackgamma, float posx, float posy, float posz, float E) {
+	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (id < stackgamma.size) {
+		float phi, theta, x, y, z;
+		int seed;
+		if (stackgamma.in[id]==0 || stackgamma.live[id]==0) {
+			seed = stackgamma.seed[id];
+
+			phi = park_miller_jb(&seed);
+			theta = park_miller_jb(&seed);
+			phi   = twopi * phi;
+			//theta = acosf(1.0f - 2.0f*theta);
+			theta = acosf(theta * 0.0252f + 0.974f);
+			// convert to cartesian
+			x = __cosf(phi)*__sinf(theta);
+			y = __sinf(phi)*__sinf(theta);
+			z = __cosf(theta);
+			if (z<0.0f) {z = -z;}
+
+			stackgamma.dx[id] = x;
+			stackgamma.dy[id] = y;
+			stackgamma.dz[id] = z;
+			stackgamma.seed[id] = seed;
+			stackgamma.E[id] = E;
+			stackgamma.px[id] = posx;
+			stackgamma.py[id] = posy;
+			stackgamma.pz[id] = posz;
 			stackgamma.live[id] = 1;
 			stackgamma.in[id] = 1;
 			stackgamma.ct_eff[id] = 0;
@@ -861,6 +911,9 @@ __global__ void kernel_siddon(int3 dimvol, StackGamma stackgamma, float* dtrack,
 	unsigned int id = __umul24(blockIdx.x, blockDim.x)+threadIdx.x;
 	int jump = dimvol.x*dimvol.y;
 	int seed, inside, oldmat, mat;
+
+	// debug
+	//int j=0;
 	
 	if (id < stackgamma.size) {
 		p0.x = stackgamma.px[id];
@@ -877,6 +930,9 @@ __global__ void kernel_siddon(int3 dimvol, StackGamma stackgamma, float* dtrack,
 		oldmat = tex1Dfetch(tex_vol, int(p0.z)*jump + int(p0.y)*dimvol.x + int(p0.x));
 		pq = -__fdividef(__logf(park_miller_jb(&seed)), att_from_mat(oldmat, E));
 		pq = __fdividef(pq, dimvox);
+
+		//dtrack[id]=pq;
+		//++j;
 		
 		pe.x = p0.x + delta.x*pq;
 		pe.y = p0.y + delta.y*pq;
@@ -930,16 +986,18 @@ __global__ void kernel_siddon(int3 dimvol, StackGamma stackgamma, float* dtrack,
 			if (run.y < newv) {newv=run.y;}
 			if (run.z < newv) {newv=run.z;}
 			val = (newv - oldv);
-
+			
 			// if mat change
 			//mat = dvol[i.z*jump + i.y*dimvol.x + i.x];
 			mat = tex1Dfetch(tex_vol, i.z*jump + i.y*dimvol.x + i.x);
 			if (mat != oldmat) {
-				pq = -__fdividef(__logf(park_miller_jb(&seed)), att_from_mat(oldmat, E));
+				pq = oldv;
+				pq += -__fdividef(__logf(park_miller_jb(&seed)), att_from_mat(mat, E));
 				oldmat = mat;
+				//dtrack[i.z*jump + i.y*dimvol.x + i.x] += 2.0f;
+				//++j;
+				//dtrack[id]=1.0f/att_from_mat(mat, E);
 			}
-
-			//dtrack[i.z*jump + i.y*dimvol.x + i.x] += val;
 
 			totv += val;
 			oldv = newv;
@@ -947,6 +1005,8 @@ __global__ void kernel_siddon(int3 dimvol, StackGamma stackgamma, float* dtrack,
 			if (run.y==newv) {i.y += stepi.y; run.y += stept.y;}
 			if (run.z==newv) {i.z += stepi.z; run.z += stept.z;}
 			inside = (i.x >= 0) & (i.x < dimvol.x) & (i.y >= 0) & (i.y < dimvol.y) & (i.z >= 0) & (i.z < dimvol.z);
+			// debug
+			//dtrack[i.z*jump + i.y*dimvol.x + i.x] += 1.0f;
 		}
 
 		pe.x = p0.x + delta.x*oldv;
@@ -957,9 +1017,89 @@ __global__ void kernel_siddon(int3 dimvol, StackGamma stackgamma, float* dtrack,
 		stackgamma.py[id] = pe.y;
 		stackgamma.pz[id] = pe.z;
 
+		// to debug
+		//dtrack[int(pe.z)*jump + int(pe.y)*dimvol.x + int(pe.x)] += 1.0f;
+
 		if (!inside) {stackgamma.in[id] = 0;}
 
 	} // id < nx
+
+}
+
+// Fictitious tracking (or delta-tracking)
+__global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox, float* dtrack) {
+	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	int jump = dimvol.x*dimvol.y;
+	float3 p0, delta;
+	int3 vox;
+	float path, rec_mu_maj, E, cur_att;
+	int mat, seed;
+	dimvox = __fdividef(1.0f, dimvox);
+
+	// to debug
+	//int i=0;
+		
+	if (id < stackgamma.size) {
+		p0.x = stackgamma.px[id];
+		p0.y = stackgamma.py[id];
+		p0.z = stackgamma.pz[id];
+		delta.x = stackgamma.dx[id];
+		delta.y = stackgamma.dy[id];
+		delta.z = stackgamma.dz[id];
+		seed = stackgamma.seed[id];
+		E = stackgamma.E[id];
+
+		__shared__ float CS[256][6];
+		CS[threadIdx.x][0] = 0.0f;
+		CS[threadIdx.x][1] = 0.0f;
+		CS[threadIdx.x][2] = 0.0f;
+		CS[threadIdx.x][3] = 0.0f;
+		CS[threadIdx.x][4] = 0.0f;
+		CS[threadIdx.x][5] = 0.0f;		
+		
+		// Most attenuate material is RibBone (ID=6)
+		rec_mu_maj = __fdividef(1.0f, att_from_mat(1, E));
+		
+		while (1) {
+			// get mean path from the most attenuate material (RibBone)
+			path = -__logf(park_miller_jb(&seed)) * rec_mu_maj * dimvox;
+			
+			// flight along the path
+			p0.x = p0.x + delta.x * path;
+			p0.y = p0.y + delta.y * path;
+			p0.z = p0.z + delta.z * path;
+
+			vox.x = int(p0.x);
+			vox.y = int(p0.y);
+			vox.z = int(p0.z);
+
+			// Still inside the volume?			
+			if (vox.x < 0 || vox.y < 0 || vox.z < 0
+				|| vox.x >= dimvol.x || vox.y >= dimvol.y || vox.z >= dimvol.z) {
+				stackgamma.in[id] = 0;
+				break;
+			}
+			
+			// Does the interaction is real?
+			mat = tex1Dfetch(tex_vol, vox.z*jump + vox.y*dimvol.x + vox.x);
+			
+			if (CS[threadIdx.x][mat] == 0) {
+				cur_att = att_from_mat(mat, E);
+				CS[threadIdx.x][mat] = cur_att;
+			} else {
+				cur_att = CS[threadIdx.x][mat];
+			}
+			
+			if (cur_att * rec_mu_maj > park_miller_jb(&seed)) {break;}
+
+		}
+		//dtrack[int(p0.z)*jump + int(p0.y)*dimvol.x + int(p0.x)] += 1.0f;
+		stackgamma.seed[id] = seed;
+		stackgamma.px[id] = p0.x;
+		stackgamma.py[id] = p0.y;
+		stackgamma.pz[id] = p0.z;
+		
+	}
 
 }
 
@@ -974,198 +1114,22 @@ __global__ void kernel_CS_from_mat(float* dCS, float* dE, int nE, int mat) {
 	}
 }
 
-/*
-__global__ void kernel_amanatides(float* dvol, float* dX0, float* dY0, float* dZ0,
-								  float* dXe, float* dYe, float* dZe, int nx0, int jump, int nx) {
-
-	int3 u, i, e, stepi;
-	float3 p0, pe, stept, astart, run;
-	float pq, oldv, totv, mu, val;
-	float eps = 1.0e-5f;
-	int id = threadIdx.x + blockIdx.x * blockDim.x;
-	if (id < nx0) {
-		p0.x = dX0[id];
-		p0.y = dY0[id];
-		p0.z = dZ0[id];
-		pe.x = dXe[id];
-		pe.y = dYe[id];
-		pe.z = dZe[id];
-
-		e.x = int(p0.x);
-		e.y = int(p0.y);
-		e.z = int(p0.z);
-
-		if ((pe.x-p0.x) > 0) {stepi.x = 1; u.x = e.x + 1;}
-		if ((pe.x-p0.x) < 0) {stepi.x = -1; u.x = e.x;}
-		if ((pe.x-p0.x) == 0) {stepi.x = 0; u.x = e.x; pe.x = eps;}
-
-		if ((pe.y-p0.y) > 0) {stepi.y = 1; u.y = e.y+1;}
-		if ((pe.y-p0.y) < 0) {stepi.y = -1; u.y = e.y;}
-		if ((pe.y-p0.y) == 0) {stepi.y = 0; u.y = e.y; pe.y = eps;}
-
-		if ((pe.z-p0.z) > 0) {stepi.z = 1; u.z = e.z+1;}
-		if ((pe.z-p0.z) < 0) {stepi.z = -1; u.z = e.z;}
-		if ((pe.z-p0.z) == 0) {stepi.z = 0; u.z = e.z; pe.z = eps;}
-
-		astart.x = (u.x - p0.x) / (pe.x - p0.x);
-		astart.y = (u.y - p0.y) / (pe.y - p0.y);
-		astart.z = (u.z - p0.z) / (pe.z - p0.z);
-		
-		pq = sqrtf((p0.x-pe.x)*(p0.x-pe.x)+(p0.y-pe.y)*(p0.y-pe.y)+(p0.z-pe.z)*(p0.z-pe.z));
-		run.x = astart.x * pq;
-		run.y = astart.y * pq;
-		run.z = astart.z * pq;
-		oldv = run.x;
-		if (run.y < oldv) {oldv = run.y;}
-		if (run.z < oldv) {oldv = run.z;}
-
-		stept.x = fabsf((pq / (pe.x - p0.x)));
-		stept.y = fabsf((pq / (pe.y - p0.y)));
-		stept.z = fabsf((pq / (pe.z - p0.z)));
-		i.x = e.x;
-		i.y = e.y;
-		i.z = e.z;
-
-		mu = oldv*dvol[e.z*jump + e.y*nx + e.x];
-		//dvol[e.z*jump + e.y*nx + e.x] += oldv;
-		
-		totv = 0.0f;
-		while (totv < pq) {
-			if (run.x < run.y) {
-				if (run.x < run.z) {i.x += stepi.x; run.x += stept.x;}
-				else {i.z += stepi.z; run.z += stept.z;}
-			} else {
-				if (run.y < run.z) {i.y += stepi.y; run.y += stept.y;}
-				else {i.z += stepi.z; run.z += stept.z;}
-			}
-			totv = run.x;
-			if (run.y < totv) {totv=run.y;}
-			if (run.z < totv) {totv=run.z;}
-			val = totv-oldv;
-			mu = val * dvol[i.z*jump + i.y*nx + i.x];
-			//dvol[i.z*jump + i.y*nx + i.x] += val;
-			oldv = totv;
+int mc_disk_detector(float* x, int nx, float* y, int ny, float* E, int nE, float* resE, int nrE,
+					 int rad, int posx, int posy) {
+	int i, ix, iy, iu, iv, c;
+	c = 0;
+	for (i=0; i<nx; ++i) {
+		ix = x[i];
+		iy = y[i];
+		iu = ix - posx;
+		iv = iy - posy;
+		if ((iu*iu + iv*iv) < rad*rad) {
+			resE[c] = E[i];
+			++c;
 		}
-		
-		mu = (pq-totv)*dvol[i.z*jump + i.y*nx + i.x];
-		//dvol[i.z*jump + i.y*nx + i.x] += (pq - totv);
-
-	} // id < nx
-
+	}
+	return c;
 }
-*/
-/*
-__global__ void kernel_raypro(float* dvol, int3 dimvol, StackGamma stackgamma) {
-	float3 xi, x0, d, rd, db, sd;
-	int3 p, b, ob;
-	float t, tn, tot_t, dist, mu, phi, theta;
-	float eps = 1.0e-5f;
-	int jump = dimvol.x*dimvol.y;
-
-	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	int seed = stackgamma.seed[id];
-	int inside;
-	int watchdog;
-	if (id < stackgamma.size) {
-		x0.x = stackgamma.px[id];
-		x0.y = stackgamma.py[id];
-		x0.z = stackgamma.pz[id];
-		d.x = stackgamma.dx[id];
-		d.y = stackgamma.dy[id];
-		d.z = stackgamma.dz[id];
-
-		dist = -__logf(park_miller_jb(&seed)) / 0.018f;
-
-		if (d.x==0) {d.x=eps;}
-		if (d.y==0) {d.y=eps;}
-		if (d.z==0) {d.z=eps;}
-
-		rd.x = __fdividef(1.0f, d.x);
-		rd.y = __fdividef(1.0f, d.y);
-		rd.z = __fdividef(1.0f, d.z);
-
-		db.x = (d.x > 0) - (d.x < 0) * eps;
-		db.y = (d.y > 0) - (d.y < 0) * eps;
-		db.z = (d.z > 0) - (d.z < 0) * eps;
-
-		b.x = int(x0.x+db.x);
-		b.y = int(x0.y+db.y);
-		b.z = int(x0.z+db.z);
-		ob.x = b.x; ob.y = b.y; ob.z = b.z;
-
-		t = (b.x - x0.x) * rd.x;
-		tn = (b.y - x0.y) * rd.y;
-		t = fminf(t, tn);
-		tn = (b.z - x0.z) * rd.z;
-		t = fminf(t, tn);
-
-		xi.x = x0.x + (d.x * t);
-		xi.y = x0.y + (d.y * t);
-		xi.z = x0.z + (d.z * t);
-
-		tn = 1.0f + int(xi.x) - xi.x;
-		xi.x += (tn * (tn < eps));
-		tn = 1.0f + int(xi.y) - xi.y;
-		xi.y += (tn * (tn < eps));
-		tn = 1.0f + int(xi.z) - xi.z;
-		xi.z += (tn * (tn < eps));
-
-		tot_t = t;
-		p.x = int(x0.x);
-		p.y = int(x0.y);
-		p.z = int(x0.z);
-
-		inside = 1;
-		watchdog=0;
-		while ((tot_t < dist) & inside) {
-			mu = t * dvol[p.z*jump + p.y*dimvol.x + p.x];
-			//dvol[p.z*jump + p.y*dimvol.x + p.x] += t;
-			
-			b.x = int(xi.x + db.x);
-			b.y = int(xi.y + db.y);
-			b.z = int(xi.z + db.z);
-
-			t = (b.x - xi.x) * rd.x;
-			tn = (b.y - xi.y) * rd.y;
-			t = fminf(t, tn);
-			tn = (b.z - xi.z) * rd.z;
-			t = fminf(t, tn);
-			
-			xi.x = xi.x + (d.x * t);
-			xi.y = xi.y + (d.y * t);
-			xi.z = xi.z + (d.z * t);
-
-			tot_t += t;
-			p.x += (b.x - ob.x);
-			p.y += (b.y - ob.y);
-			p.z += (b.z - ob.z);
-			ob.x = b.x; ob.y = b.y; ob.z = b.z;
-			
-			inside = (p.x >= 0) & (p.x < dimvol.x) & (p.y >= 0) & (p.y < dimvol.y) & (p.z >= 0) & (p.z < dimvol.z);
-			dvol[watchdog] = p.x;
-			++watchdog;
-			if (watchdog > 500) {
-				//dvol[0] = b.x;
-				//dvol[1] = p.z;
-				break;
-			}
-
-		}
-
-		if (!inside) {
-			stackgamma.in[id] = 0;
-			return;
-		}
-
-		mu = (dist-tot_t) * dvol[p.z*jump + p.y*dimvol.x + p.x];
-		//dvol[p.z*jump + p.y*dimvol.x + p.x] += (dist-tot_t);
-
-		stackgamma.seed[id] = seed;
-		
-	} // id
-	
-}
-*/
 
 /***********************************************************
  * Main
@@ -1173,14 +1137,20 @@ __global__ void kernel_raypro(float* dvol, int3 dimvol, StackGamma stackgamma) {
 void mc_cuda(float* vol, int nz, int ny, int nx,
 			 float* E, int nE, float* dx, int ndx, float* dy, int ndy, float* dz, int ndz,
 			 float* px, int npx, float* py, int npy, float* pz, int npz,
-			 int nparticles) {
+			 int nparticles, int seed) {
 	cudaSetDevice(1);
 
     timeval start, end;
     double t1, t2, diff;
+	timeval start_s, end_s;
+	double ts1, ts2;
 	int3 dimvol;
 	int n, step;
 	int countparticle=0;
+
+	// time to init
+	gettimeofday(&start, NULL);
+	t1 = start.tv_sec + start.tv_usec / 1000000.0;
 	
 	dimvol.x = nx;
 	dimvol.y = ny;
@@ -1269,7 +1239,7 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 	
 	// Init seeds
 	int* tmp = (int*)malloc(stackgamma.size * sizeof(int));
-	srand(10);
+	srand(seed);
 	n=0;
 	while (n<stackgamma.size) {tmp[n] = rand(); ++n;}
 	cudaMemcpy(stackgamma.seed, tmp, mem_stack_int, cudaMemcpyHostToDevice);
@@ -1282,13 +1252,22 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 	threads.x = block_size;
 	grid.x = grid_size;
 
+	// Time to init
+	gettimeofday(&end, NULL);
+	t2 = end.tv_sec + end.tv_usec / 1000000.0;
+	diff = t2 - t1;
+	printf("Init GPU %f s\n", diff);
+
 	// Outter loop
-	for (step=0; step<2; ++step) {
+	gettimeofday(&start_s, NULL);
+	ts1 = start_s.tv_sec + start_s.tv_usec / 1000000.0;
+	for (step=0; step<1; ++step) {
 		printf("Step %i\n", step);
 		// Init particles
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
-		kernel_particle_largegun<<<grid, threads>>>(stackgamma, dimvol, 45.0, 0.0, 35.0, 0.0, 1.0, 0.0, 0.025, 5.0);
+		//kernel_particle_largegun<<<grid, threads>>>(stackgamma, dimvol, 22.0, 22.0, 0.0, 0.0, 0.0, 1.0, 0.025, 5);
+		kernel_particle_isotrope<<<grid, threads>>>(stackgamma, 22, 22, 0.0, 0.025);
 		cudaThreadSynchronize();
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
@@ -1298,7 +1277,8 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 		// Propagation
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
-		kernel_siddon<<<grid, threads>>>(dimvol, stackgamma, dtrack, 4.0); // 4.0 mm3 voxel
+		//kernel_siddon<<<grid, threads>>>(dimvol, stackgamma, dtrack, 1.0); // 4.0 mm3 voxel
+		kernel_woodcock<<<grid, threads>>>(dimvol, stackgamma, 1.0, dtrack);
 		cudaThreadSynchronize();
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
@@ -1367,14 +1347,19 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 		diff = t2 - t1;
 		
 		printf("   Store gamma particles %f s\n", diff);
-		printf("   Nb particles outside %i absorbed %i\n", countparticle, c1);
+		printf("   Nb particles saves %i absorbed %i\n", countparticle, c1);
 		printf("   Tot interaction %i: %i Compton %i Photo-Electric %i Rayleigh\n", c2, c3, c4, c5);
 
 	} // outter loop (step)
+
+	gettimeofday(&end_s, NULL);
+	ts2 = end_s.tv_sec + end_s.tv_usec / 1000000.0;
+	diff = ts2 - ts1;
+	printf("Step running time %f s\n", diff);
 	
 	//cudaMemcpy(tmp, stackgamma.seed, mem_stack_int, cudaMemcpyDeviceToHost);
-	//cudaMemcpy(vol, dtrack, mem_vol, cudaMemcpyDeviceToHost);
-	cudaMemcpy(vol, ddose, mem_vol, cudaMemcpyDeviceToHost);
+	cudaMemcpy(vol, dtrack, mem_vol, cudaMemcpyDeviceToHost);
+	//cudaMemcpy(vol, ddose, mem_vol, cudaMemcpyDeviceToHost);
 
 	// Clean memory
 	free(collector.E);

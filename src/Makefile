@@ -59,7 +59,8 @@ mc_cuda.so : mc_cuda.o mc_cuda_cst.o
 	nvcc -o mc_cuda.so -shared mc_cuda.o mc_cuda_cst.o -lcublas -lcufft
 
 mc_cuda.o : mc_cuda.cu
-	nvcc -o mc_cuda.o -c mc_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11 --opencc-options -OPT:Olimit=49166
+	nvcc -o mc_cuda.o -c mc_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11
+#--opencc-options -OPT:Olimit=49166
 
 mc_cuda_cst.o : mc_cuda_cst.cu
 	nvcc -o mc_cuda_cst.o -c mc_cuda_cst.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11 

@@ -355,3 +355,30 @@ void dev_raypro_3D(float* vol, int nz, int ny, int nx,
 	} // for p
 
 }
+
+void dev_mc_distribution(float* dist, int nz, int ny, int nx,
+						 float* res, int nrz, int nrx, int nry, int N) {
+	int i, j;
+	int nb = nx*ny*nz;
+	float tot = 0;
+	float rnd;
+
+	i=0;
+	while (i<nb) {tot += dist[i]; ++i;}
+	tot = 1.0f / tot;
+
+	i=0;
+	while (i<nb) {dist[i] *= tot; ++i;}
+	
+	i=1;
+	while (i<nb) {dist[i] += (dist[i-1]);	++i;}
+
+	i=0;
+	while (i<N) {
+		rnd = (float)rand() / (float)(RAND_MAX+1.0f);
+		j = 0;
+		while (dist[j] < rnd) {++j;}
+		res[j] += 1.0f;
+		++i;
+	}
+}

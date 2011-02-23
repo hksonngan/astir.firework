@@ -29,7 +29,7 @@
 import_array();
 %}
 
-// here, put your wrapper!
+// here, put your wrapper
 void dev_siddon_3D(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, int nlines);
 
 void dev_amanatides_3D(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
@@ -41,4 +41,6 @@ void dev_raypro_3D(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
 				   float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1,
 				   float* IN_ARRAY1, int DIM1);
 
+void dev_mc_distribution(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
+						 float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, int N);
 

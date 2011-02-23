@@ -18,5 +18,8 @@
 void mc_cuda(float* vol, int nz, int ny, int nx,
 			 float* E, int nE, float* dx, int ndx, float* dy, int ndy, float* dz, int ndz,
 			 float* px, int npx, float* py, int npy, float* pz, int npz,
-			 int nparticles);
+			 int nparticles, int seed);
 void mc_get_cs_cuda(float* CS, int ncs, float* E, int nE, int mat);
+
+int mc_disk_detector(float* x, int nx, float* y, int ny, float* E, int nE, float* resE, int nrE,
+					 int rad, int posx, int posy);

@@ -356,6 +356,35 @@ void dev_raypro_3D(float* vol, int nz, int ny, int nx,
 
 }
 
+#define SWAPf(a, b) {float tmp=(a); (a)=(b); (b)=tmp;}
+#define SWAPi(a, b) {int tmp=(a); (a)=(b); (b)=tmp;}
+// Quick sort O(n(log n))
+void dev_mc_quicksort(float* vec, int* ind, int l, int r) {
+	int key, i, j, k;
+
+	if (l < r) {
+		int i, j;
+		float pivot;
+		pivot = vec[l];
+		i = l;
+		j = r+1;
+
+		while (1) {
+			do ++i; while(vec[i] <= pivot && i <= r);
+			do --j; while(vec[j] > pivot);
+			if (i >= j) break;
+			SWAPf(vec[i], vec[j]);
+			SWAPi(ind[i], ind[j]);
+		}
+		SWAPf(vec[l], vec[j]);
+		SWAPi(ind[l], ind[j]);
+		dev_mc_quicksort(vec, ind, l, j-1);
+		dev_mc_quicksort(vec, ind, j+1, r);
+	}
+}
+#undef SWAPf
+#undef SWAPi
+
 void dev_mc_distribution(float* dist, int nz, int ny, int nx,
 						 float* res, int nrz, int nrx, int nry, int N) {
 	int i, j;
@@ -363,22 +392,127 @@ void dev_mc_distribution(float* dist, int nz, int ny, int nx,
 	float tot = 0;
 	float rnd;
 
+	float mean = 0.0f;
+	float mean2 = 0.0f;
+	float mean3 = 0.0f;
+	int j0;
+	int fact = 50;
+	
+	// prepare data
+	int* ind = (int*)malloc(nb * sizeof(int));
+	i=0;
+	while (i<nb) {ind[i] = i; ++i;}
 	i=0;
 	while (i<nb) {tot += dist[i]; ++i;}
-	tot = 1.0f / tot;
-
+	tot = 1.0f / tot;	
 	i=0;
 	while (i<nb) {dist[i] *= tot; ++i;}
 	
-	i=1;
-	while (i<nb) {dist[i] += (dist[i-1]);	++i;}
+	dev_mc_quicksort(dist, ind, 0, nb-1);
+	
+	// prepare multires data
+	int small_nb = int(nb / fact);
+	if (nb % fact == 1) {++small_nb;}
+	int tiny_nb = int(small_nb / fact);
+	if (small_nb % fact == 1) {++tiny_nb;}
 
+	float* small_dist = (float*)malloc(small_nb * sizeof(float));
+	float* tiny_dist = (float*)malloc(tiny_nb * sizeof(float));
+
+	int c, k;
+	float sum;
+
+	c=0; k=0; i=0;
+	while (i<nb) {
+		sum += dist[i];
+		++c;
+		if (c==fact) {
+			small_dist[k] = sum;
+			sum = 0.0f;
+			c = 0;
+			++k;
+		}
+		++i;
+	}
+	if (k != small_nb) {small_dist[k] = sum;}
+
+	c=0; k=0; i=0;
+	while (i<small_nb) {
+		sum += small_dist[i];
+		++c;
+		if (c==fact) {
+			tiny_dist[k] = sum;
+			sum = 0.0f;
+			c = 0;
+			++k;
+		}
+		++i;
+	}
+	if (k != tiny_nb) {tiny_dist[k] = sum;}
+
+	// cumul
+	i=1;
+	while (i<nb) {dist[i] += (dist[i-1]); ++i;}
+	i=1;
+	while (i<small_nb) {small_dist[i] += (small_dist[i-1]); ++i;}
+	i=1;
+	while (i<tiny_nb) {tiny_dist[i] += (tiny_dist[i-1]); ++i;}
+	
 	i=0;
 	while (i<N) {
 		rnd = (float)rand() / (float)(RAND_MAX+1.0f);
-		j = 0;
-		while (dist[j] < rnd) {++j;}
-		res[j] += 1.0f;
+
+		// first estimate position
+		j = int(rnd * tiny_nb);
+		j0 = j;
+		if (tiny_dist[j] < rnd) {
+			while (tiny_dist[j] < rnd) {++j;}
+		} else {
+			while (tiny_dist[j] > rnd) {--j;}
+			++j; // correct undershoot
+		}
+		
+		mean += ((float)abs(j0-j));
+
+		// second estimate position
+		j *= fact;
+		if (j >= (nb-1)) {j = nb-2;}
+		if (j <= 0) {j = 1;}
+		j0 = j;
+		if (small_dist[j] < rnd) {
+			while (small_dist[j] < rnd) {++j;}
+		} else {
+			while (small_dist[j] > rnd) {--j;}
+			++j; // correct undershoot
+		}
+				
+		mean2 += ((float)abs(j0-j));
+		
+		// final position
+		j *= fact;
+		if (j >= (nb-1)) {j = nb-2;}
+		if (j <= 0) {j = 1;}
+		j0 = j;
+		if (dist[j] < rnd) {
+			while (dist[j] < rnd) {++j;}
+		} else {
+			while (dist[j] > rnd) {--j;}
+			++j; // correct undershoot
+		}
+
+		mean3 += ((float)abs(j0-j));
+		
+		res[ind[j]] += 1.0f;
+		
 		++i;
+		
 	}
+	
+	printf("mean step 1 %f\n", mean/float(N));
+	printf("mean step 2 %f\n", mean2/float(N));
+	printf("mean step 3 %f\n", mean3/float(N));
+	free(ind);
+	free(tiny_dist);
+	free(small_dist);
+
 }

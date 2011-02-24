@@ -592,17 +592,15 @@ __device__ float att_from_mat(int mat, float E) {
 	case 3:     return Compton_mu_Lung(E) + PhotoElec_mu_Lung(E) + Rayleigh_mu_Lung(E);
 	case 4:     return Compton_mu_Breast(E) + PhotoElec_mu_Breast(E) + Rayleigh_mu_Breast(E);
 	case 5:     return Compton_mu_Heart(E) + PhotoElec_mu_Heart(E) + Rayleigh_mu_Heart(E);
-	case 6:     return Compton_mu_SpineBone(E) + PhotoElec_mu_SpineBone(E) + Rayleigh_mu_SpineBone(E);
-	case 7:     return Compton_mu_RibBone(E) + PhotoElec_mu_RibBone(E) + Rayleigh_mu_RibBone(E);
-		/*
-	case 7:     return Compton_mu_Intestine(E) + PhotoElec_mu_Intestine(E) + Rayleigh_mu_Intestine(E);
-	case 8:     return Compton_mu_Spleen(E) + PhotoElec_mu_Spleen(E) + Rayleigh_mu_Spleen(E);
-	case 9:     return Compton_mu_Blood(E) + PhotoElec_mu_Blood(E) + Rayleigh_mu_Blood(E);
-	case 10:     return Compton_mu_Liver(E) + PhotoElec_mu_Liver(E) + Rayleigh_mu_Liver(E);
-	case 11:     return Compton_mu_Kidney(E) + PhotoElec_mu_Kidney(E) + Rayleigh_mu_Kidney(E);
-	case 12:     return Compton_mu_Brain(E) + PhotoElec_mu_Brain(E) + Rayleigh_mu_Brain(E);
-	case 13:     return Compton_mu_Pancreas(E) + PhotoElec_mu_Pancreas(E) + Rayleigh_mu_Pancreas(E);
-		*/
+		//case 6:     return Compton_mu_SpineBone(E) + PhotoElec_mu_SpineBone(E) + Rayleigh_mu_SpineBone(E);
+		//case 7:     return Compton_mu_RibBone(E) + PhotoElec_mu_RibBone(E) + Rayleigh_mu_RibBone(E);
+		//case 8:     return Compton_mu_Intestine(E) + PhotoElec_mu_Intestine(E) + Rayleigh_mu_Intestine(E);
+		//case 9:     return Compton_mu_Spleen(E) + PhotoElec_mu_Spleen(E) + Rayleigh_mu_Spleen(E);
+		//case 10:     return Compton_mu_Blood(E) + PhotoElec_mu_Blood(E) + Rayleigh_mu_Blood(E);
+		//case 11:     return Compton_mu_Liver(E) + PhotoElec_mu_Liver(E) + Rayleigh_mu_Liver(E);
+		//case 12:     return Compton_mu_Kidney(E) + PhotoElec_mu_Kidney(E) + Rayleigh_mu_Kidney(E);
+		//case 13:     return Compton_mu_Brain(E) + PhotoElec_mu_Brain(E) + Rayleigh_mu_Brain(E);
+		//case 14:     return Compton_mu_Pancreas(E) + PhotoElec_mu_Pancreas(E) + Rayleigh_mu_Pancreas(E);
 		//case 99:    return Compton_mu_Plastic(E) + PhotoElec_mu_Plastic(E) + Rayleigh_mu_Plastic(E);
 		//case 100:	return Compton_mu_Al(E) + PhotoElec_mu_Al(E) + Rayleigh_mu_Al(E);
 	}
@@ -621,6 +619,11 @@ __device__ int rnd_Z_from_mat(int mat, float rnd) {
 	case 5:     while(Heart_cumul[pos] < rnd) {++pos;}; return Heart_Z[pos];
 	case 6:     while(SpineBone_cumul[pos] < rnd) {++pos;}; return SpineBone_Z[pos];
 	case 7:     while(RibBone_cumul[pos] < rnd) {++pos;}; return RibBone_Z[pos];
+	case 8:     while(Intestine_cumul[pos] < rnd) {++pos;}; return Intestine_Z[pos];
+	case 9:     while(Spleen_cumul[pos] < rnd) {++pos;}; return Spleen_Z[pos];
+	case 10:    while(Blood_cumul[pos] < rnd) {++pos;}; return Blood_Z[pos];
+	case 11:    while(Liver_cumul[pos] < rnd) {++pos;}; return Liver_Z[pos];
+	case 12:    while(Kidney_cumul[pos] < rnd) {++pos;}; return Kidney_Z[pos];
 		//case 99:    while(Plastic_cumul[pos] < rnd) {++pos;}; return Plastic_Z[pos];
 		//case 100:	while(Al_cumul[pos] < rnd) {++pos;}; return Al_Z[pos];
 	}
@@ -690,6 +693,32 @@ __global__ void kernel_interactions(StackGamma stackgamma, float* ddose, int3 di
 			PhotoElec_CS = PhotoElec_mu_RibBone(oldE);
 			Rayleigh_CS = Rayleigh_mu_RibBone(oldE);
 			break;
+		case 8:
+			Compton_CS = Compton_mu_Intestine(oldE);
+			PhotoElec_CS = PhotoElec_mu_Intestine(oldE);
+			Rayleigh_CS = Rayleigh_mu_Intestine(oldE);
+			break;
+		case 9:
+			Compton_CS = Compton_mu_Spleen(oldE);
+			PhotoElec_CS = PhotoElec_mu_Spleen(oldE);
+			Rayleigh_CS = Rayleigh_mu_Spleen(oldE);
+			break;
+		case 10:
+			Compton_CS = Compton_mu_Blood(oldE);
+			PhotoElec_CS = PhotoElec_mu_Blood(oldE);
+			Rayleigh_CS = Rayleigh_mu_Blood(oldE);
+			break;
+		case 11:
+			Compton_CS = Compton_mu_Liver(oldE);
+			PhotoElec_CS = PhotoElec_mu_Liver(oldE);
+			Rayleigh_CS = Rayleigh_mu_Liver(oldE);
+			break;
+		case 12:
+			Compton_CS = Compton_mu_Kidney(oldE);
+			PhotoElec_CS = PhotoElec_mu_Kidney(oldE);
+			Rayleigh_CS = Rayleigh_mu_Kidney(oldE);
+			break;
+			
 			/*
 		case 98:
 			Compton_CS = Compton_mu_Plastic(oldE);
@@ -861,7 +890,7 @@ __global__ void kernel_particle_largegun(StackGamma stackgamma, int3 dimvol,
 
 }
 
-__global__ void kernel_particle_isotrope(StackGamma stackgamma, float posx, float posy, float posz, float E) {
+__global__ void kernel_particle_isotrope(StackGamma stackgamma, float posx, float posy, float posz, float E, float* dtrack) {
 	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (id < stackgamma.size) {
 		float phi, theta, x, y, z;
@@ -873,13 +902,16 @@ __global__ void kernel_particle_isotrope(StackGamma stackgamma, float posx, floa
 			theta = park_miller_jb(&seed);
 			phi   = twopi * phi;
 			//theta = acosf(1.0f - 2.0f*theta);
-			theta = acosf(theta * 0.0252f + 0.974f);
+			//theta = acosf(theta * 0.0252f + 0.974f);
+			theta = acosf(theta * 0.165f + 0.835f);
 			// convert to cartesian
 			x = __cosf(phi)*__sinf(theta);
 			y = __sinf(phi)*__sinf(theta);
 			z = __cosf(theta);
 			if (z<0.0f) {z = -z;}
 
+			//dtrack[id] = posz;
+			
 			stackgamma.dx[id] = x;
 			stackgamma.dy[id] = y;
 			stackgamma.dz[id] = z;
@@ -898,6 +930,39 @@ __global__ void kernel_particle_isotrope(StackGamma stackgamma, float posx, floa
 	}
 
 }
+
+__global__ void kernel_particle_area(StackGamma stackgamma, int mina, int maxa, int minb, int maxb, float E) {
+	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (id < stackgamma.size) {
+		float x, y;
+		int seed;
+		if (stackgamma.in[id]==0 || stackgamma.live[id]==0) {
+			seed = stackgamma.seed[id];
+
+			x = park_miller_jb(&seed);
+			y = park_miller_jb(&seed);
+			x = x * float(maxa - mina) + (float)mina;
+			y = y * float(maxb - minb) + (float)minb;
+
+			stackgamma.dx[id] = 0;
+			stackgamma.dy[id] = 0;
+			stackgamma.dz[id] = 1;
+			stackgamma.seed[id] = seed;
+			stackgamma.E[id] = E;
+			stackgamma.px[id] = x;
+			stackgamma.py[id] = y;
+			stackgamma.pz[id] = 0.0f;
+			stackgamma.live[id] = 1;
+			stackgamma.in[id] = 1;
+			stackgamma.ct_eff[id] = 0;
+			stackgamma.ct_Cpt[id] = 0;
+			stackgamma.ct_PE[id] = 0;
+			stackgamma.ct_Ray[id] = 0;
+		}
+	}
+
+}
+
 
 /***********************************************************
  * Tracking kernel
@@ -1006,7 +1071,7 @@ __global__ void kernel_siddon(int3 dimvol, StackGamma stackgamma, float* dtrack,
 			if (run.z==newv) {i.z += stepi.z; run.z += stept.z;}
 			inside = (i.x >= 0) & (i.x < dimvol.x) & (i.y >= 0) & (i.y < dimvol.y) & (i.z >= 0) & (i.z < dimvol.z);
 			// debug
-			//dtrack[i.z*jump + i.y*dimvol.x + i.x] += 1.0f;
+			dtrack[i.z*jump + i.y*dimvol.x + i.x] += 1.0f;
 		}
 
 		pe.x = p0.x + delta.x*oldv;
@@ -1049,13 +1114,23 @@ __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox
 		seed = stackgamma.seed[id];
 		E = stackgamma.E[id];
 
-		__shared__ float CS[256][6];
+		__shared__ float CS[256][16];
 		CS[threadIdx.x][0] = 0.0f;
 		CS[threadIdx.x][1] = 0.0f;
 		CS[threadIdx.x][2] = 0.0f;
 		CS[threadIdx.x][3] = 0.0f;
 		CS[threadIdx.x][4] = 0.0f;
 		CS[threadIdx.x][5] = 0.0f;		
+		CS[threadIdx.x][6] = 0.0f;
+		CS[threadIdx.x][7] = 0.0f;
+		CS[threadIdx.x][8] = 0.0f;
+		CS[threadIdx.x][9] = 0.0f;
+		CS[threadIdx.x][10] = 0.0f;
+		CS[threadIdx.x][11] = 0.0f;		
+		CS[threadIdx.x][12] = 0.0f;
+		CS[threadIdx.x][13] = 0.0f;
+		CS[threadIdx.x][14] = 0.0f;
+		CS[threadIdx.x][15] = 0.0f;
 		
 		// Most attenuate material is RibBone (ID=6)
 		rec_mu_maj = __fdividef(1.0f, att_from_mat(1, E));
@@ -1267,7 +1342,8 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
 		//kernel_particle_largegun<<<grid, threads>>>(stackgamma, dimvol, 22.0, 22.0, 0.0, 0.0, 0.0, 1.0, 0.025, 5);
-		kernel_particle_isotrope<<<grid, threads>>>(stackgamma, 22, 22, 0.0, 0.025);
+		kernel_particle_isotrope<<<grid, threads>>>(stackgamma, 22, 22, 0.0, 0.025, dtrack);
+		//kernel_particle_area<<<grid, threads>>>(stackgamma, 0, 127, 0, 45, 0.080);
 		cudaThreadSynchronize();
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
@@ -1277,8 +1353,8 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 		// Propagation
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
-		//kernel_siddon<<<grid, threads>>>(dimvol, stackgamma, dtrack, 1.0); // 4.0 mm3 voxel
-		kernel_woodcock<<<grid, threads>>>(dimvol, stackgamma, 1.0, dtrack);
+		kernel_siddon<<<grid, threads>>>(dimvol, stackgamma, dtrack, 4.0); // 4.0 mm3 voxel
+		//kernel_woodcock<<<grid, threads>>>(dimvol, stackgamma, 4.0, dtrack);
 		cudaThreadSynchronize();
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;

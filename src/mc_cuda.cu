@@ -30,8 +30,11 @@
 __constant__ const float pi = 3.14159265358979323846;
 __constant__ const float twopi = 2*pi;
 texture<float, 1, cudaReadModeElementType> tex_vol;
+texture<float, 1, cudaReadModeElementType> tex_small_vol;
+texture<float, 1, cudaReadModeElementType> tex_tiny_vol;
 texture<float, 1, cudaReadModeElementType> tex_rayl_cs;
 texture<float, 1, cudaReadModeElementType> tex_rayl_ff;
+texture<int, 1, cudaReadModeElementType> tex_ind;
 
 // Stack of gamma particles, format data is defined as SoA
 struct StackGamma{
@@ -592,13 +595,13 @@ __device__ float att_from_mat(int mat, float E) {
 	case 3:     return Compton_mu_Lung(E) + PhotoElec_mu_Lung(E) + Rayleigh_mu_Lung(E);
 	case 4:     return Compton_mu_Breast(E) + PhotoElec_mu_Breast(E) + Rayleigh_mu_Breast(E);
 	case 5:     return Compton_mu_Heart(E) + PhotoElec_mu_Heart(E) + Rayleigh_mu_Heart(E);
-		//case 6:     return Compton_mu_SpineBone(E) + PhotoElec_mu_SpineBone(E) + Rayleigh_mu_SpineBone(E);
-		//case 7:     return Compton_mu_RibBone(E) + PhotoElec_mu_RibBone(E) + Rayleigh_mu_RibBone(E);
-		//case 8:     return Compton_mu_Intestine(E) + PhotoElec_mu_Intestine(E) + Rayleigh_mu_Intestine(E);
-		//case 9:     return Compton_mu_Spleen(E) + PhotoElec_mu_Spleen(E) + Rayleigh_mu_Spleen(E);
-		//case 10:     return Compton_mu_Blood(E) + PhotoElec_mu_Blood(E) + Rayleigh_mu_Blood(E);
-		//case 11:     return Compton_mu_Liver(E) + PhotoElec_mu_Liver(E) + Rayleigh_mu_Liver(E);
-		//case 12:     return Compton_mu_Kidney(E) + PhotoElec_mu_Kidney(E) + Rayleigh_mu_Kidney(E);
+	case 6:     return Compton_mu_SpineBone(E) + PhotoElec_mu_SpineBone(E) + Rayleigh_mu_SpineBone(E);
+	case 7:     return Compton_mu_RibBone(E) + PhotoElec_mu_RibBone(E) + Rayleigh_mu_RibBone(E);
+	case 8:     return Compton_mu_Intestine(E) + PhotoElec_mu_Intestine(E) + Rayleigh_mu_Intestine(E);
+	case 9:     return Compton_mu_Spleen(E) + PhotoElec_mu_Spleen(E) + Rayleigh_mu_Spleen(E);
+	case 10:     return Compton_mu_Blood(E) + PhotoElec_mu_Blood(E) + Rayleigh_mu_Blood(E);
+	case 11:     return Compton_mu_Liver(E) + PhotoElec_mu_Liver(E) + Rayleigh_mu_Liver(E);
+	case 12:     return Compton_mu_Kidney(E) + PhotoElec_mu_Kidney(E) + Rayleigh_mu_Kidney(E);
 		//case 13:     return Compton_mu_Brain(E) + PhotoElec_mu_Brain(E) + Rayleigh_mu_Brain(E);
 		//case 14:     return Compton_mu_Pancreas(E) + PhotoElec_mu_Pancreas(E) + Rayleigh_mu_Pancreas(E);
 		//case 99:    return Compton_mu_Plastic(E) + PhotoElec_mu_Plastic(E) + Rayleigh_mu_Plastic(E);
@@ -902,8 +905,8 @@ __global__ void kernel_particle_isotrope(StackGamma stackgamma, float posx, floa
 			theta = park_miller_jb(&seed);
 			phi   = twopi * phi;
 			//theta = acosf(1.0f - 2.0f*theta);
-			//theta = acosf(theta * 0.0252f + 0.974f);
-			theta = acosf(theta * 0.165f + 0.835f);
+			theta = acosf(theta * 0.0136f + 0.9864f);
+			//theta = acosf(theta * 0.165f + 0.835f);
 			// convert to cartesian
 			x = __cosf(phi)*__sinf(theta);
 			y = __sinf(phi)*__sinf(theta);
@@ -952,6 +955,88 @@ __global__ void kernel_particle_area(StackGamma stackgamma, int mina, int maxa, 
 			stackgamma.px[id] = x;
 			stackgamma.py[id] = y;
 			stackgamma.pz[id] = 0.0f;
+			stackgamma.live[id] = 1;
+			stackgamma.in[id] = 1;
+			stackgamma.ct_eff[id] = 0;
+			stackgamma.ct_Cpt[id] = 0;
+			stackgamma.ct_PE[id] = 0;
+			stackgamma.ct_Ray[id] = 0;
+		}
+	}
+
+}
+
+__global__ void kernel_particle_pet(StackGamma stackgamma, int nb, int small_nb, int tiny_nb,
+									int nz, int ny, int nx, float E, int fact) {
+	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
+	if (id < stackgamma.size) {
+		float x, y, z, rnd, rx, ry, rz, phi, theta, dx, dy, dz;
+		int seed, j;
+		int jump = nx * ny;
+		if (stackgamma.in[id]==0 || stackgamma.live[id]==0) {
+			seed = stackgamma.seed[id];
+
+			//// Get position
+			rx = park_miller_jb(&seed);
+			ry = park_miller_jb(&seed);
+			rz = park_miller_jb(&seed);
+			rnd = park_miller_jb(&seed);
+			// first binary search
+			j = int(rnd * tiny_nb);
+			if (tex1Dfetch(tex_tiny_vol, j) < rnd) {
+				while (tex1Dfetch(tex_tiny_vol, j) < rnd) {++j;}
+			} else {
+				while (tex1Dfetch(tex_tiny_vol, j) > rnd) {--j;}
+				++j; // correct unershoot
+			}
+			// second binary search
+			j *= fact;
+			j = fminf(j, small_nb-1);
+			if (tex1Dfetch(tex_small_vol, j) < rnd) {
+				while (tex1Dfetch(tex_small_vol, j) < rnd) {++j;}
+			} else {
+				while (tex1Dfetch(tex_small_vol, j) > rnd) {--j;}
+				++j; // correct undershoot
+			}
+			// final binary search
+			j *= fact;
+			j = fminf(j, nb-1);
+			if (tex1Dfetch(tex_vol, j) < rnd) {
+				while (tex1Dfetch(tex_vol, j) < rnd) {++j;}
+			} else {
+				while (tex1Dfetch(tex_vol, j) < rnd) {--j;}
+				++j; // correct undershoot
+			}
+			// get the position inside the volume
+			j = tex1Dfetch(tex_ind, j);  // look-up-table
+			z = j / jump;
+			j -= (z * jump);
+			y = j / nx;
+			x = j - y*nx;
+			// get the pos inside the voxel
+			x += rx;
+			y += ry;
+			z += rz;
+
+			//// Get direction
+			phi = park_miller_jb(&seed);
+			theta = park_miller_jb(&seed);
+			phi   = twopi * phi;
+			theta = acosf(1.0f - 2.0f*theta);
+			// convert to cartesian
+			dx = __cosf(phi)*__sinf(theta);
+			dy = __sinf(phi)*__sinf(theta);
+			dz = __cosf(theta);
+
+			// Assignment
+			stackgamma.dx[id] = dx;
+			stackgamma.dy[id] = dy;
+			stackgamma.dz[id] = dz;
+			stackgamma.seed[id] = seed;
+			stackgamma.E[id] = E;
+			stackgamma.px[id] = rx;
+			stackgamma.py[id] = ry;
+			stackgamma.pz[id] = rz;
 			stackgamma.live[id] = 1;
 			stackgamma.in[id] = 1;
 			stackgamma.ct_eff[id] = 0;
@@ -1100,9 +1185,10 @@ __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox
 	float path, rec_mu_maj, E, cur_att;
 	int mat, seed;
 	dimvox = __fdividef(1.0f, dimvox);
-
+	
 	// to debug
 	//int i=0;
+	//float x, y, z;
 		
 	if (id < stackgamma.size) {
 		p0.x = stackgamma.px[id];
@@ -1113,31 +1199,42 @@ __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox
 		delta.z = stackgamma.dz[id];
 		seed = stackgamma.seed[id];
 		E = stackgamma.E[id];
-
-		__shared__ float CS[256][16];
+		
+		__shared__ float CS[256][15];
 		CS[threadIdx.x][0] = 0.0f;
 		CS[threadIdx.x][1] = 0.0f;
 		CS[threadIdx.x][2] = 0.0f;
 		CS[threadIdx.x][3] = 0.0f;
 		CS[threadIdx.x][4] = 0.0f;
-		CS[threadIdx.x][5] = 0.0f;		
+		CS[threadIdx.x][5] = 0.0f;
 		CS[threadIdx.x][6] = 0.0f;
 		CS[threadIdx.x][7] = 0.0f;
 		CS[threadIdx.x][8] = 0.0f;
 		CS[threadIdx.x][9] = 0.0f;
 		CS[threadIdx.x][10] = 0.0f;
-		CS[threadIdx.x][11] = 0.0f;		
+		CS[threadIdx.x][11] = 0.0f;
 		CS[threadIdx.x][12] = 0.0f;
 		CS[threadIdx.x][13] = 0.0f;
 		CS[threadIdx.x][14] = 0.0f;
-		CS[threadIdx.x][15] = 0.0f;
 		
+		//CS[threadIdx.x][15] = 0.0f; ERROR, overflow!!!!!
+
 		// Most attenuate material is RibBone (ID=6)
-		rec_mu_maj = __fdividef(1.0f, att_from_mat(1, E));
+		rec_mu_maj = __fdividef(1.0f, att_from_mat(7, E));
 		
 		while (1) {
 			// get mean path from the most attenuate material (RibBone)
 			path = -__logf(park_miller_jb(&seed)) * rec_mu_maj * dimvox;
+			
+			/*
+			// To debug the flight of the particle
+			for (i=0; i<path*10.0f; ++i) {
+				x = p0.x + delta.x * (float)i / 10.0f;
+				y = p0.y + delta.y * (float)i / 10.0f;
+				z = p0.z + delta.z * (float)i / 10.0f;
+				dtrack[int(z)*jump + int(y)*dimvol.x + int(x)] += 1.0f;
+			}
+			*/
 			
 			// flight along the path
 			p0.x = p0.x + delta.x * path;
@@ -1168,7 +1265,7 @@ __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox
 			if (cur_att * rec_mu_maj > park_miller_jb(&seed)) {break;}
 
 		}
-		//dtrack[int(p0.z)*jump + int(p0.y)*dimvol.x + int(p0.x)] += 1.0f;
+		//dtrack[int(vox.z)*jump + int(vox.y)*dimvol.x + int(vox.x)] += 1.0f;
 		stackgamma.seed[id] = seed;
 		stackgamma.px[id] = p0.x;
 		stackgamma.py[id] = p0.y;
@@ -1189,6 +1286,14 @@ __global__ void kernel_CS_from_mat(float* dCS, float* dE, int nE, int mat) {
 	}
 }
 
+__global__ void kernel_test(float* dtrack, int max) {
+	unsigned int id = __umul24(blockIdx.x, blockDim.x)+threadIdx.x;
+	if (id < max) {
+		dtrack[id] = id;
+	}
+}
+
+
 int mc_disk_detector(float* x, int nx, float* y, int ny, float* E, int nE, float* resE, int nrE,
 					 int rad, int posx, int posy) {
 	int i, ix, iy, iu, iv, c;
@@ -1206,13 +1311,96 @@ int mc_disk_detector(float* x, int nx, float* y, int ny, float* E, int nE, float
 	return c;
 }
 
+void mc_proj_detector(float* im, int ny, int nx, float* x, int sx, float* y, int sy) {
+	int i=0;
+	while (i<sx) {
+		im[int(y[i])*nx + int(x[i])] += 1.0f;
+		++i;
+	}
+}
+
+#define SWAPf(a, b) {float tmp=(a); (a)=(b); (b)=tmp;}
+#define SWAPi(a, b) {int tmp=(a); (a)=(b); (b)=tmp;}
+// Quick sort O(n(log n))
+void mc_quicksort(float* vec, int* ind, int l, int r) {
+	if (l < r) {
+		int i, j;
+		float pivot;
+		pivot = vec[l];
+		i = l;
+		j = r+1;
+
+		while (1) {
+			do ++i; while(vec[i] <= pivot && i <= r);
+			do --j; while(vec[j] > pivot);
+			if (i >= j) break;
+			SWAPf(vec[i], vec[j]);
+			SWAPi(ind[i], ind[j]);
+		}
+		SWAPf(vec[l], vec[j]);
+		SWAPi(ind[l], ind[j]);
+		mc_quicksort(vec, ind, l, j-1);
+		mc_quicksort(vec, ind, j+1, r);
+	}
+}
+#undef SWAPf
+#undef SWAPi
+
+void mc_prepare_activity(float* vol, int* ind,
+						 float* data, int nb, float* small_data, int small_nb,
+						 float* tiny_data, int tiny_nb, int fact) {
+	int i, c, k;
+	float tot, sum;
+	// build index
+	i = 0; while (i<nb) {ind[i] = i; ++i;}
+	// compute sum
+	i = 0; while (i<nb) {tot += vol[i]; ++i;}
+	tot = 1.0f / tot;
+	// normalize
+	i = 0; while (i<nb) {data[i] = vol[i] * tot; ++i;}
+	// quicksort
+	mc_quicksort(data, ind, 0, nb-1);
+	// build small data
+	c = 0; k = 0; i = 0;
+	while (i<nb) {
+		sum += data[i];
+		++c;
+		if (c == fact) {
+			small_data[k] = sum;
+			sum = 0.0f;
+			c = 0;
+			++k;
+		}
+		++i;
+	}
+	if (k != small_nb) {small_data[k] = sum;}
+	// build tiny data
+	c = 0; k = 0; i = 0;
+	while (i<small_nb) {
+		sum += small_data[i];
+		++c;
+		if (c == fact) {
+			tiny_data[k] = sum;
+			sum = 0.0f;
+			c = 0;
+			++k;
+		}
+		++i;
+	}
+	if (k != tiny_nb) {tiny_data[k] = sum;}
+	// cumul values
+	i = 1; while (i<nb) {data[i] += data[i-1]; ++i;}
+	i = 1; while (i<small_nb) {small_data[i] += small_data[i-1]; ++i;}
+	i = 1; while (i<tiny_nb) {tiny_data[i] += tiny_data[i-1]; ++i;}
+}
+
 /***********************************************************
  * Main
  ***********************************************************/
 void mc_cuda(float* vol, int nz, int ny, int nx,
 			 float* E, int nE, float* dx, int ndx, float* dy, int ndy, float* dz, int ndz,
 			 float* px, int npx, float* py, int npy, float* pz, int npz,
-			 int nparticles, int seed) {
+			 int nparticles, int totparticles, int maxit, int seed) {
 	cudaSetDevice(1);
 
     timeval start, end;
@@ -1243,6 +1431,41 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 	float* ddose;
 	cudaMalloc((void**) &ddose, mem_vol);
 	cudaMemset(ddose, 0, mem_vol);
+
+	/*
+	// prepare volume activity
+	int fact = 50;
+	int nb = nx*ny*nz;
+	int small_nb = int(nb / fact);
+	if (nb % fact == 1) {++small_nb;}
+	int tiny_nb = int(small_nb / fact);
+	if (small_nb % fact == 1) {++tiny_nb;}
+	float* data = (float*)malloc(nb * sizeof(float));
+	float* small_data = (float*)malloc(small_nb * sizeof(float));
+	float* tiny_data = (float*)malloc(tiny_nb * sizeof(float));
+	int* ind = (int*)malloc(nb * sizeof(int));
+	mc_prepare_activity(vol, ind, data, nb, small_data, small_nb, tiny_data, tiny_nb, fact);
+	float* dvol;
+	unsigned int mem_vol = nb * sizeof(float);
+	cudaMalloc((void**) &dvol, mem_vol);
+	cudaMemcpy(dvol, data, mem_vol, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_vol, dvol, mem_vol);
+	float* small_dvol;
+	unsigned int mem_small_vol = small_nb * sizeof(float);
+	cudaMalloc((void**) &small_dvol, mem_small_vol);
+	cudaMemcpy(small_dvol, small_data, mem_small_vol, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_small_vol, small_dvol, mem_small_vol);
+	float* tiny_dvol;
+	unsigned int mem_tiny_vol = tiny_nb * sizeof(float);
+	cudaMalloc((void**) &tiny_dvol, mem_tiny_vol);
+	cudaMemcpy(tiny_dvol, tiny_data, mem_tiny_vol, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_tiny_vol, tiny_dvol, mem_tiny_vol);
+	int* dind;
+	unsigned int mem_dind = nb * sizeof(int);
+	cudaMalloc((void**) &dind, mem_dind);
+	cudaMemcpy(dind, ind, mem_dind, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_ind, dind, mem_dind);
+	*/
 
 	// Load Rayleigh cross section to the texture mem
 	FILE *pfile;
@@ -1336,13 +1559,14 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 	// Outter loop
 	gettimeofday(&start_s, NULL);
 	ts1 = start_s.tv_sec + start_s.tv_usec / 1000000.0;
-	for (step=0; step<1; ++step) {
+	step = 0;
+	while (step < maxit) {
 		printf("Step %i\n", step);
 		// Init particles
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
 		//kernel_particle_largegun<<<grid, threads>>>(stackgamma, dimvol, 22.0, 22.0, 0.0, 0.0, 0.0, 1.0, 0.025, 5);
-		kernel_particle_isotrope<<<grid, threads>>>(stackgamma, 22, 22, 0.0, 0.025, dtrack);
+		kernel_particle_isotrope<<<grid, threads>>>(stackgamma, 64, 23, 0.0, 0.080, dtrack);
 		//kernel_particle_area<<<grid, threads>>>(stackgamma, 0, 127, 0, 45, 0.080);
 		cudaThreadSynchronize();
 		gettimeofday(&end, NULL);
@@ -1353,8 +1577,9 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 		// Propagation
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
-		kernel_siddon<<<grid, threads>>>(dimvol, stackgamma, dtrack, 4.0); // 4.0 mm3 voxel
-		//kernel_woodcock<<<grid, threads>>>(dimvol, stackgamma, 4.0, dtrack);
+		//kernel_siddon<<<grid, threads>>>(dimvol, stackgamma, dtrack, 4.0); // 4.0 mm3 voxel
+		kernel_woodcock<<<grid, threads>>>(dimvol, stackgamma, 4.0, dtrack);
+		//kernel_test<<<grid, threads>>>(dtrack, nparticles);
 		cudaThreadSynchronize();
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
@@ -1400,8 +1625,10 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 		int c4=0;
 		int c5=0;
 		n=0;
-		while(n<nparticles && countparticle<nparticles) {
-			if (collector.in[n] == 0) {
+		while(n<nparticles && countparticle<totparticles) {
+			if (collector.in[n] == 0 && collector.px[n] > 0 && collector.py[n] > 0
+				&& collector.px[n] < nx && collector.py[n] < ny
+				&& collector.pz[n] > 440.0f && collector.pz[n] < 550.0f) {
 				E[countparticle] = collector.E[n];
 				dx[countparticle] = collector.dx[n];
 				dy[countparticle] = collector.dy[n];
@@ -1423,8 +1650,12 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 		diff = t2 - t1;
 		
 		printf("   Store gamma particles %f s\n", diff);
-		printf("   Nb particles saves %i absorbed %i\n", countparticle, c1);
+		printf("   Nb particles saves %i/%i absorbed %i\n", countparticle, totparticles, c1);
 		printf("   Tot interaction %i: %i Compton %i Photo-Electric %i Rayleigh\n", c2, c3, c4, c5);
+
+		// loop control
+		if (countparticle >= totparticles) {break;}
+		++step;
 
 	} // outter loop (step)
 

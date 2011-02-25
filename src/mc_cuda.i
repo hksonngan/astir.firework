@@ -32,9 +32,11 @@ import_array();
 void mc_cuda(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
 			 float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
 			 float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
-			 int nparticles, int seed);
+			 int nparticles, int totparticles, int maxit, int seed);
 
 void mc_get_cs_cuda(float* INPLACE_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, int mat);
 
 int mc_disk_detector(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1,
 					 float* INPLACE_ARRAY1, int DIM1, int rad, int posx, int posy);
+
+void mc_proj_detector(float* INPLACE_ARRAY2, int DIM1, int DIM2, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1);

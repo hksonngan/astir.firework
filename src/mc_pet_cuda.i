@@ -16,24 +16,25 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-%module firekernel
+%module kernel
 
 %{
 #define SWIG_FILE_WITH_INIT
+#include "mc_pet_cuda.h"	
 %}
 
 %include "numpy.i"
-%include "kernel_c.i"
-%include "pet_c.i"
-%include "dev_c.i"
-#ifdef CUDA
- %include "pet_cuda.i"
- %include "kernel_cuda.i"
- %include "dev_cuda.i"
- //%include "mc_cuda.i"
- %include "mc_pet_cuda.i"
-#endif
 
 %init %{
 import_array();
 %}
+
+void mc_pet_cuda(unsigned short int* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
+				 float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1,
+				 int* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
+				 float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
+				 float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
+				 int nparticles, int totparticles, int maxit, int seed, int fact);
+
+void mc_proj_detector(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
+					  float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1);

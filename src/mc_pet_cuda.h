@@ -1,4 +1,3 @@
-/* -*- C -*-  (not really, but good for syntax highlighting) */
 // This file is part of FIREwork
 // 
 // FIREwork is free software: you can redistribute it and/or modify
@@ -6,7 +5,7 @@
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
-// FIREwork is distributed in the hope that it will be useful,
+// FIREwire is distributed in the hope that it will be useful,
 // but WITHOUT ANY WARRANTY; without even the implied warranty of
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
@@ -16,24 +15,12 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-%module firekernel
 
-%{
-#define SWIG_FILE_WITH_INIT
-%}
+void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
+				 float* act, int nb, float* small_act, int small_nb, float* tiny_act, int tiny_nb,
+				 int* ind, int nind, float* E, int nE,
+				 float* dx, int ndx, float* dy, int ndy, float* dz, int ndz,
+				 float* px, int npx, float* py, int npy, float* pz, int npz,
+				 int nparticles, int totparticles, int maxit, int seed, int fact);
 
-%include "numpy.i"
-%include "kernel_c.i"
-%include "pet_c.i"
-%include "dev_c.i"
-#ifdef CUDA
- %include "pet_cuda.i"
- %include "kernel_cuda.i"
- %include "dev_cuda.i"
- //%include "mc_cuda.i"
- %include "mc_pet_cuda.i"
-#endif
-
-%init %{
-import_array();
-%}
+void mc_proj_detector(float* im, int nz, int ny, int nx, float* x, int sx, float* y, int sy, float* z, int sz);

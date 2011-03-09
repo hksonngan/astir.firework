@@ -385,10 +385,10 @@ void dev_mc_quicksort(float* vec, int* ind, int l, int r) {
 #undef SWAPf
 #undef SWAPi
 
-void dev_mc_distribution(float* dist, int nz, int ny, int nx,
-						 float* res, int nrz, int nrx, int nry, int N) {
+void dev_mc_distribution(float* dist, int nb, float* small_dist, int small_nb, float* tiny_dist, int tiny_nb,
+						 int* ind, int nind, float* res, int nrz, int nrx, int nry, int N) {
 	int i, j;
-	int nb = nx*ny*nz;
+	//int nb = nx*ny*nz;
 	float tot = 0;
 	float rnd;
 
@@ -397,7 +397,8 @@ void dev_mc_distribution(float* dist, int nz, int ny, int nx,
 	float mean3 = 0.0f;
 	int j0;
 	int fact = 50;
-	
+
+	/*
 	// prepare data
 	int* ind = (int*)malloc(nb * sizeof(int));
 	i=0;
@@ -457,6 +458,7 @@ void dev_mc_distribution(float* dist, int nz, int ny, int nx,
 	while (i<small_nb) {small_dist[i] += (small_dist[i-1]); ++i;}
 	i=1;
 	while (i<tiny_nb) {tiny_dist[i] += (tiny_dist[i-1]); ++i;}
+	*/
 	
 	i=0;
 	while (i<N) {
@@ -476,8 +478,8 @@ void dev_mc_distribution(float* dist, int nz, int ny, int nx,
 
 		// second estimate position
 		j *= fact;
-		if (j >= (nb-1)) {j = nb-2;}
-		if (j <= 0) {j = 1;}
+		//if (j >= (nb-1)) {j = nb-2;}
+		//if (j <= 0) {j = 1;}
 		j0 = j;
 		if (small_dist[j] < rnd) {
 			while (small_dist[j] < rnd) {++j;}
@@ -490,8 +492,8 @@ void dev_mc_distribution(float* dist, int nz, int ny, int nx,
 		
 		// final position
 		j *= fact;
-		if (j >= (nb-1)) {j = nb-2;}
-		if (j <= 0) {j = 1;}
+		//if (j >= (nb-1)) {j = nb-2;}
+		//if (j <= 0) {j = 1;}
 		j0 = j;
 		if (dist[j] < rnd) {
 			while (dist[j] < rnd) {++j;}
@@ -511,8 +513,9 @@ void dev_mc_distribution(float* dist, int nz, int ny, int nx,
 	printf("mean step 1 %f\n", mean/float(N));
 	printf("mean step 2 %f\n", mean2/float(N));
 	printf("mean step 3 %f\n", mean3/float(N));
-	free(ind);
-	free(tiny_dist);
-	free(small_dist);
+
+	//free(ind);
+	//free(tiny_dist);
+	//free(small_dist);
 
 }

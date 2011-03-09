@@ -280,311 +280,6 @@ __device__ float Rayleigh_scatter(StackGamma stackgamma, unsigned int id, int Z)
 /***********************************************************
  * Materials
  ***********************************************************/
-__device__  float Compton_mu_Water(float E) {
-	// H2O
-	return (2*Compton_CSPA(E, 1) + Compton_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
-}
-__device__  float PhotoElec_mu_Water(float E) {
-	// H2O
-	return (2*PhotoElec_CSPA(E, 1) + PhotoElec_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
-}
-__device__  float Rayleigh_mu_Water(float E) {
-	// H2O
-	return (2*Rayleigh_CSPA(E, 1) + Rayleigh_CSPA(E, 8)) * 3.342796664e+19f; // Avogadro*H2O_density / (2*a_H+a_O)
-}
-
-__device__  float Compton_mu_Plastic(float E) {
-	// 5C8H2O
-	return (5*Compton_CSPA(E, 6) + 8*Compton_CSPA(E, 1) + 2*Compton_CSPA(E, 8)) * 7.096901340e17f;
-}
-__device__  float PhotoElec_mu_Plastic(float E) {
-	// 5C8H2O
-	return (5*PhotoElec_CSPA(E, 6) + 8*PhotoElec_CSPA(E, 1) + 2*PhotoElec_CSPA(E, 8)) * 7.096901340e17f;
-}
-__device__  float Rayleigh_mu_Plastic(float E) {
-	// 5C8H2O
-	return (5*Rayleigh_CSPA(E, 6) + 8*Rayleigh_CSPA(E, 1) + 2*Rayleigh_CSPA(E, 8)) * 7.096901340e17f;
-}
-
-__device__  float Compton_mu_Al(float E) {
-	// Al
-	return Compton_CSPA(E, 13) * 6.024030465e+19f; // Avogadro*Al_density/a_Al
-}
-__device__  float PhotoElec_mu_Al(float E) {
-	// Al
-	return PhotoElec_CSPA(E, 13) * 6.024030465e+19f; // Avogadro*Al_density/a_Al
-}
-__device__  float Rayleigh_mu_Al(float E) {
-	// Al
-	return Rayleigh_CSPA(E, 13) * 6.024030465e+19f; // Avogadro*Al_density/a_Al
-}
-
-__device__  float Compton_mu_Air(float E) {
-	// O N Ar C
-	return (0.231781f*Compton_CSPA(E, 8) + 0.755268f*Compton_CSPA(E, 7)
-			+ 0.012827f*Compton_CSPA(E, 18) + 0.000124f*Compton_CSPA(E, 6)) * 5.247706935e17f;
-}
-__device__  float PhotoElec_mu_Air(float E) {
-	// O N Ar C
-	return (0.231781f*PhotoElec_CSPA(E, 8) + 0.755268f*PhotoElec_CSPA(E, 7)
-			+ 0.012827f*PhotoElec_CSPA(E, 18) + 0.000124f*PhotoElec_CSPA(E, 6)) * 5.247706935e17f;
-}
-__device__  float Rayleigh_mu_Air(float E) {
-	// O N Ar C
-	return (0.231781f*Rayleigh_CSPA(E, 8) + 0.755268f*Rayleigh_CSPA(E, 7)
-			+ 0.012827f*Rayleigh_CSPA(E, 18) + 0.000124f*Rayleigh_CSPA(E, 6)) * 5.247706935e17f;
-}
-
-__device__  float Compton_mu_Body(float E) {
-	// H O
-	return (0.112f*Compton_CSPA(E, 1) + 0.888f*Compton_CSPA(E, 8)) * 4.205077389e18f;
-}
-__device__  float PhotoElec_mu_Body(float E) {
-	// H O
-	return (0.112f*PhotoElec_CSPA(E, 1) + 0.888f*PhotoElec_CSPA(E, 8)) * 4.205077389e18f;
-}
-__device__  float Rayleigh_mu_Body(float E) {
-	// H O
-	return (0.112f*Rayleigh_CSPA(E, 1) + 0.888f*Rayleigh_CSPA(E, 8)) * 4.205077389e18f;
-}
-
-__device__  float Compton_mu_Lung(float E) {
-	// H C N O Na P S Cl K
-	return (0.103f*Compton_CSPA(E, 1)+ 0.105f*Compton_CSPA(E, 6) + 0.031f*Compton_CSPA(E, 7)
-			+ 0.749f*Compton_CSPA(E, 8) + 0.002f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
-			+ 0.003f*Compton_CSPA(E, 16) + 0.003f*Compton_CSPA(E, 17) + 0.002f*Compton_CSPA(E, 19)) * 1.232299227e18f;
-}
-__device__  float PhotoElec_mu_Lung(float E) {
-	// H C N O Na P S Cl K
-	return (0.103f*PhotoElec_CSPA(E, 1)+ 0.105f*PhotoElec_CSPA(E, 6) + 0.031f*PhotoElec_CSPA(E, 7)
-			+ 0.749f*PhotoElec_CSPA(E, 8) + 0.002f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 15)
-			+ 0.003f*PhotoElec_CSPA(E, 16) + 0.003f*PhotoElec_CSPA(E, 17) + 0.002f*PhotoElec_CSPA(E, 19)) * 1.232299227e18f;
-}
-__device__  float Rayleigh_mu_Lung(float E) {
-	// H C N O Na P S Cl K
-	return (0.103f*Rayleigh_CSPA(E, 1)+ 0.105f*Rayleigh_CSPA(E, 6) + 0.031f*Rayleigh_CSPA(E, 7)
-			+ 0.749f*Rayleigh_CSPA(E, 8) + 0.002f*Rayleigh_CSPA(E, 11) + 0.002f*Rayleigh_CSPA(E, 15)
-			+ 0.003f*Rayleigh_CSPA(E, 16) + 0.003f*Rayleigh_CSPA(E, 17) + 0.002f*Rayleigh_CSPA(E, 19)) * 1.232299227e18f;
-}
-
-__device__  float Compton_mu_RibBone(float E) {
-	// H C N O Na Mg P S Ca
-	return (0.034f*Compton_CSPA(E, 1) + 0.155f*Compton_CSPA(E, 6) + 0.042f*Compton_CSPA(E, 7)
-			+ 0.435f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 12)
-			+ 0.103f*Compton_CSPA(E, 15) + 0.003f*Compton_CSPA(E, 16) + 0.225f*Compton_CSPA(E, 20)) * 5.299038816e18f;
-}
-__device__  float PhotoElec_mu_RibBone(float E) {
-	// H C N O Na Mg P S Ca
-	return (0.034f*PhotoElec_CSPA(E, 1) + 0.155f*PhotoElec_CSPA(E, 6) + 0.042f*PhotoElec_CSPA(E, 7)
-			+ 0.435f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 12)
-			+ 0.103f*PhotoElec_CSPA(E, 15) + 0.003f*PhotoElec_CSPA(E, 16) + 0.225f*PhotoElec_CSPA(E, 20)) * 5.299038816e18f;
-}
-__device__  float Rayleigh_mu_RibBone(float E) {
-	// H C N O Na Mg P S Ca
-	return (0.034f*Rayleigh_CSPA(E, 1) + 0.155f*Rayleigh_CSPA(E, 6) + 0.042f*Rayleigh_CSPA(E, 7)
-			+ 0.435f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.002f*Rayleigh_CSPA(E, 12)
-			+ 0.103f*Rayleigh_CSPA(E, 15) + 0.003f*Rayleigh_CSPA(E, 16) + 0.225f*Rayleigh_CSPA(E, 20)) * 5.299038816e18f;
-}
-
-__device__  float Compton_mu_SpineBone(float E) {
-	// H C N O Na Mg P S Cl K Ca
-	return (0.063f*Compton_CSPA(E, 1) + 0.261f*Compton_CSPA(E, 6) + 0.039f*Compton_CSPA(E, 7)
-			+ 0.436f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 12)
-			+ 0.061f*Compton_CSPA(E, 15) + 0.003f*Compton_CSPA(E, 16) + 0.001f*Compton_CSPA(E, 17)
-			+ 0.001f*Compton_CSPA(E, 19) + 0.133f*Compton_CSPA(E, 20)) * 4.709337384e18f;
-}
-__device__  float PhotoElec_mu_SpineBone(float E) {
-	// H C N O Na Mg P S Cl K Ca
-	return (0.063f*PhotoElec_CSPA(E, 1) + 0.261f*PhotoElec_CSPA(E, 6) + 0.039f*PhotoElec_CSPA(E, 7)
-			+ 0.436f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.001f*PhotoElec_CSPA(E, 12)
-			+ 0.061f*PhotoElec_CSPA(E, 15) + 0.003f*PhotoElec_CSPA(E, 16) + 0.001f*PhotoElec_CSPA(E, 17)
-			+ 0.001f*PhotoElec_CSPA(E, 19) + 0.133f*PhotoElec_CSPA(E, 20)) * 4.709337384e18f;
-}
-__device__  float Rayleigh_mu_SpineBone(float E) {
-	// H C N O Na Mg P S Cl K Ca
-	return (0.063f*Rayleigh_CSPA(E, 1) + 0.261f*Rayleigh_CSPA(E, 6) + 0.039f*Rayleigh_CSPA(E, 7)
-			+ 0.436f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.001f*Rayleigh_CSPA(E, 12)
-			+ 0.061f*Rayleigh_CSPA(E, 15) + 0.003f*Rayleigh_CSPA(E, 16) + 0.001f*Rayleigh_CSPA(E, 17)
-			+ 0.001f*Rayleigh_CSPA(E, 19) + 0.133f*Rayleigh_CSPA(E, 20)) * 4.709337384e18f;
-}
-
-__device__  float Compton_mu_Heart(float E) {
-	// H C N O Na P S Cl K
-	return (0.104f*Compton_CSPA(E, 1) + 0.139f*Compton_CSPA(E, 6) + 0.029f*Compton_CSPA(E, 7)
-			+ 0.718f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
-			+ 0.002f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.003f*Compton_CSPA(E, 19)) * 4.514679219e18f;
-}
-__device__  float PhotoElec_mu_Heart(float E) {
-	// H C N O Na P S Cl K
-	return (0.104f*PhotoElec_CSPA(E, 1) + 0.139f*PhotoElec_CSPA(E, 6) + 0.029f*PhotoElec_CSPA(E, 7)
-			+ 0.718f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 15)
-			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.003f*PhotoElec_CSPA(E, 19)) * 4.514679219e18f;
-}
-__device__  float Rayleigh_mu_Heart(float E) {
-	// H C N O Na P S Cl K
-	return (0.104f*Rayleigh_CSPA(E, 1) + 0.139f*Rayleigh_CSPA(E, 6) + 0.029f*Rayleigh_CSPA(E, 7)
-			+ 0.718f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.002f*Rayleigh_CSPA(E, 15)
-			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.002f*Rayleigh_CSPA(E, 17) + 0.003f*Rayleigh_CSPA(E, 19)) * 4.514679219e18f;
-}
-
-__device__  float Compton_mu_Breast(float E) {
-	// H C N O Na P S Cl
-	return (0.106f*Compton_CSPA(E, 1) + 0.332f*Compton_CSPA(E, 6) + 0.03f*Compton_CSPA(E, 7)
-			+ 0.527f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 15)
-			+ 0.002f*Compton_CSPA(E, 16) + 0.001f*Compton_CSPA(E, 17)) * 4.688916436e18f;
-}
-__device__  float PhotoElec_mu_Breast(float E) {
-	// H C N O Na P S Cl
-	return (0.106f*PhotoElec_CSPA(E, 1) + 0.332f*PhotoElec_CSPA(E, 6) + 0.03f*PhotoElec_CSPA(E, 7)
-			+ 0.527f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.001f*PhotoElec_CSPA(E, 15)
-			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.001f*PhotoElec_CSPA(E, 17)) * 4.688916436e18f;
-}
-__device__  float Rayleigh_mu_Breast(float E) {
-	// H C N O Na P S Cl
-	return (0.106f*Rayleigh_CSPA(E, 1) + 0.332f*Rayleigh_CSPA(E, 6) + 0.03f*Rayleigh_CSPA(E, 7)
-			+ 0.527f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.001f*Rayleigh_CSPA(E, 15)
-			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.001f*Rayleigh_CSPA(E, 17)) * 4.688916436e18f;
-}
-
-__device__  float Compton_mu_Intestine(float E) {
-	// H C N O Na P S Cl K
-	return (0.106f*Compton_CSPA(E, 1) + 0.115f*Compton_CSPA(E, 6) + 0.022f*Compton_CSPA(E, 7)
-			+ 0.751f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 15)
-			+ 0.001f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.001f*Compton_CSPA(E, 19)) * 4.427901925e18f;	
-}
-__device__  float PhotoElec_mu_Intestine(float E) {
-	// H C N O Na P S Cl K
-	return (0.106f*PhotoElec_CSPA(E, 1) + 0.115f*PhotoElec_CSPA(E, 6) + 0.022f*PhotoElec_CSPA(E, 7)
-			+ 0.751f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.001f*PhotoElec_CSPA(E, 15)
-			+ 0.001f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.001f*PhotoElec_CSPA(E, 19)) * 4.427901925e18f;	
-}
-__device__  float Rayleigh_mu_Intestine(float E) {
-	// H C N O Na P S Cl K
-	return (0.106f*Rayleigh_CSPA(E, 1) + 0.115f*Rayleigh_CSPA(E, 6) + 0.022f*Rayleigh_CSPA(E, 7)
-			+ 0.751f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.001f*Rayleigh_CSPA(E, 15)
-			+ 0.001f*Rayleigh_CSPA(E, 16) + 0.002f*Rayleigh_CSPA(E, 17) + 0.001f*Rayleigh_CSPA(E, 19)) * 4.427901925e18f;	
-}
-
-__device__  float Compton_mu_Spleen(float E) {
-	// H C N O Na P S Cl K
-	return (0.103f*Compton_CSPA(E, 1) + 0.113f*Compton_CSPA(E, 6) + 0.032f*Compton_CSPA(E, 7)
-			+ 0.741f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.003f*Compton_CSPA(E, 15)
-			+ 0.002f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.003f*Compton_CSPA(E, 19)) * 4.516487252e18f;	
-}
-__device__  float PhotoElec_mu_Spleen(float E) {
-	// H C N O Na P S Cl K
-	return (0.103f*PhotoElec_CSPA(E, 1) + 0.113f*PhotoElec_CSPA(E, 6) + 0.032f*PhotoElec_CSPA(E, 7)
-			+ 0.741f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.003f*PhotoElec_CSPA(E, 15)
-			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.003f*PhotoElec_CSPA(E, 19)) * 4.516487252e18f;	
-}
-__device__  float Rayleigh_mu_Spleen(float E) {
-	// H C N O Na P S Cl K
-	return (0.103f*Rayleigh_CSPA(E, 1) + 0.113f*Rayleigh_CSPA(E, 6) + 0.032f*Rayleigh_CSPA(E, 7)
-			+ 0.741f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.003f*Rayleigh_CSPA(E, 15)
-			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.002f*Rayleigh_CSPA(E, 17) + 0.003f*Rayleigh_CSPA(E, 19)) * 4.516487252e18f;	
-}
-
-__device__  float Compton_mu_Blood(float E) {
-	// H C N O Na P S Cl K Fe
-	return (0.102f*Compton_CSPA(E, 1) + 0.11f*Compton_CSPA(E, 6) + 0.033f*Compton_CSPA(E, 7)
-			+ 0.745f*Compton_CSPA(E, 8) + 0.001f*Compton_CSPA(E, 11) + 0.001f*Compton_CSPA(E, 15)
-			+ 0.002f*Compton_CSPA(E, 16) + 0.003f*Compton_CSPA(E, 17) + 0.002f*Compton_CSPA(E, 19)
-			+ 0.001f*Compton_CSPA(E, 26)) * 4.506530526e18f;	
-}
-__device__  float PhotoElec_mu_Blood(float E) {
-	// H C N O Na P S Cl K Fe
-	return (0.102f*PhotoElec_CSPA(E, 1) + 0.11f*PhotoElec_CSPA(E, 6) + 0.033f*PhotoElec_CSPA(E, 7)
-			+ 0.745f*PhotoElec_CSPA(E, 8) + 0.001f*PhotoElec_CSPA(E, 11) + 0.001f*PhotoElec_CSPA(E, 15)
-			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.003f*PhotoElec_CSPA(E, 17) + 0.002f*PhotoElec_CSPA(E, 19)
-			+ 0.001f*PhotoElec_CSPA(E, 26)) * 4.506530526e18f;	
-}
-__device__  float Rayleigh_mu_Blood(float E) {
-	// H C N O Na P S Cl K Fe
-	return (0.102f*Rayleigh_CSPA(E, 1) + 0.11f*Rayleigh_CSPA(E, 6) + 0.033f*Rayleigh_CSPA(E, 7)
-			+ 0.745f*Rayleigh_CSPA(E, 8) + 0.001f*Rayleigh_CSPA(E, 11) + 0.001f*Rayleigh_CSPA(E, 15)
-			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.003f*Rayleigh_CSPA(E, 17) + 0.002f*Rayleigh_CSPA(E, 19)
-			+ 0.001f*Rayleigh_CSPA(E, 26)) * 4.506530526e18f;	
-}
-
-__device__  float Compton_mu_Liver(float E) {
-	// H C N O Na P S Cl K
-	return (0.102f*Compton_CSPA(E, 1) + 0.139f*Compton_CSPA(E, 6) + 0.03f*Compton_CSPA(E, 7)
-			+ 0.716f*Compton_CSPA(E, 8) + 0.002f*Compton_CSPA(E, 11) + 0.003f*Compton_CSPA(E, 15)
-			+ 0.003f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.003f*Compton_CSPA(E, 19)) * 4.536294717e18f;	
-}
-__device__  float PhotoElec_mu_Liver(float E) {
-	// H C N O Na P S Cl K
-	return (0.102f*PhotoElec_CSPA(E, 1) + 0.139f*PhotoElec_CSPA(E, 6) + 0.03f*PhotoElec_CSPA(E, 7)
-			+ 0.716f*PhotoElec_CSPA(E, 8) + 0.002f*PhotoElec_CSPA(E, 11) + 0.003f*PhotoElec_CSPA(E, 15)
-			+ 0.003f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.003f*PhotoElec_CSPA(E, 19)) * 4.536294717e18f;	
-}
-__device__  float Rayleigh_mu_Liver(float E) {
-	// H C N O Na P S Cl K
-	return (0.102f*Rayleigh_CSPA(E, 1) + 0.139f*Rayleigh_CSPA(E, 6) + 0.03f*Rayleigh_CSPA(E, 7)
-			+ 0.716f*Rayleigh_CSPA(E, 8) + 0.002f*Rayleigh_CSPA(E, 11) + 0.003f*Rayleigh_CSPA(E, 15)
-			+ 0.003f*Rayleigh_CSPA(E, 16) + 0.002f*Rayleigh_CSPA(E, 17) + 0.003f*Rayleigh_CSPA(E, 19)) * 4.536294717e18f;	
-}
-
-__device__  float Compton_mu_Kidney(float E) {
-	// H C N O Na P S Cl K Ca
-	return (0.103f*Compton_CSPA(E, 1) + 0.132f*Compton_CSPA(E, 6) + 0.03f*Compton_CSPA(E, 7)
-			+ 0.724f*Compton_CSPA(E, 8) + 0.002f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
-			+ 0.002f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.002f*Compton_CSPA(E, 19)
-			+ 0.001f*Compton_CSPA(E, 20)) * 4.498971018e18f;	
-}
-__device__  float PhotoElec_mu_Kidney(float E) {
-	// H C N O Na P S Cl K Ca
-	return (0.103f*PhotoElec_CSPA(E, 1) + 0.132f*PhotoElec_CSPA(E, 6) + 0.03f*PhotoElec_CSPA(E, 7)
-			+ 0.724f*PhotoElec_CSPA(E, 8) + 0.002f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 15)
-			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.002f*PhotoElec_CSPA(E, 19)
-			+ 0.001f*PhotoElec_CSPA(E, 20)) * 4.498971018e18f;	
-}
-__device__  float Rayleigh_mu_Kidney(float E) {
-	// H C N O Na P S Cl K Ca
-	return (0.103f*Rayleigh_CSPA(E, 1) + 0.132f*Rayleigh_CSPA(E, 6) + 0.03f*Rayleigh_CSPA(E, 7)
-			+ 0.724f*Rayleigh_CSPA(E, 8) + 0.002f*Rayleigh_CSPA(E, 11) + 0.002f*Rayleigh_CSPA(E, 15)
-			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.002f*Rayleigh_CSPA(E, 17) + 0.002f*Rayleigh_CSPA(E, 19)
-			+ 0.001f*Rayleigh_CSPA(E, 20)) * 4.498971018e18f;	
-}
-
-__device__  float Compton_mu_Brain(float E) {
-	// H C N O Na P S Cl K
-	return (0.107f*Compton_CSPA(E, 1) + 0.145f*Compton_CSPA(E, 6) + 0.022f*Compton_CSPA(E, 7)
-			+ 0.712f*Compton_CSPA(E, 8) + 0.002f*Compton_CSPA(E, 11) + 0.004f*Compton_CSPA(E, 15)
-			+ 0.002f*Compton_CSPA(E, 16) + 0.003f*Compton_CSPA(E, 17) + 0.003f*Compton_CSPA(E, 19)) * 4.471235341e18f;	
-}
-__device__  float PhotoElec_mu_Brain(float E) {
-	// H C N O Na P S Cl K
-	return (0.107f*PhotoElec_CSPA(E, 1) + 0.145f*PhotoElec_CSPA(E, 6) + 0.022f*PhotoElec_CSPA(E, 7)
-			+ 0.712f*PhotoElec_CSPA(E, 8) + 0.002f*PhotoElec_CSPA(E, 11) + 0.004f*PhotoElec_CSPA(E, 15)
-			+ 0.002f*PhotoElec_CSPA(E, 16) + 0.003f*PhotoElec_CSPA(E, 17) + 0.003f*PhotoElec_CSPA(E, 19)) * 4.471235341e18f;	
-}
-__device__  float Rayleigh_mu_Brain(float E) {
-	// H C N O Na P S Cl K
-	return (0.107f*Rayleigh_CSPA(E, 1) + 0.145f*Rayleigh_CSPA(E, 6) + 0.022f*Rayleigh_CSPA(E, 7)
-			+ 0.712f*Rayleigh_CSPA(E, 8) + 0.002f*Rayleigh_CSPA(E, 11) + 0.004f*Rayleigh_CSPA(E, 15)
-			+ 0.002f*Rayleigh_CSPA(E, 16) + 0.003f*Rayleigh_CSPA(E, 17) + 0.003f*Rayleigh_CSPA(E, 19)) * 4.471235341e18f;	
-}
-
-__device__  float Compton_mu_Pancreas(float E) {
-	// H C N O Na P S Cl K
-	return (0.106f*Compton_CSPA(E, 1) + 0.169f*Compton_CSPA(E, 6) + 0.022f*Compton_CSPA(E, 7)
-			+ 0.694f*Compton_CSPA(E, 8) + 0.002f*Compton_CSPA(E, 11) + 0.002f*Compton_CSPA(E, 15)
-			+ 0.001f*Compton_CSPA(E, 16) + 0.002f*Compton_CSPA(E, 17) + 0.002f*Compton_CSPA(E, 19)) * 4.525945892e18f;	
-}
-__device__  float PhotoElec_mu_Pancreas(float E) {
-	// H C N O Na P S Cl K
-	return (0.106f*PhotoElec_CSPA(E, 1) + 0.169f*PhotoElec_CSPA(E, 6) + 0.022f*PhotoElec_CSPA(E, 7)
-			+ 0.694f*PhotoElec_CSPA(E, 8) + 0.002f*PhotoElec_CSPA(E, 11) + 0.002f*PhotoElec_CSPA(E, 15)
-			+ 0.001f*PhotoElec_CSPA(E, 16) + 0.002f*PhotoElec_CSPA(E, 17) + 0.002f*PhotoElec_CSPA(E, 19)) * 4.525945892e18f;	
-}
-__device__  float Rayleigh_mu_Pancreas(float E) {
-	// H C N O Na P S Cl K
-	return (0.106f*Rayleigh_CSPA(E, 1) + 0.169f*Rayleigh_CSPA(E, 6) + 0.022f*Rayleigh_CSPA(E, 7)
-			+ 0.694f*Rayleigh_CSPA(E, 8) + 0.002f*Rayleigh_CSPA(E, 11) + 0.002f*Rayleigh_CSPA(E, 15)
-			+ 0.001f*Rayleigh_CSPA(E, 16) + 0.002f*Rayleigh_CSPA(E, 17) + 0.002f*Rayleigh_CSPA(E, 19)) * 4.525945892e18f;	
-}
-
 
 // return attenuation according materials 
 __device__ float att_from_mat(int mat, float E) {
@@ -904,14 +599,14 @@ __global__ void kernel_particle_isotrope(StackGamma stackgamma, float posx, floa
 			phi = park_miller_jb(&seed);
 			theta = park_miller_jb(&seed);
 			phi   = twopi * phi;
-			//theta = acosf(1.0f - 2.0f*theta);
-			theta = acosf(theta * 0.0136f + 0.9864f);
+			theta = acosf(1.0f - 2.0f*theta);
+			//theta = acosf(theta * 0.0136f + 0.9864f);
 			//theta = acosf(theta * 0.165f + 0.835f);
 			// convert to cartesian
 			x = __cosf(phi)*__sinf(theta);
 			y = __sinf(phi)*__sinf(theta);
 			z = __cosf(theta);
-			if (z<0.0f) {z = -z;}
+			//if (z<0.0f) {z = -z;}
 
 			//dtrack[id] = posz;
 			
@@ -1220,7 +915,7 @@ __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox
 		//CS[threadIdx.x][15] = 0.0f; ERROR, overflow!!!!!
 
 		// Most attenuate material is RibBone (ID=6)
-		rec_mu_maj = __fdividef(1.0f, att_from_mat(7, E));
+		rec_mu_maj = __fdividef(1.0f, att_from_mat(0, E));
 		
 		while (1) {
 			// get mean path from the most attenuate material (RibBone)
@@ -1254,7 +949,7 @@ __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox
 			
 			// Does the interaction is real?
 			mat = tex1Dfetch(tex_vol, vox.z*jump + vox.y*dimvol.x + vox.x);
-			
+
 			if (CS[threadIdx.x][mat] == 0) {
 				cur_att = att_from_mat(mat, E);
 				CS[threadIdx.x][mat] = cur_att;
@@ -1265,6 +960,7 @@ __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox
 			if (cur_att * rec_mu_maj > park_miller_jb(&seed)) {break;}
 
 		}
+		//if (id < 100) {dtrack[id] = id;}
 		//dtrack[int(vox.z)*jump + int(vox.y)*dimvol.x + int(vox.x)] += 1.0f;
 		stackgamma.seed[id] = seed;
 		stackgamma.px[id] = p0.x;
@@ -1361,7 +1057,7 @@ void mc_prepare_activity(float* vol, int* ind,
 	// quicksort
 	mc_quicksort(data, ind, 0, nb-1);
 	// build small data
-	c = 0; k = 0; i = 0;
+	c = 0; k = 0; i = 0; sum = 0.0f;
 	while (i<nb) {
 		sum += data[i];
 		++c;
@@ -1375,7 +1071,7 @@ void mc_prepare_activity(float* vol, int* ind,
 	}
 	if (k != small_nb) {small_data[k] = sum;}
 	// build tiny data
-	c = 0; k = 0; i = 0;
+	c = 0; k = 0; i = 0; sum = 0.0f;
 	while (i<small_nb) {
 		sum += small_data[i];
 		++c;
@@ -1566,7 +1262,7 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
 		//kernel_particle_largegun<<<grid, threads>>>(stackgamma, dimvol, 22.0, 22.0, 0.0, 0.0, 0.0, 1.0, 0.025, 5);
-		kernel_particle_isotrope<<<grid, threads>>>(stackgamma, 64, 23, 0.0, 0.080, dtrack);
+		kernel_particle_isotrope<<<grid, threads>>>(stackgamma, 5.0, 5.0, 5.0, 0.511, dtrack);
 		//kernel_particle_area<<<grid, threads>>>(stackgamma, 0, 127, 0, 45, 0.080);
 		cudaThreadSynchronize();
 		gettimeofday(&end, NULL);
@@ -1626,9 +1322,10 @@ void mc_cuda(float* vol, int nz, int ny, int nx,
 		int c5=0;
 		n=0;
 		while(n<nparticles && countparticle<totparticles) {
-			if (collector.in[n] == 0 && collector.px[n] > 0 && collector.py[n] > 0
-				&& collector.px[n] < nx && collector.py[n] < ny
-				&& collector.pz[n] > 440.0f && collector.pz[n] < 550.0f) {
+			if (collector.in[n] == 0) {
+				//&& collector.px[n] > 0 && collector.py[n] > 0
+				//&& collector.px[n] < nx && collector.py[n] < ny
+				//&& collector.pz[n] > 440.0f && collector.pz[n] < 550.0f) {
 				E[countparticle] = collector.E[n];
 				dx[countparticle] = collector.dx[n];
 				dy[countparticle] = collector.dy[n];

@@ -23,8 +23,8 @@ end :
 	mkdir build
 	mv *.so *.o firekernel.py kernel_wrap.c build/
 
-_firekernel.so : kernel_c.o pet_c.o dev_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so dev_cuda.so mc_cuda.so
-	g++ -o _firekernel.so -shared kernel_c.o pet_c.o dev_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so dev_cuda.so mc_cuda.so -lGL
+_firekernel.so : kernel_c.o pet_c.o dev_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so dev_cuda.so mc_pet_cuda.so
+	g++ -o _firekernel.so -shared kernel_c.o pet_c.o dev_c.o kernel_wrap.o kernel_cuda.so pet_cuda.so dev_cuda.so mc_pet_cuda.so -lGL
 
 # need -lGL here ??
 # add pre-compilator flag with g++ is -D flagname
@@ -55,15 +55,21 @@ dev_cuda.so : dev_cuda.o
 dev_cuda.o : dev_cuda.cu
 	nvcc -o dev_cuda.o -c dev_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11 
 
-mc_cuda.so : mc_cuda.o mc_cuda_cst.o
-	nvcc -o mc_cuda.so -shared mc_cuda.o mc_cuda_cst.o -lcublas -lcufft
+#mc_cuda.so : mc_cuda.o mc_cuda_cst.o
+#	nvcc -o mc_cuda.so -shared mc_cuda.o mc_cuda_cst.o -lcublas -lcufft
 
-mc_cuda.o : mc_cuda.cu
-	nvcc -o mc_cuda.o -c mc_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11
+#mc_cuda.o : mc_cuda.cu
+#	nvcc -o mc_cuda.o -c mc_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11
 #--opencc-options -OPT:Olimit=49166
 
 mc_cuda_cst.o : mc_cuda_cst.cu
 	nvcc -o mc_cuda_cst.o -c mc_cuda_cst.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11 
+
+mc_pet_cuda.so : mc_pet_cuda.o mc_cuda_cst.o
+	nvcc -o mc_pet_cuda.so -shared mc_pet_cuda.o mc_cuda_cst.o -lcublas -lcufft
+
+mc_pet_cuda.o : mc_pet_cuda.cu
+	nvcc -o mc_pet_cuda.o -c mc_pet_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_11
 
 # C code
 kernel_c.o : kernel_c.cpp

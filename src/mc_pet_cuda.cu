@@ -575,19 +575,19 @@ __device__  float Rayleigh_mu_Pancreas(float E) {
 // return attenuation according materials 
 __device__ float2 att_from_mat(int mat, float E) {
 	switch (mat) {
-	case 0:     return make_float2(Compton_mu_Air(E), PhotoElec_mu_Air(E));
-	case 1:     return make_float2(Compton_mu_Water(E), PhotoElec_mu_Water(E));
-	case 2:     return make_float2(Compton_mu_Body(E), PhotoElec_mu_Body(E));
-	case 3:     return make_float2(Compton_mu_Lung(E), PhotoElec_mu_Lung(E));
-	case 4:     return make_float2(Compton_mu_Breast(E), PhotoElec_mu_Breast(E));
-	case 5:     return make_float2(Compton_mu_Heart(E), PhotoElec_mu_Heart(E));
+	case 0:     return make_float2(Compton_mu_Air(E),       PhotoElec_mu_Air(E));
+	case 1:     return make_float2(Compton_mu_Water(E),     PhotoElec_mu_Water(E));
+	case 2:     return make_float2(Compton_mu_Body(E),      PhotoElec_mu_Body(E));
+	case 3:     return make_float2(Compton_mu_Lung(E),      PhotoElec_mu_Lung(E));
+	case 4:     return make_float2(Compton_mu_Breast(E),    PhotoElec_mu_Breast(E));
+	case 5:     return make_float2(Compton_mu_Heart(E),     PhotoElec_mu_Heart(E));
 	case 6:     return make_float2(Compton_mu_SpineBone(E), PhotoElec_mu_SpineBone(E));
-	case 7:     return make_float2(Compton_mu_RibBone(E), PhotoElec_mu_RibBone(E));
+	case 7:     return make_float2(Compton_mu_RibBone(E),   PhotoElec_mu_RibBone(E));
 	case 8:     return make_float2(Compton_mu_Intestine(E), PhotoElec_mu_Intestine(E));
-	case 9:     return make_float2(Compton_mu_Spleen(E), PhotoElec_mu_Spleen(E));
-	case 10:    return make_float2(Compton_mu_Blood(E), PhotoElec_mu_Blood(E));
-	case 11:    return make_float2(Compton_mu_Liver(E), PhotoElec_mu_Liver(E));
-	case 12:    return make_float2(Compton_mu_Kidney(E), PhotoElec_mu_Kidney(E));
+	case 9:     return make_float2(Compton_mu_Spleen(E),    PhotoElec_mu_Spleen(E));
+	case 10:    return make_float2(Compton_mu_Blood(E),     PhotoElec_mu_Blood(E));
+	case 11:    return make_float2(Compton_mu_Liver(E),     PhotoElec_mu_Liver(E));
+	case 12:    return make_float2(Compton_mu_Kidney(E),    PhotoElec_mu_Kidney(E));
 		//case 13:     return Compton_mu_Brain(E);
 		//case 14:     return Compton_mu_Pancreas(E);
 		//case 99:    return Compton_mu_Plastic(E);
@@ -603,35 +603,38 @@ __device__ float2 att_from_mat(int mat, float E) {
 // Kernel interactions
 __global__ void kernel_interactions(StackGamma stackgamma, int3 dimvol) {
 	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
-	float theta, phi, dx, dy, dz;
+	float theta, phi, dx, dy;
 	int seed;
 	if (id < stackgamma.size) {
 		if (stackgamma.in[id] == 0) {return;} // if the particle is outside do nothing...
-		
-		seed = stackgamma.seed[id];
-		dx = stackgamma.dx[id];
-		dy = stackgamma.dy[id];
-		dz = stackgamma.dz[id];
 
 		switch (stackgamma.interaction[id]) {
+		case 0:
+			// do nothing and release the thread (maybe the block if interactions are sorted)
+			return;
 		case 1:
 			// PhotoElectric effect
-			stackgamma.live[id] = 0;
-			theta = 0.0f;
-			phi = 0.0f;
+			stackgamma.live[id] = 0; // kill the particle.
+			return;
 		case 2:
+			seed = stackgamma.seed[id];
 			// Compton scattering
 			theta = Compton_scatter(stackgamma, id);
-			phi = park_miller(&seed) * 2.0f * twopi;
-			// !!!!! WARNING: should be 2*pi instead of 4*pi, it is to fix a pb with ParkMiller
-			//                only uniform in half range ?! so the range must be twice.
+			phi = park_miller(&seed) * 2.0f * twopi; // TODO swap &seed directly by stackgamma.seed
+			stackgamma.seed[id] = seed;
+			break;
+			// !!!!! WARNING: should be 2*pi instead of 4*pi, but I get only uniform random
+			//                number on the half range?! pb with ParkMiller?
+			//                So I double the range...
 		}
 		
 		//*****************************************************
 		// Apply new direction to the particle (use quaternion)
 		//
 		// create quaternion from particle and normalize it
-		float4 d = make_float4(dx, dy, dz, 0.0f);
+		dx = stackgamma.dx[id];
+		dy = stackgamma.dy[id];
+		float4 d = make_float4(dx, dy, stackgamma.dz[id], 0.0f);
 		d = quat_norm(d);
 		// select best axis to compute the rotation axis
 		float4 a = make_float4(0.0f, 0.0f, 0.0f, 0.0f);
@@ -654,7 +657,7 @@ __global__ void kernel_interactions(StackGamma stackgamma, int3 dimvol) {
 		stackgamma.dx[id] = d.x;
 		stackgamma.dy[id] = d.y;
 		stackgamma.dz[id] = d.z;
-		stackgamma.seed[id] = seed;
+		
 	}
 }
 
@@ -672,6 +675,7 @@ __global__ void kernel_particle_back2back(StackGamma stackgamma1,
 		float x, y, z, rnd, rx, ry, rz, phi, theta, dx, dy, dz;
 		int seed, j;
 		int jump = nx * ny;
+		// Not optimize, we wait for a free coincidence (i.e. two particles) before loading a new one
 		if ((stackgamma1.in[id]==0 || stackgamma1.live[id]==0) && (stackgamma2.in[id]==0 || stackgamma2.live[id])) {
 			seed = stackgamma1.seed[id];
 
@@ -686,15 +690,15 @@ __global__ void kernel_particle_back2back(StackGamma stackgamma1,
 			//while (dact[j] < rnd) {++j;}
 			//j = dind[j];
 
-			// first binary search
+			// first search
 			j = int(rnd * tiny_nb);
 			if (tex1Dfetch(tex_tiny_act, j) < rnd) {
 				while (tex1Dfetch(tex_tiny_act, j) < rnd) {++j;}
 			} else {
 				while (tex1Dfetch(tex_tiny_act, j) > rnd) {--j;}
-				++j; // correct unershoot
+				++j; // correct undershoot
 			}
-			// second binary search
+			// second search
 			j *= fact;
 			if (tex1Dfetch(tex_small_act, j) < rnd) {
 				while (tex1Dfetch(tex_small_act, j) < rnd) {++j;}
@@ -702,7 +706,7 @@ __global__ void kernel_particle_back2back(StackGamma stackgamma1,
 				while (tex1Dfetch(tex_small_act, j) > rnd) {--j;}
 				++j; // correct undershoot
 			}
-			// final binary search
+			// final search
 			j *= fact;
 			if (tex1Dfetch(tex_act, j) < rnd) {
 				while (tex1Dfetch(tex_act, j) < rnd) {++j;}
@@ -713,9 +717,9 @@ __global__ void kernel_particle_back2back(StackGamma stackgamma1,
 
 			// get the position inside the volume
 			j = tex1Dfetch(tex_ind, j);  // look-up-table
-			z = j / jump;
+			z = __fdividef(j, jump);
 			j -= (z * jump);
-			y = j / nx;
+			y = __fdividef(j, nx);
 			x = j - y*nx;
 			// get the pos inside the voxel
 			x += rx;
@@ -743,9 +747,10 @@ __global__ void kernel_particle_back2back(StackGamma stackgamma1,
 			stackgamma1.pz[id] = z;
 			stackgamma1.live[id] = 1;
 			stackgamma1.in[id] = 1;
+			stackgamma1.interaction[id] = 0;
 
 			stackgamma2.dx[id] = -dx;
-			stackgamma2.dy[id] = -dy;
+			stackgamma2.dy[id] = -dy;  // back2back
 			stackgamma2.dz[id] = -dz;
 			stackgamma2.E[id] = E;
 			stackgamma2.px[id] = x;
@@ -753,6 +758,7 @@ __global__ void kernel_particle_back2back(StackGamma stackgamma1,
 			stackgamma2.pz[id] = z;
 			stackgamma2.live[id] = 1;
 			stackgamma2.in[id] = 1;
+			stackgamma2.interaction[id] = 0;
 
 		} // if
 	} // if
@@ -763,6 +769,10 @@ __global__ void kernel_particle_back2back(StackGamma stackgamma1,
  * Tracking kernel
  ***********************************************************/
 
+//
+// STILL WORKING ON IT!!!!!
+//   but enough stable to be used
+//
 // Fictitious tracking (or delta-tracking)
 __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox) {
 	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
@@ -773,7 +783,7 @@ __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox
 	float2 cur_att;
 	int mat, seed;
 	dimvox = __fdividef(1.0f, dimvox);
-		
+	
 	if (id < stackgamma.size) {
 		p0.x = stackgamma.px[id];
 		p0.y = stackgamma.py[id];
@@ -794,7 +804,7 @@ __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox
 		// Most attenuate material is RibBone (ID=7)
 		cur_att = att_from_mat(7, E);
 		rec_mu_maj = __fdividef(1.0f, cur_att.x + cur_att.y);
-		
+
 		while (1) {
 			// get mean path from the most attenuate material (RibBone)
 			path = -__logf(park_miller(&seed)) * rec_mu_maj * dimvox;
@@ -808,11 +818,16 @@ __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox
 			vox.y = int(p0.y);
 			vox.z = int(p0.z);
 
-			// Still inside?			
+			// Still inside the volume?			
 			if (vox.x < 0 || vox.y < 0 || vox.z < 0
 				|| vox.x >= dimvol.x || vox.y >= dimvol.y || vox.z >= dimvol.z) {
+				stackgamma.interaction[id] = 0;
 				stackgamma.in[id] = 0;
-				break;
+				stackgamma.seed[id] = seed;
+				stackgamma.px[id] = p0.x;
+				stackgamma.py[id] = p0.y;
+				stackgamma.pz[id] = p0.z;
+				return;
 			}
 			
 			// Does the interaction is real?
@@ -833,7 +848,7 @@ __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox
 		}
 
 		// Select interaction
-		rec_mu_maj = __fdividef(cur_att.y, sum_CS); // re-use rec_mu_maj variable
+		rec_mu_maj = __fdividef(cur_att.y, sum_CS); // reuse rec_mu_maj variable
 
 		if (park_miller(&seed) <= rec_mu_maj) {
 			// PhotoElectric
@@ -842,7 +857,6 @@ __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox
 			// Compton
 			stackgamma.interaction[id] = 2;
 		}
-
 		stackgamma.seed[id] = seed;
 		stackgamma.px[id] = p0.x;
 		stackgamma.py[id] = p0.y;
@@ -855,12 +869,12 @@ __global__ void kernel_woodcock(int3 dimvol, StackGamma stackgamma, float dimvox
 /***********************************************************
  * Utils
  ***********************************************************/
-__global__ void kernel_test(float* dtrack, int max, float* dact) {
+__global__ void kernel_test(float* dtrack, int max) {
 	unsigned int id = __umul24(blockIdx.x, blockDim.x)+threadIdx.x;
 	if (id < max) {
-		//dtrack[id] = id;
+		dtrack[id] = id;
 		//dtrack[id] = tex1Dfetch(tex_phantom, id);
-		dtrack[id] = dact[id];
+		//dtrack[id] = dact[id];
 		//dtrack[id] = tex1Dfetch(tex_act, id);
 	}
 }
@@ -884,12 +898,14 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 				 float* dx, int ndx, float* dy, int ndy, float* dz, int ndz,
 				 float* px, int npx, float* py, int npy, float* pz, int npz,
 				 int nparticles, int totparticles, int maxit, int seed, int fact) {
+
+	// Select a device, change accordingly (-1 select the most powerfull GPU on the computer)
 	cudaSetDevice(1);
 
     timeval start, end;
     double t1, t2, diff;
 	timeval start_s, end_s;
-	double ts1, ts2;
+	double ts1, ts2, te1, te2;
 	int3 dimvol;
 	int n, step;
 	int countparticle=0;
@@ -934,11 +950,6 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 	cudaMemcpy(dind, ind, mem_dind, cudaMemcpyHostToDevice);
 	cudaBindTexture(NULL, tex_ind, dind, mem_dind);
 
-	// TO DEBUG: Volume allocation
-	float* dtrack;
-	cudaMalloc((void**) &dtrack, mem_vol);
-	cudaMemset(dtrack, 0, mem_vol);
-
 	// Defined Stacks
 	int half_nparticles = nparticles / 2;
 	StackGamma stackgamma1;
@@ -977,9 +988,9 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 	cudaMalloc((void**) &stackgamma1.interaction, mem_stack_char);
 	cudaMalloc((void**) &stackgamma1.live, mem_stack_char);
 	cudaMalloc((void**) &stackgamma1.in, mem_stack_char);
-	cudaMemset(stackgamma1.interaction, 0, mem_stack_char);
-	cudaMemset(stackgamma1.live, 0, mem_stack_char); // at beginning all particles are dead
-	cudaMemset(stackgamma1.in, 0, mem_stack_char);   // and outside the volume
+	cudaMemset(stackgamma1.interaction, 0, mem_stack_char); // no interaction selected
+	cudaMemset(stackgamma1.live, 0, mem_stack_char);        // at beginning all particles are dead
+	cudaMemset(stackgamma1.in, 0, mem_stack_char);          // and outside the volume
 
 	cudaMalloc((void**) &stackgamma2.E, mem_stack_float);
 	cudaMalloc((void**) &stackgamma2.dx, mem_stack_float);
@@ -992,9 +1003,9 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 	cudaMalloc((void**) &stackgamma2.interaction, mem_stack_char);
 	cudaMalloc((void**) &stackgamma2.live, mem_stack_char);
 	cudaMalloc((void**) &stackgamma2.in, mem_stack_char);
-	cudaMemset(stackgamma2.interaction, 0, mem_stack_char);	
-	cudaMemset(stackgamma2.live, 0, mem_stack_char); // at beginning all particles are dead
-	cudaMemset(stackgamma2.in, 0, mem_stack_char);   // and outside the volume
+	cudaMemset(stackgamma2.interaction, 0, mem_stack_char);	// no interaction selected
+	cudaMemset(stackgamma2.live, 0, mem_stack_char);        // at beginning all particles are dead
+	cudaMemset(stackgamma2.in, 0, mem_stack_char);          // and outside the volume
 
 	// Init seeds
 	int* tmp = (int*)malloc(stackgamma1.size * sizeof(int));
@@ -1005,11 +1016,10 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 	cudaMemcpy(stackgamma2.seed, tmp, mem_stack_int, cudaMemcpyHostToDevice);
 	free(tmp);
 
-	float* debug = (float*)malloc(stackgamma1.size * sizeof(float));
-	n=0; while (n<stackgamma1.size) {debug[n] = 0.0f; ++n;}
-	float* ddebug;
-	cudaMalloc((void**) &ddebug, mem_stack_float);
-	cudaMemcpy(ddebug, debug, mem_stack_float, cudaMemcpyHostToDevice);
+	// Usefull to debug
+	//float* ddebug;
+	//cudaMalloc((void**) &ddebug, mem_stack_float);
+	//cudaMemset(ddebug, 0, mem_stack_float);
 
 	// Vars kernel
 	dim3 threads, grid;
@@ -1030,7 +1040,10 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 	step = 0;
 	while (step < maxit) {
 		printf("Step %i\n", step);
-		// Init particles
+
+		////////////////////////
+		// Generation
+		////////////////////////
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
 		kernel_particle_back2back<<<grid, threads>>>(stackgamma1, stackgamma2, nb, small_nb, tiny_nb,
@@ -1041,20 +1054,24 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
 		diff = t2 - t1;
-		printf("   Create gamma particles %f s\n", diff);
-		
-		// Propagation
+		printf("   Generation %f s\n", diff);
+
+		////////////////////////
+		// Navigation
+		////////////////////////
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
-		kernel_woodcock<<<grid, threads>>>(dimvol, stackgamma1, 4.0);
-		kernel_woodcock<<<grid, threads>>>(dimvol, stackgamma2, 4.0);
+		kernel_woodcock<<<grid, threads>>>(dimvol, stackgamma1, 4.0); // size of voxel 4 mm3
+		kernel_woodcock<<<grid, threads>>>(dimvol, stackgamma2, 4.0); // size of voxel 4 mm3
 		cudaThreadSynchronize();
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
 		diff = t2 - t1;
-		printf("   Track gamma particles %f s\n", diff);
-
+		printf("   Navigation %f s\n", diff);
+		
+		////////////////////////
 		// Interactions
+		////////////////////////
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
 		kernel_interactions<<<grid, threads>>>(stackgamma1, dimvol);
@@ -1063,9 +1080,18 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
 		diff = t2 - t1;
-		printf("   Interactions gamma particles %f s\n", diff);
+		printf("   Interactions %f s\n", diff);
 		
-		// Extraction
+		////////////////////////
+		// Extraction:
+		//   This part have to change in order to gather the two host/device copies and the two picking.
+		////////////////////////
+
+		gettimeofday(&start, NULL);
+		te1 = start.tv_sec + start.tv_usec / 1000000.0;
+		printf("   Extraction\n");
+		
+		// first copy
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
 		cudaMemcpy(collector.E, stackgamma1.E, mem_stack_float, cudaMemcpyDeviceToHost);
@@ -1081,13 +1107,12 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
 		diff = t2 - t1;
-		printf("   Get back stack of gamma1 particles %f s\n", diff);
+		printf("      Get back the first stack %f s\n", diff);
 
+		// first picking
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
-		int c1 = 0;
-		int c2 = 0;
-		int c3 = 0;
+		int c0 = 0;	int c1 = 0;	int c2 = 0;
 		n = 0;
 		while(n<half_nparticles && countparticle<totparticles) {
 			if (collector.in[n] == 0) {
@@ -1100,19 +1125,19 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 				pz[countparticle] = collector.pz[n];
 				++countparticle;
 			}
-			if (collector.live[n] == 0) {++c1;}
-			if (collector.interaction[n] == 1) {++c2;}
-			if (collector.interaction[n] == 2) {++c3;}
+			if (collector.interaction[n] == 0) {++c0;}
+			if (collector.interaction[n] == 1) {++c1;}
+			if (collector.interaction[n] == 2) {++c2;}
 			++n;
 		}
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
 		diff = t2 - t1;
 		
-		printf("   Store gamma1 particles %f s\n", diff);
-		printf("   Nb particles saves %i/%i absorbed %i Cpt %i PE %i\n", countparticle, totparticles, c1, c2, c3);
+		printf("      Picking particles %i/%i particles on the first stack %f s\n", countparticle, totparticles, diff);
+		printf("         PE %i Cpt %i None %i\n", c1, c2, c0);
 
-		// Extraction
+		// second copy
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
 		cudaMemcpy(collector.E, stackgamma2.E, mem_stack_float, cudaMemcpyDeviceToHost);
@@ -1128,13 +1153,12 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
 		diff = t2 - t1;
-		printf("   Get back stack of gamma2 particles %f s\n", diff);
+		printf("      Get back the second stack %f s\n", diff);
 
+		// second picking
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
-		c1 = 0;
-		c2 = 0;
-		c3 = 0;
+		c0 = 0;	c1 = 0;	c2 = 0;
 		n = 0;
 		while(n<half_nparticles && countparticle<totparticles) {
 			if (collector.in[n] == 0) {
@@ -1147,17 +1171,22 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 				pz[countparticle] = collector.pz[n];
 				++countparticle;
 			}
-			if (collector.live[n] == 0) {++c1;}
-			if (collector.interaction[n] == 1) {++c2;}
-			if (collector.interaction[n] == 2) {++c3;}
+			if (collector.interaction[n] == 0) {++c0;}
+			if (collector.interaction[n] == 1) {++c1;}
+			if (collector.interaction[n] == 2) {++c2;}
 			++n;
 		}
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
 		diff = t2 - t1;
-		
-		printf("   Store gamma2 particles %f s\n", diff);
-		printf("   Nb particles saves %i/%i absorbed %i Cpt %i PE %i\n", countparticle, totparticles, c1, c2, c3);
+
+		printf("      Picking particles %i/%i particles on the second stack %f s\n", countparticle, totparticles, diff);
+		printf("         PE %i Cpt %i None %i\n", c1, c2, c0);
+
+		gettimeofday(&end, NULL);
+		te2 = end.tv_sec + end.tv_usec / 1000000.0;
+		diff = te2 - te1;
+		printf("      Extraction tot time %f s\n", diff);
 		
 		// loop control
 		if (countparticle >= totparticles) {break;}
@@ -1184,7 +1213,6 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 	free(collector.interaction);
 	free(collector.live);
 	free(collector.in);
-	
 	
 	cudaFree(stackgamma1.E);
 	cudaFree(stackgamma1.dx);
@@ -1221,7 +1249,7 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 	cudaFree(small_dact);
 	cudaFree(tiny_dact);
 	cudaFree(dind);
-	cudaFree(dtrack);
+	//cudaFree(ddebug);
 	
 	cudaThreadExit();
 

@@ -1313,7 +1313,15 @@ def curve_smooth(a, order):
         a = b.copy()
 
     return a
-    
+
+# return 1D hitogram based on 1D data
+def vector_hist(data, nbins):
+    import matplotlib.pyplot as plt
+    import matplotlib.mlab   as mlab
+
+    n, bins, patches = plt.hist(data, nbins, facecolor='green', alpha=0.75)
+    return bins, n
+
 # ==== Filtering ============================
 # ===========================================
 

@@ -55,8 +55,8 @@ def hist1D_plot(data, nbins):
     import matplotlib.mlab   as mlab
 
     n, bins, patches = plt.hist(data, nbins, facecolor='green', alpha=0.75)
-    #print n
-    #print bins
+    print n
+    print bins
     #plt.setp(patches, 'facecolor', 'g', 'alpha', 0.75)
     plt.title('Viewer - FIREwork hist1D')
     #plt.axis([min(data), max(data), 0, max(n)])

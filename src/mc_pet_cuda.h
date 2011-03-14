@@ -16,11 +16,6 @@
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
 
-void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
-				 float* act, int nb, float* small_act, int small_nb, float* tiny_act, int tiny_nb,
-				 int* ind, int nind, float* E, int nE,
-				 float* dx, int ndx, float* dy, int ndy, float* dz, int ndz,
-				 float* px, int npx, float* py, int npy, float* pz, int npz,
-				 int nparticles, int totparticles, int maxit, int seed, int fact);
+void mc_pet_cuda();
 
 void mc_proj_detector(float* im, int nz, int ny, int nx, float* x, int sx, float* y, int sy, float* z, int sz);

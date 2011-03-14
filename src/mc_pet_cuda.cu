@@ -30,7 +30,7 @@
 __constant__ const float pi = 3.14159265358979323846;
 __constant__ const float twopi = 2*pi;
 texture<unsigned short int, 1, cudaReadModeElementType> tex_phantom;
-texture<float, 1, cudaReadModeElementType> tex_act;
+texture<float, 1, cudaReadModeElementType> tex_huge_act;
 texture<float, 1, cudaReadModeElementType> tex_small_act;
 texture<float, 1, cudaReadModeElementType> tex_tiny_act;
 texture<int, 1, cudaReadModeElementType> tex_ind;
@@ -667,14 +667,13 @@ __global__ void kernel_interactions(StackGamma stackgamma, int3 dimvol) {
  ***********************************************************/
 __global__ void kernel_particle_back2back(StackGamma stackgamma1,
 										  StackGamma stackgamma2,
-										  int nb, int small_nb, int tiny_nb,
-										  int nz, int ny, int nx, float E, int fact,
-										  float* dact, float* small_dact, float* tiny_dact, int* dind) {
+										  int tiny_nb, int3 dimvol, float E, int fact) {
+
 	unsigned int id = __umul24(blockIdx.x, blockDim.x) + threadIdx.x;
 	if (id < stackgamma1.size) {
 		float x, y, z, rnd, rx, ry, rz, phi, theta, dx, dy, dz;
 		int seed, j;
-		int jump = nx * ny;
+		int jump = dimvol.x * dimvol.y;
 		// Not optimize, we wait for a free coincidence (i.e. two particles) before loading a new one
 		if ((stackgamma1.in[id]==0 || stackgamma1.live[id]==0) && (stackgamma2.in[id]==0 || stackgamma2.live[id])) {
 			seed = stackgamma1.seed[id];
@@ -708,10 +707,10 @@ __global__ void kernel_particle_back2back(StackGamma stackgamma1,
 			}
 			// final search
 			j *= fact;
-			if (tex1Dfetch(tex_act, j) < rnd) {
-				while (tex1Dfetch(tex_act, j) < rnd) {++j;}
+			if (tex1Dfetch(tex_huge_act, j) < rnd) {
+				while (tex1Dfetch(tex_huge_act, j) < rnd) {++j;}
 			} else {
-				while (tex1Dfetch(tex_act, j) > rnd) {--j;}
+				while (tex1Dfetch(tex_huge_act, j) > rnd) {--j;}
 				++j; // correct undershoot
 			}
 
@@ -719,8 +718,8 @@ __global__ void kernel_particle_back2back(StackGamma stackgamma1,
 			j = tex1Dfetch(tex_ind, j);  // look-up-table
 			z = __fdividef(j, jump);
 			j -= (z * jump);
-			y = __fdividef(j, nx);
-			x = j - y*nx;
+			y = __fdividef(j, dimvol.x);
+			x = j - y*dimvol.x;
 			// get the pos inside the voxel
 			x += rx;
 			y += ry;
@@ -892,72 +891,144 @@ void mc_proj_detector(float* im, int nz, int ny, int nx, float* x, int sx, float
 /***********************************************************
  * Main
  ***********************************************************/
-void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
-				 float* act, int nb, float* small_act, int small_nb, float* tiny_act, int tiny_nb,
-				 int* ind, int nind, float* E, int nE,
-				 float* dx, int ndx, float* dy, int ndy, float* dz, int ndz,
-				 float* px, int npx, float* py, int npy, float* pz, int npz,
-				 int nparticles, int totparticles, int maxit, int seed, int fact) {
+void mc_pet_cuda() {
 
-	// Select a device, change accordingly (-1 select the most powerfull GPU on the computer)
-	cudaSetDevice(1);
+	// Simulation parameters
+	float E = 0.511; // MeV
+	int totparticles = 10000000; // Nb of particules required by the simulation
+	int stack_size = 5000000;    // note: during the simulation two stacks are running
+	int seed = 10;
+	int maxit = 5;
+	char* output_name = "output.bin";
+	cudaSetDevice(1); // Select a device, need to change accordingly (-1 select the most powerfull GPU on the computer)
 
+	// Variables
     timeval start, end;
     double t1, t2, diff;
 	timeval start_s, end_s;
 	double ts1, ts2, te1, te2;
-	int3 dimvol;
+	int3 dim_phantom;
 	int n, step;
-	int countparticle=0;
+	int countparticle = 0;
 
 	// time to init
 	gettimeofday(&start, NULL);
 	t1 = start.tv_sec + start.tv_usec / 1000000.0;
-	
-	dimvol.x = nx;
-	dimvol.y = ny;
-	dimvol.z = nz;
 
-	// prepare volume and activity
+	// Open the NCAT (46x63x128 voxels which represent ID material)
+	FILE * pfile = fopen("ncat_12mat.bin", "rb");
+	dim_phantom.z = 46;
+	dim_phantom.y = 63;
+	dim_phantom.x = 128;
+	float size_voxel = 4.0f;  // used latter
+	int nb = dim_phantom.z * dim_phantom.y * dim_phantom.x;
 	unsigned int mem_phantom = nb * sizeof(unsigned short int);
-	unsigned int mem_vol = nb * sizeof(float);
-	unsigned int mem_small_vol = small_nb * sizeof(float);
-	unsigned int mem_tiny_vol = tiny_nb * sizeof(float);
-	unsigned int mem_dind = nb * sizeof(int);
+	unsigned short int* phantom = (unsigned short int*)malloc(mem_phantom);
+	fread(phantom, sizeof(unsigned short int), nb, pfile);
+	fclose(pfile);
 
+	// Load NCAT to texture
 	unsigned short int* dphantom;
 	cudaMalloc((void**) &dphantom, mem_phantom);
 	cudaMemcpy(dphantom, phantom, mem_phantom, cudaMemcpyHostToDevice);
 	cudaBindTexture(NULL, tex_phantom, dphantom, mem_phantom);
 
-	float* dact;
-	cudaMalloc((void**) &dact, mem_vol);
-	cudaMemcpy(dact, act, mem_vol, cudaMemcpyHostToDevice);
-	cudaBindTexture(NULL, tex_act, dact, mem_vol);
+	// Open voxelized activities
+	int fact = 50; // scale factor to decimate activity map
+
+	pfile = fopen("huge_act.bin", "rb");
+	unsigned int mem_huge_act = nb * sizeof(float);
+	float* huge_act = (float*)malloc(mem_huge_act);
+	fread(huge_act, sizeof(float), nb, pfile);
+	fclose(pfile);
+
+	int small_nb = 7418; // nb / fact
+	pfile = fopen("small_act.bin", "rb");
+	unsigned int mem_small_act = small_nb * sizeof(float);
+	float* small_act = (float*)malloc(mem_small_act);
+	fread(small_act, sizeof(float), small_nb, pfile);
+	fclose(pfile);
+	
+	int tiny_nb = 148; // nb / fact / fact
+	pfile = fopen("tiny_act.bin", "rb");
+	unsigned int mem_tiny_act = tiny_nb * sizeof(float);
+	float* tiny_act = (float*)malloc(mem_tiny_act);
+	fread(tiny_act, sizeof(float), tiny_nb, pfile);
+	fclose(pfile);
+
+	pfile = fopen("ind_act.bin", "rb");
+	unsigned int mem_ind_act = nb * sizeof(int);
+	int* ind_act = (int*)malloc(mem_ind_act);
+	fread(ind_act, sizeof(int), nb, pfile);
+	fclose(pfile);
+	
+	// Load voxelized actitivities to texture
+	float* huge_dact;
+	cudaMalloc((void**) &huge_dact, mem_huge_act);
+	cudaMemcpy(huge_dact, huge_act, mem_huge_act, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_huge_act, huge_dact, mem_huge_act);
 
 	float* small_dact;
-	cudaMalloc((void**) &small_dact, mem_small_vol);
-	cudaMemcpy(small_dact, small_act, mem_small_vol, cudaMemcpyHostToDevice);
-	cudaBindTexture(NULL, tex_small_act, small_dact, mem_small_vol);
+	cudaMalloc((void**) &small_dact, mem_small_act);
+	cudaMemcpy(small_dact, small_act, mem_small_act, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_small_act, small_dact, mem_small_act);
 
 	float* tiny_dact;
-	cudaMalloc((void**) &tiny_dact, mem_tiny_vol);
-	cudaMemcpy(tiny_dact, tiny_act, mem_tiny_vol, cudaMemcpyHostToDevice);
-	cudaBindTexture(NULL, tex_tiny_act, tiny_dact, mem_tiny_vol);
+	cudaMalloc((void**) &tiny_dact, mem_tiny_act);
+	cudaMemcpy(tiny_dact, tiny_act, mem_tiny_act, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_tiny_act, tiny_dact, mem_tiny_act);
 
-	int* dind;
-	cudaMalloc((void**) &dind, mem_dind);
-	cudaMemcpy(dind, ind, mem_dind, cudaMemcpyHostToDevice);
-	cudaBindTexture(NULL, tex_ind, dind, mem_dind);
+	int* ind_dact;
+	cudaMalloc((void**) &ind_dact, mem_ind_act);
+	cudaMemcpy(ind_dact, ind_act, mem_ind_act, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_ind, ind_dact, mem_ind_act);
+
+	//////// Rayleigh is not used in this simulation //////////
+	/*
+	// Open Rayleigh cross section
+	const int ncs = 213816;  // CS file contains 213,816 floats
+	const int nff = 28824;   // FF file contains  28,824 floats
+	unsigned int mem_cs = ncs * sizeof(float);
+	unsigned int mem_ff = nff * sizeof(float);
+	float* raylcs = (float*)malloc(mem_cs);
+	float* raylff = (float*)malloc(mem_ff);
+	pfile = fopen("rayleigh_cs.bin", "rb");
+	fread(raylcs, sizeof(float), ncs, pfile);
+	fclose(pfile);
+	pfile = fopen("rayleigh_ff.bin", "rb");
+	fread(raylff, sizeof(float), nff, pfile);
+	fclose(pfile);
+
+	// Load Rayleigh data to texture
+	float* draylcs;
+	cudaMalloc((void**) &draylcs, mem_cs);
+	cudaMemcpy(draylcs, raylcs, mem_cs, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_rayl_cs, draylcs, mem_cs);
+	free(raylcs);
+	
+	float* draylff;	
+	cudaMalloc((void**) &draylff, mem_ff);
+	cudaMemcpy(draylff, raylff, mem_ff, cudaMemcpyHostToDevice);
+	cudaBindTexture(NULL, tex_rayl_ff, draylff, mem_ff);
+	free(raylff);
+	*/
+
+	// Host allocation memory to save the phase-space
+	float* pE = (float*)malloc(totparticles * sizeof(float));
+	float* px = (float*)malloc(totparticles * sizeof(float));
+	float* py = (float*)malloc(totparticles * sizeof(float));
+	float* pz = (float*)malloc(totparticles * sizeof(float));
+	float* dx = (float*)malloc(totparticles * sizeof(float));
+	float* dy = (float*)malloc(totparticles * sizeof(float));
+	float* dz = (float*)malloc(totparticles * sizeof(float));
 
 	// Defined Stacks
-	int half_nparticles = nparticles / 2;
 	StackGamma stackgamma1;
 	StackGamma stackgamma2;
 	StackGamma collector;
-	stackgamma1.size = half_nparticles;
-	stackgamma2.size = half_nparticles;
-	collector.size = half_nparticles;
+	stackgamma1.size = stack_size;
+	stackgamma2.size = stack_size;
+	collector.size = stack_size;
 	unsigned int mem_stack_float = stackgamma1.size * sizeof(float);
 	unsigned int mem_stack_int = stackgamma1.size * sizeof(int);
 	unsigned int mem_stack_char = stackgamma1.size * sizeof(char);
@@ -1024,7 +1095,7 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 	// Vars kernel
 	dim3 threads, grid;
 	int block_size = 256;
-	int grid_size = (nparticles + block_size - 1) / block_size;
+	int grid_size = (stack_size + block_size - 1) / block_size;
 	threads.x = block_size;
 	grid.x = grid_size;
 
@@ -1046,10 +1117,7 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 		////////////////////////
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
-		kernel_particle_back2back<<<grid, threads>>>(stackgamma1, stackgamma2, nb, small_nb, tiny_nb,
-													 nz, ny, nx, 0.511, fact, dact, small_dact, tiny_dact, dind);
-		//kernel_particle_isotrope<<<grid, threads>>>(stackgamma, 5.0, 5.0, 5.0, 0.511, dtrack);
-		//kernel_test<<<grid, threads>>>(dtrack, nb, dact);
+		kernel_particle_back2back<<<grid, threads>>>(stackgamma1, stackgamma2, tiny_nb, dim_phantom, E, fact);
 		cudaThreadSynchronize();
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
@@ -1061,8 +1129,8 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 		////////////////////////
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
-		kernel_woodcock<<<grid, threads>>>(dimvol, stackgamma1, 4.0); // size of voxel 4 mm3
-		kernel_woodcock<<<grid, threads>>>(dimvol, stackgamma2, 4.0); // size of voxel 4 mm3
+		kernel_woodcock<<<grid, threads>>>(dim_phantom, stackgamma1, size_voxel);
+		kernel_woodcock<<<grid, threads>>>(dim_phantom, stackgamma2, size_voxel);
 		cudaThreadSynchronize();
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
@@ -1074,8 +1142,8 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 		////////////////////////
 		gettimeofday(&start, NULL);
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
-		kernel_interactions<<<grid, threads>>>(stackgamma1, dimvol);
-		kernel_interactions<<<grid, threads>>>(stackgamma2, dimvol);		
+		kernel_interactions<<<grid, threads>>>(stackgamma1, dim_phantom);
+		kernel_interactions<<<grid, threads>>>(stackgamma2, dim_phantom);		
 		cudaThreadSynchronize();
 		gettimeofday(&end, NULL);
 		t2 = end.tv_sec + end.tv_usec / 1000000.0;
@@ -1114,9 +1182,10 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
 		int c0 = 0;	int c1 = 0;	int c2 = 0;
 		n = 0;
-		while(n<half_nparticles && countparticle<totparticles) {
+		while(n < stack_size && countparticle < totparticles) {
+			// pick only outsider particles
 			if (collector.in[n] == 0) {
-				E[countparticle] = collector.E[n];
+				pE[countparticle] = collector.E[n];
 				dx[countparticle] = collector.dx[n];
 				dy[countparticle] = collector.dy[n];
 				dz[countparticle] = collector.dz[n];
@@ -1160,9 +1229,10 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 		t1 = start.tv_sec + start.tv_usec / 1000000.0;
 		c0 = 0;	c1 = 0;	c2 = 0;
 		n = 0;
-		while(n<half_nparticles && countparticle<totparticles) {
+		while(n < stack_size && countparticle < totparticles) {
+			// pick only outsider particles
 			if (collector.in[n] == 0) {
-				E[countparticle] = collector.E[n];
+				pE[countparticle] = collector.E[n];
 				dx[countparticle] = collector.dx[n];
 				dy[countparticle] = collector.dy[n];
 				dz[countparticle] = collector.dz[n];
@@ -1201,6 +1271,24 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 	
 	// TO DEBUG
 	//cudaMemcpy(px, ddebug, mem_stack_float, cudaMemcpyDeviceToHost);
+
+	// Export phase-space
+	//  TODO: export in phase-space format (IAEAphsp)
+	gettimeofday(&start, NULL);
+	t1 = start.tv_sec + start.tv_usec / 1000000.0;
+	pfile = fopen(output_name, "wb");
+	fwrite(pE, sizeof(float), totparticles, pfile);
+	fwrite(px, sizeof(float), totparticles, pfile);
+	fwrite(py, sizeof(float), totparticles, pfile);
+	fwrite(pz, sizeof(float), totparticles, pfile);
+	fwrite(dx, sizeof(float), totparticles, pfile);
+	fwrite(dy, sizeof(float), totparticles, pfile);
+	fwrite(dz, sizeof(float), totparticles, pfile);
+	fclose(pfile);
+	gettimeofday(&end, NULL);
+	te2 = end.tv_sec + end.tv_usec / 1000000.0;
+	diff = te2 - te1;
+	printf("Save phase-space in %f s\n", diff);
 	
 	// Clean memory
 	free(collector.E);
@@ -1213,6 +1301,18 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 	free(collector.interaction);
 	free(collector.live);
 	free(collector.in);
+	free(pE);
+	free(px);
+	free(py);
+	free(pz);
+	free(dx);
+	free(dy);
+	free(dz);
+	free(phantom);
+	free(huge_act);
+	free(small_act);
+	free(tiny_act);
+	free(ind_act);
 	
 	cudaFree(stackgamma1.E);
 	cudaFree(stackgamma1.dx);
@@ -1239,16 +1339,16 @@ void mc_pet_cuda(unsigned short int* phantom, int nz, int ny, int nx,
 	cudaFree(stackgamma2.seed);
 
 	cudaUnbindTexture(tex_phantom);
-	cudaUnbindTexture(tex_act);
+	cudaUnbindTexture(tex_huge_act);
 	cudaUnbindTexture(tex_small_act);
 	cudaUnbindTexture(tex_tiny_act);
 	cudaUnbindTexture(tex_ind);
 
 	cudaFree(dphantom);
-	cudaFree(dact);
+	cudaFree(huge_dact);
 	cudaFree(small_dact);
 	cudaFree(tiny_dact);
-	cudaFree(dind);
+	cudaFree(ind_dact);
 	//cudaFree(ddebug);
 	
 	cudaThreadExit();

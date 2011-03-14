@@ -29,12 +29,7 @@
 import_array();
 %}
 
-void mc_pet_cuda(unsigned short int* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
-				 float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1,
-				 int* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
-				 float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
-				 float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
-				 int nparticles, int totparticles, int maxit, int seed, int fact);
+void mc_pet_cuda();
 
 void mc_proj_detector(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
 					  float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1);

@@ -15,10 +15,6 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-/********************************************************************************
- * PET Scan Allegro      
- ********************************************************************************/
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -27,6 +23,39 @@
 #include <sys/time.h>
 #include <assert.h>
 #include <kernel_c.h>
+
+/********************************************************************************
+ * Phase-Space
+ ********************************************************************************/
+/*
+void kernel_phasespace_open(char* filename,
+							char* type, int ntype,
+							float* E, int nE,
+							float* px, int npx, float* py, int npy, float* pz, int npz,
+							float* dx, int ndx, float* dy, int ndy, float* dz, int ndz,
+							float* w, int nw) {	
+
+	FILE * pfile = fopen(filename, "rb");
+
+	for (int i = 0; i < nbele; ++i) {
+		
+	}
+
+	dim_phantom.z = 46;
+	dim_phantom.y = 63;
+	dim_phantom.x = 128;
+	float size_voxel = 4.0f;  // used latter
+	int nb = dim_phantom.z * dim_phantom.y * dim_phantom.x;
+	unsigned int mem_phantom = nb * sizeof(unsigned short int);
+	unsigned short int* phantom = (unsigned short int*)malloc(mem_phantom);
+	fread(phantom, sizeof(unsigned short int), nb, pfile);
+	fclose(pfile);
+}
+*/
+
+/********************************************************************************
+ * PET Scan Allegro      
+ ********************************************************************************/
 
 #define pi  3.141592653589
 #define twopi 6.283185307179

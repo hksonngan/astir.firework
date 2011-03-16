@@ -33,3 +33,8 @@ void dev_raypro_3D(float* vol, int nz, int ny, int nx,
 //void dev_mc_distribution(float* dist, int nz, int ny, int nx, float* res, int nrz, int nry, int nrx, int N);
 void dev_mc_distribution(float* dist, int nb, float* small_dist, int small_nb, float* tiny_dist, int tiny_nb,
 						 int* ind, int nind, float* res, int nrz, int nrx, int nry, int N);
+
+// Raytracer to Emanuelle BRARD - AMELL
+int dev_AMELL(int* voxel, int nvox, int dimx, int dimy, int dimz,
+			  float x1, float y1, float z1,
+			  float x2, float y2, float z2);

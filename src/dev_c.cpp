@@ -519,3 +519,78 @@ void dev_mc_distribution(float* dist, int nb, float* small_dist, int small_nb, f
 	//free(small_dist);
 
 }
+
+
+
+/***********************************************
+ * Raytracer to Emanuelle BRARD - AMELL
+ *         2011-03-16 10:33:39
+ ***********************************************/
+
+int dev_AMELL(int* voxel, int nvox, int dimx, int dimy, int dimz,
+			  float x1, float y1, float z1,
+			  float x2, float y2, float z2) {
+
+	int ex, ey, ez;
+	int ix, iy, iz;
+	int stepi_x, stepi_y, stepi_z;
+	int ux, uy, uz;
+	float start_x, start_y, start_z;
+	float stept_x, stept_y, stept_z;
+	float run_x, run_y, run_z;
+	float pq, totv;
+	float eps = 1.0e-5f;
+	int pos = 0;
+	int jump = dimx * dimy;
+
+	ex = int(x1);
+	ey = int(y1);
+	ez = int(z1);
+
+	if ((x2-x1) > 0) {stepi_x = 1; ux = ex + 1;}
+	if ((x2-x1) < 0) {stepi_x = -1; ux = ex;}
+	if ((x2-x1) == 0) {stepi_x = 0; ux = ex; x2 = eps;}
+
+	if ((y2-y1) > 0) {stepi_y = 1; uy = ey + 1;}
+	if ((y2-y1) < 0) {stepi_y = -1; uy = ey;}
+	if ((y2-y1) == 0) {stepi_y = 0; uy = ey; y2 = eps;}
+
+	if ((z2-z1) > 0) {stepi_z = 1; uz = ez + 1;}
+	if ((z2-z1) < 0) {stepi_z = -1; uz = ez;}
+	if ((z2-z1) == 0) {stepi_z = 0; uz = ez; z2 = eps;}
+
+	pq = sqrtf((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2));
+	run_x = pq * (ux - x1) / (x2 - x1);
+	run_y = pq * (uy - y1) / (y2 - y1);
+	run_z = pq * (uz - z1) / (z2 - z1);
+
+	stept_x = fabsf((pq / (x2 - x1)));
+	stept_y = fabsf((pq / (y2 - y1)));
+	stept_z = fabsf((pq / (z2 - z1)));
+	ix = ex;
+	iy = ey;
+	iz = ez;
+
+	voxel[pos] = ez*jump + ey*dimx + ex;
+	++pos;
+		
+	totv = 0.0f;
+	while (totv < pq) {
+		if (run_x < run_y) {
+			if (run_x < run_z) {ix += stepi_x; run_x += stept_x;}
+			else {iz += stepi_z; run_z += stept_z;}
+		} else {
+			if (run_y < run_z) {iy += stepi_y; run_y += stept_y;}
+			else {iz += stepi_z; run_z += stept_z;}
+		}
+		totv = run_x;
+		if (run_y < totv) {totv=run_y;}
+		if (run_z < totv) {totv=run_z;}
+
+		voxel[pos] = iz*jump + iy*dimx + ix;
+		++pos;
+	}
+
+	return pos;
+		
+}

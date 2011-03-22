@@ -41,15 +41,12 @@ void dev_raypro_3D(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
 				   float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1,
 				   float* IN_ARRAY1, int DIM1);
 
-//void dev_mc_distribution(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
-//						 float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, int N);
-
-void dev_mc_distribution(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1,
-						 int* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, int N);
-
 // Raytracer to Emanuelle BRARD - AMELL
-int dev_AMELL(int* INPLACE_ARRAY1, int DIM1, int dimx, int dimy, int dimz,
+int dev_AMELL(int* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int dimx, int dimy, int dimz,
 			  float x1, float y1, float z1,
 			  float x2, float y2, float z2);
 
 
+void dev_MSPS_build(float* IN_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1);
+
+void dev_MSPS_gen(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1);

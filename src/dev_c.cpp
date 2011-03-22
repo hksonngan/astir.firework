@@ -356,178 +356,190 @@ void dev_raypro_3D(float* vol, int nz, int ny, int nx,
 
 }
 
-#define SWAPf(a, b) {float tmp=(a); (a)=(b); (b)=tmp;}
-#define SWAPi(a, b) {int tmp=(a); (a)=(b); (b)=tmp;}
-// Quick sort O(n(log n))
-void dev_mc_quicksort(float* vec, int* ind, int l, int r) {
-	int key, i, j, k;
 
-	if (l < r) {
-		int i, j;
-		float pivot;
-		pivot = vec[l];
-		i = l;
-		j = r+1;
-
-		while (1) {
-			do ++i; while(vec[i] <= pivot && i <= r);
-			do --j; while(vec[j] > pivot);
-			if (i >= j) break;
-			SWAPf(vec[i], vec[j]);
-			SWAPi(ind[i], ind[j]);
-		}
-		SWAPf(vec[l], vec[j]);
-		SWAPi(ind[l], ind[j]);
-		dev_mc_quicksort(vec, ind, l, j-1);
-		dev_mc_quicksort(vec, ind, j+1, r);
-	}
+void printf_vec(float* A, int nA) {
+	int i=0;
+	while (i<nA) {printf("%f ", A[i]); ++i;}
+	printf("\n");
 }
-#undef SWAPf
-#undef SWAPi
 
-void dev_mc_distribution(float* dist, int nb, float* small_dist, int small_nb, float* tiny_dist, int tiny_nb,
-						 int* ind, int nind, float* res, int nrz, int nrx, int nry, int N) {
-	int i, j;
-	//int nb = nx*ny*nz;
-	float tot = 0;
-	float rnd;
+void printi_vec(int* A, int nA) {
+	int i=0;
+	while (i<nA) {printf("%i ", A[i]); ++i;}
+	printf("\n");
+}
 
-	float mean = 0.0f;
-	float mean2 = 0.0f;
-	float mean3 = 0.0f;
-	int j0;
-	int fact = 50;
+
+void dev_MSPS_build(float* org_act, int nact, int* ind, int nind) {
+	//printf("ok\n");
+
+	int lambda = 3;
+	int level = 10;
+	int totelt = int(nact*1.5) + level;
+
+	int c, k, i;
+	float sum=0.0f;
+
+	float* MS = (float*)malloc(totelt*sizeof(float));
+	int* indk = (int*)malloc(level*sizeof(int));
+	int* nk = (int*)malloc(level*sizeof(int));
+	memset(MS, 0, totelt);
+
+	// normamize the org_act
+	i=0; while (i<nact) {sum += org_act[i]; ++i;}
+	sum = 1.0f / sum;
+	i=0; while (i<nact) {org_act[i] *= sum; ++i;}
+	// accumulate values
+	i=1; while (i<nact) {org_act[i] += org_act[i-1]; ++i;}
+	// copy the data to the first level
+	i=0; while (i<nact) {MS[i] = org_act[i]; ++i;}
+	indk[0] = 0;
+	nk[0] = nact;
+	
+	// build every level
+	int ilevel;
+	for (ilevel = 1; ilevel < level; ++ilevel) {
+		nk[ilevel] = int(nk[ilevel-1] / lambda) + 1;
+		//if (fmod(nk[ilevel-1], lambda) >= 1) {++nk[ilevel];}
+		indk[ilevel] = indk[ilevel-1] + nk[ilevel-1];
+		k = indk[ilevel];
+	
+		c=0; i=0; sum=0.0f;
+		for (i=indk[ilevel-1]; i<indk[ilevel]; ++i) {
+			sum += MS[i];
+
+			++c;
+			if (c==lambda) {
+				MS[k] = sum / float(lambda);
+				sum = 0.0f;
+				c = 0;
+				++k;
+			}
+		}
+		//if (k != indk[1]) {MS[k] = 1.0f;}
+		MS[k] = 1.0f;
+	}
 
 	/*
-	// prepare data
-	int* ind = (int*)malloc(nb * sizeof(int));
-	i=0;
-	while (i<nb) {ind[i] = i; ++i;}
-	i=0;
-	while (i<nb) {tot += dist[i]; ++i;}
-	tot = 1.0f / tot;	
-	i=0;
-	while (i<nb) {dist[i] *= tot; ++i;}
-	
-	dev_mc_quicksort(dist, ind, 0, nb-1);
-	
-	// prepare multires data
-	int small_nb = int(nb / fact);
-	if (nb % fact == 1) {++small_nb;}
-	int tiny_nb = int(small_nb / fact);
-	if (small_nb % fact == 1) {++tiny_nb;}
+	//printf_vec(MS, nk[0]+nk[1]+nk[2]);
 
-	float* small_dist = (float*)malloc(small_nb * sizeof(float));
-	float* tiny_dist = (float*)malloc(tiny_nb * sizeof(float));
-
-	int c, k;
-	float sum;
-
-	c=0; k=0; i=0;
-	while (i<nb) {
-		sum += dist[i];
-		++c;
-		if (c==fact) {
-			small_dist[k] = sum;
-			sum = 0.0f;
-			c = 0;
-			++k;
-		}
-		++i;
+	//printf_vec(MS, nk[0]+nk[1]+nk[2]);
+	//printi_vec(nk, level);
+	//printi_vec(indk, level);
+	for (i=0; i<level; ++i) {
+		printf("level %i : [%f - %f]    %i elts\n", i, MS[indk[i]], MS[indk[i]+nk[i]-1], nk[i]);
 	}
-	if (k != small_nb) {small_dist[k] = sum;}
 
-	c=0; k=0; i=0;
-	while (i<small_nb) {
-		sum += small_dist[i];
-		++c;
-		if (c==fact) {
-			tiny_dist[k] = sum;
-			sum = 0.0f;
-			c = 0;
-			++k;
-		}
-		++i;
-	}
-	if (k != tiny_nb) {tiny_dist[k] = sum;}
-
-	// cumul
-	i=1;
-	while (i<nb) {dist[i] += (dist[i-1]); ++i;}
-	i=1;
-	while (i<small_nb) {small_dist[i] += (small_dist[i-1]); ++i;}
-	i=1;
-	while (i<tiny_nb) {tiny_dist[i] += (tiny_dist[i-1]); ++i;}
+	printf("[");
+	for (i=0; i<nk[level-1]; ++i) {printf("%f ", MS[indk[level-1] + i]);} 
+	printf("]\n");
 	*/
+	// Export
+	FILE * pfile = fopen("msv_activity.bin", "wb");
+	fwrite(MS, sizeof(float), totelt, pfile);
+	fclose(pfile);
+	pfile = fopen("msi_activity.bin", "wb");
+	fwrite(ind, sizeof(int), nind, pfile);
+	fclose(pfile);
+	pfile = fopen("nk_activity.bin", "wb");
+	fwrite(nk, sizeof(int), level, pfile);
+	fclose(pfile);
+	pfile = fopen("indk_activity.bin", "wb");
+	fwrite(indk, sizeof(int), level, pfile);
+	fclose(pfile);
 	
-	i=0;
-	while (i<N) {
-		rnd = (float)rand() / (float)(RAND_MAX+1.0f);
 
-		// first estimate position
-		j = int(rnd * tiny_nb);
-		j0 = j;
-		if (tiny_dist[j] < rnd) {
-			while (tiny_dist[j] < rnd) {++j;}
-		} else {
-			while (tiny_dist[j] > rnd) {--j;}
-			++j; // correct undershoot
-		}
-		
-		mean += ((float)abs(j0-j));
+	//free(MS);
+	//free(indk);
+	//free(nk);
 
-		// second estimate position
-		j *= fact;
-		//if (j >= (nb-1)) {j = nb-2;}
-		//if (j <= 0) {j = 1;}
-		j0 = j;
-		if (small_dist[j] < rnd) {
-			while (small_dist[j] < rnd) {++j;}
-		} else {
-			while (small_dist[j] > rnd) {--j;}
-			++j; // correct undershoot
-		}
-				
-		mean2 += ((float)abs(j0-j));
-		
-		// final position
-		j *= fact;
-		//if (j >= (nb-1)) {j = nb-2;}
-		//if (j <= 0) {j = 1;}
-		j0 = j;
-		if (dist[j] < rnd) {
-			while (dist[j] < rnd) {++j;}
-		} else {
-			while (dist[j] > rnd) {--j;}
-			++j; // correct undershoot
-		}
-
-		mean3 += ((float)abs(j0-j));
-		
-		res[ind[j]] += 1.0f;
-		
-		++i;
-		
-	}
-	
-	printf("mean step 1 %f\n", mean/float(N));
-	printf("mean step 2 %f\n", mean2/float(N));
-	printf("mean step 3 %f\n", mean3/float(N));
-
-	//free(ind);
-	//free(tiny_dist);
-	//free(small_dist);
 
 }
 
+void dev_MSPS_gen(float* msv, int nmsv, int* msi, int nmsi, int* nk, int nnk, int* indk, int nindk,
+				  int npoint, int seed) {
+	int level = 10;
+	int lambda = 3;
+	int half_lambda = lambda / 2;
+	int i, jloc, jglb;
+	int step = 0;
+	int stepmem = 0;
+	srand(seed);
 
+	int n = 0;
+	while (n < npoint) {
+	/*
+	// display
+	for (i=0; i<level; ++i) {
+		printf("level %i : [%f - %f]    %i elts\n", i, msv[indk[i]], msv[indk[i]+nk[i]-1], nk[i]);
+	}
+	printf("[");
+	for (i=0; i<nk[level-1]; ++i) {printf("%f ", msv[indk[level-1] + i]);} 
+	printf("]\n");
+	*/
+
+	// select a random number
+	float rnd = (float)rand() / (float)(RAND_MAX+1.0f);
+	//printf("random number: %f\n", rnd);
+
+	// first position esimation
+	jloc = int(rnd * nk[level-1]);
+	jglb = jloc + indk[level-1];
+	//printf("Level %i\n", level-1);
+	//printf("   init loc %i glb %i val %f\n", jloc, jglb, msv[jglb]);
+
+	// search
+	stepmem = step;
+	if (msv[jglb] < rnd) {
+		while (msv[jglb] < rnd) {++jglb; ++step;}
+	} else {
+		while (msv[jglb] > rnd) {--jglb; ++step;}
+		++jglb; // correct undershoot
+	}
+	jloc = jglb-indk[level-1];
+	//printf("   search loc %i glb %i val %f  - step %i\n", jloc, jglb, msv[jglb], step-stepmem);
+
+	i = level-2;
+	while (i>=0) {
+		//printf("Level %i\n", i);
+		// propagation
+		jloc = lambda * jloc + half_lambda;
+		jglb = jloc+indk[i];
+		//printf("   propa loc %i glb %i val %f\n", jloc, jglb, msv[jglb]);
+		// search
+		stepmem = step;
+		if (msv[jglb] < rnd) {
+			while (msv[jglb] < rnd) {++jglb; ++step;}
+		} else {
+			while (msv[jglb] > rnd) {--jglb; ++step;}
+			++jglb; // correct undershoot
+		}
+		jloc = jglb-indk[i];
+		//printf("   search loc %i glb %i val %f  - step %i\n", jloc, jglb, msv[jglb], step-stepmem);
+		--i;
+	}
+
+	/*
+	printf("\nFinal search in %i steps\n\n", step);
+
+	int jj = 10000;
+	printf("level 1: %f\n", msv[jj+indk[1]]);
+	printf("level 0:\n");
+	printf_vec(&msv[lambda*jj + half_lambda + indk[0] - 1], 10);
+	*/
+
+	++n;
+	} // while
+	
+
+}
 
 /***********************************************
  * Raytracer to Emanuelle BRARD - AMELL
  *         2011-03-16 10:33:39
  ***********************************************/
 
-int dev_AMELL(int* voxel, int nvox, int dimx, int dimy, int dimz,
+int dev_AMELL(int* voxel_ind, int nvox, float* voxel_val, int nvox2, int dimx, int dimy, int dimz,
 			  float x1, float y1, float z1,
 			  float x2, float y2, float z2) {
 
@@ -538,7 +550,7 @@ int dev_AMELL(int* voxel, int nvox, int dimx, int dimy, int dimz,
 	float start_x, start_y, start_z;
 	float stept_x, stept_y, stept_z;
 	float run_x, run_y, run_z;
-	float pq, totv;
+	float pq, oldv, val, totv;
 	float eps = 1.0e-5f;
 	int pos = 0;
 	int jump = dimx * dimy;
@@ -571,7 +583,12 @@ int dev_AMELL(int* voxel, int nvox, int dimx, int dimy, int dimz,
 	iy = ey;
 	iz = ez;
 
-	voxel[pos] = ez*jump + ey*dimx + ex;
+	oldv = run_x;
+	if (run_y < oldv) {oldv = run_y;}
+	if (run_z < oldv) {oldv = run_z;}
+
+	voxel_val[pos] = oldv;
+	voxel_ind[pos] = ez*jump + ey*dimx + ex;
 	++pos;
 		
 	totv = 0.0f;
@@ -587,9 +604,13 @@ int dev_AMELL(int* voxel, int nvox, int dimx, int dimy, int dimz,
 		if (run_y < totv) {totv=run_y;}
 		if (run_z < totv) {totv=run_z;}
 
-		voxel[pos] = iz*jump + iy*dimx + ix;
+		voxel_val[pos] = totv - oldv;
+		voxel_ind[pos] = iz*jump + iy*dimx + ix;
+		oldv = totv;
 		++pos;
 	}
+
+	voxel_val[pos-1] += (pq - totv);
 
 	return pos;
 		

@@ -456,83 +456,194 @@ void dev_MSPS_build(float* org_act, int nact, int* ind, int nind) {
 
 }
 
+void dev_MSPS_naive(float* act, int nact, int* indact, int inact,
+					float* X, int sx, float* Y, int sy, float* Z, int sz,
+					int* step, int nstep,
+					int npoint, int seed, int nz, int ny, int nx) {
+
+	int n = 0;
+	float rnd;
+	float jump = ny*nx;
+	float ijump = 1.0f / jump;
+	float inx = 1.0f / float(nx);
+	float ind, x, y, z;
+	int istep, stepmem;
+	srand(seed);
+	while (n<npoint) {
+		rnd = (float)rand() / (float)(RAND_MAX+1.0f);
+
+		istep = int(rnd * nact);
+		
+		stepmem = istep;
+		
+		//istep = 0;
+		//while (act[istep] < rnd) {++istep;}
+		//ind = float(indact[istep]);
+
+		//printf("act_istep %f rnd %f\n", act[istep], rnd);
+
+		
+		if (act[istep] < rnd) {
+			while (act[istep] < rnd) {++istep;}
+		} else {
+			while (act[istep] > rnd) {--istep;}
+			++istep; // correct undershoot
+		}
+
+		//printf("act_istep %f rnd %f\n", act[istep], rnd);
+		
+		ind = float(indact[istep]);
+		
+		z = floor(ind * ijump);
+		ind -= (z * jump);
+		y = floor(ind * inx);
+		x = ind - y*nx;
+	
+		// random position inside voxel
+		x += ((float)rand() / (float)(RAND_MAX+1.0f));
+		y += ((float)rand() / (float)(RAND_MAX+1.0f));
+		z += ((float)rand() / (float)(RAND_MAX+1.0f));
+		step[n] = abs(stepmem - istep);
+
+		X[n] = x;
+		Y[n] = y;
+		Z[n] = z;
+	
+		++n;
+	}
+
+}
+
+// Voxelized source generation - Multi-Scale Propagation Search (MSPS)
 void dev_MSPS_gen(float* msv, int nmsv, int* msi, int nmsi, int* nk, int nnk, int* indk, int nindk,
-				  int npoint, int seed) {
+				  float* X, int sx, float* Y, int sy, float* Z, int sz, int* step, int nstep,
+				  int npoint, int seed, int nz, int ny, int nx) {
+				  
+				  
 	int level = 10;
 	int lambda = 3;
 	int half_lambda = lambda / 2;
 	int i, jloc, jglb;
-	int step = 0;
-	int stepmem = 0;
+	float x, y, z, ind, rnd;
+	float jump = ny*nx;
+	float ijump = 1.0f / jump;
+	float inx = 1.0f / float(nx);
+	int istep = 0;
+	int bormin, bormax;
 	srand(seed);
 
 	int n = 0;
 	while (n < npoint) {
-	/*
+		istep = 0;
+
+		/*
+		if (n==307) {
+	printf("======= point %i ===========\n", n);
 	// display
 	for (i=0; i<level; ++i) {
-		printf("level %i : [%f - %f]    %i elts\n", i, msv[indk[i]], msv[indk[i]+nk[i]-1], nk[i]);
+		printf("level %i : [%f - %f]    %i elts   indk %i\n", i, msv[indk[i]], msv[indk[i]+nk[i]-1], nk[i], indk[i]);
 	}
 	printf("[");
 	for (i=0; i<nk[level-1]; ++i) {printf("%f ", msv[indk[level-1] + i]);} 
 	printf("]\n");
-	*/
+		}
+		*/
 
 	// select a random number
-	float rnd = (float)rand() / (float)(RAND_MAX+1.0f);
-	//printf("random number: %f\n", rnd);
+	rnd = (float)rand() / (float)(RAND_MAX+1.0f);
+	//if (n==307) {printf("random number: %f\n", rnd);}
 
 	// first position esimation
 	jloc = int(rnd * nk[level-1]);
 	jglb = jloc + indk[level-1];
-	//printf("Level %i\n", level-1);
-	//printf("   init loc %i glb %i val %f\n", jloc, jglb, msv[jglb]);
+	/*
+	if (n==307) {
+	printf("random %f\n", rnd);
+	printf("Level %i\n", level-1);
+	printf("   init loc %i glb %i val %f\n", jloc, jglb, msv[jglb]);
+	}*/
 
 	// search
-	stepmem = step;
+	bormin = indk[level-1];
+	bormax = indk[level-1] + nk[level-1];
 	if (msv[jglb] < rnd) {
-		while (msv[jglb] < rnd) {++jglb; ++step;}
+		while (msv[jglb] < rnd && jglb < bormax) {++jglb; ++istep;}
 	} else {
-		while (msv[jglb] > rnd) {--jglb; ++step;}
+		while (msv[jglb] > rnd && jglb >= bormin) {--jglb; ++istep;}
 		++jglb; // correct undershoot
 	}
 	jloc = jglb-indk[level-1];
-	//printf("   search loc %i glb %i val %f  - step %i\n", jloc, jglb, msv[jglb], step-stepmem);
+	//if (n==307) {
+	//	printf("   search loc %i glb %i val %f  - step %i\n", jloc, jglb, msv[jglb], istep);}
 
 	i = level-2;
 	while (i>=0) {
-		//printf("Level %i\n", i);
+		//if (n==307) {printf("Level %i\n", i);}
 		// propagation
 		jloc = lambda * jloc + half_lambda;
+		// check boundary
+		if (jloc >= nk[i]) {jloc = nk[i]-1;}
+		if (jloc < 0) {jloc = 0;}
+		
 		jglb = jloc+indk[i];
-		//printf("   propa loc %i glb %i val %f\n", jloc, jglb, msv[jglb]);
+		//if (n==307) {printf("   propa loc %i glb %i val %f\n", jloc, jglb, msv[jglb]);}
 		// search
-		stepmem = step;
+		bormin = indk[i];
+		bormax = indk[i] + nk[i];
 		if (msv[jglb] < rnd) {
-			while (msv[jglb] < rnd) {++jglb; ++step;}
+			while (msv[jglb] < rnd && jglb < bormax) {++jglb; ++istep;}
 		} else {
-			while (msv[jglb] > rnd) {--jglb; ++step;}
+			while (msv[jglb] > rnd && jglb >= bormin ) {--jglb; ++istep;}
 			++jglb; // correct undershoot
 		}
 		jloc = jglb-indk[i];
-		//printf("   search loc %i glb %i val %f  - step %i\n", jloc, jglb, msv[jglb], step-stepmem);
+		//if (n==307) {printf("   search loc %i glb %i val %f  - step %i\n", jloc, jglb, msv[jglb-1], istep);}
 		--i;
 	}
-
+	
+	//printf("\nFinal search in %i steps\n\n", step);
 	/*
-	printf("\nFinal search in %i steps\n\n", step);
-
 	int jj = 10000;
 	printf("level 1: %f\n", msv[jj+indk[1]]);
 	printf("level 0:\n");
 	printf_vec(&msv[lambda*jj + half_lambda + indk[0] - 1], 10);
 	*/
 
+	// convert ID
+	ind = float(msi[jloc]);
+	//printf("jloc %i ind %i\n", jloc, msi[jloc]);
+	z = floor(ind * ijump);
+	ind -= (z * jump);
+	y = floor(ind * inx);
+	x = ind - y*nx;
+	
+	// random position inside voxel
+	x += ((float)rand() / (float)(RAND_MAX+1.0f));
+	y += ((float)rand() / (float)(RAND_MAX+1.0f));
+	z += ((float)rand() / (float)(RAND_MAX+1.0f));
+
+	X[n] = x;
+	Y[n] = y;
+	Z[n] = z;
+
+	step[n] = istep;
+	
 	++n;
 	} // while
 	
 
 }
+
+void dev_MSPS_acc(float* im, int nz, int ny, int nx,
+				  float* x, int sx, float* y, int sy, float* z, int sz) {
+	int i=0;
+	int jump = nx*ny;
+	while (i<sx) {
+		im[int(z[i])*jump + int(y[i])*nx + int(x[i])] += 1.0f;
+		++i;
+	}
+}
+
 
 /***********************************************
  * Raytracer to Emanuelle BRARD - AMELL

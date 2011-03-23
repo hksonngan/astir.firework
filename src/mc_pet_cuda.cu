@@ -175,13 +175,11 @@ __device__ float PhotoElec_CSPA(float E, int Z) {
 	float Emin = fmax(fIonizationPotentials[Z]*1e-6f, 0.01e-3f); // from Sandia, the same for all Z
 	if (E < Emin) {return 0.0f;}
 	
-	int start = fCumulIntervals[Z];
-	int stop = start + fNbOfIntervals[Z] - 1;
-	int pos;
-	for (pos=stop; pos>start; --pos) {
-		if (E < fSandiaTable[pos][0]*1.0e-3f) {break;}
-	}
-	float AoverAvo = 103.642688246e-10f * __fdividef((float)Z, fZtoAratio[Z]);
+	int start = fCumulIntervals[Z-1];
+	int stop = start + fNbOfIntervals[Z];
+	int pos=stop;
+	while (E < fSandiaTable[pos][0]*1.0e-3f){--pos;}
+	float AoverAvo = 0.0103642688246f * __fdividef((float)Z, fZtoAratio[Z]);
 	float rE = __fdividef(1.0f, E);
 	float rE2 = rE*rE;
 

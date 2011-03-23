@@ -37,4 +37,14 @@ int dev_AMELL(int* voxel_ind, int nvox, float* voxel_val, int nvox2, int dimx, i
 
 void dev_MSPS_build(float* org_act, int nact, int* ind, int nind);
 
-void dev_MSPS_gen(float* msv, int nmsv, int* msi, int nmsi, int* nk, int nnk, int* indk, int nindk);
+void dev_MSPS_gen(float* msv, int nmsv, int* msi, int nmsi, int* nk, int nnk, int* indk, int nindk,
+				  float* X, int sx, float* Y, int sy, float* Z, int sz, int* step, int nstep,
+				  int npoint, int seed, int nz, int ny, int nx);
+
+void dev_MSPS_acc(float* im, int nz, int ny, int nx,
+				  float* x, int sx, float* y, int sy, float* z, int sz);
+
+void dev_MSPS_naive(float* act, int nact, int* indact, int inact,
+					float* X, int sx, float* Y, int sy, float* Z, int sz,
+					int* step, int nstep,
+					int npoint, int seed, int nz, int ny, int nx);

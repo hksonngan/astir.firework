@@ -49,4 +49,15 @@ int dev_AMELL(int* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, in
 
 void dev_MSPS_build(float* IN_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1);
 
-void dev_MSPS_gen(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1);
+void dev_MSPS_gen(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1,
+				  int* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1,
+				  float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, int* INPLACE_ARRAY1, int DIM1,
+				  int npoint, int seed, int nz, int ny, int nx);
+
+void dev_MSPS_acc(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
+				  float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1);
+
+void dev_MSPS_naive(float* IN_ARRAY1, int DIM1, int* IN_ARRAY1, int DIM1,
+					float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1,
+					int* INPLACE_ARRAY1, int DIM1,
+					int npoint, int seed, int nz, int ny, int nx);

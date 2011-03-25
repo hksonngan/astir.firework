@@ -18,6 +18,13 @@
 #include <stdlib.h>
 #include <stdio.h>
 
+// Open a phase-space
+void kernel_phasespace_open(char* filename,
+							int* type, int ntype,
+							float* E, int nE,
+							float* px, int npx, float* py, int npy, float* pz, int npz,
+							float* dx, int ndx, float* dy, int ndy, float* dz, int ndz);
+
 // PET 3D Scan Allegro
 void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int nidd1,
 							float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
@@ -112,3 +119,10 @@ void kernel_pet3D_OPLEM_att(unsigned short int* X1, int nx1, unsigned short int*
 							float* AM, int am1, int am2, int am3,
 							int nsub);
 
+void kernel_pet3D_OPLEM_sid_att(float* X1, int nx1, float* Y1, int ny1,
+								float* Z1, int nz1, float* X2, int nx2,
+								float* Y2, int ny2, float* Z2, int nz2,
+								float* im, int nim1, int nim2, int nim3,
+								float* NM, int nm1, int nm2, int nm3,
+								float* AM, int am1, int am2, int am3,
+								int nsub, int border);

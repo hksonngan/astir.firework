@@ -530,7 +530,10 @@ void dev_MSPS_gen(float* msv, int nmsv, int* msi, int nmsi, int* nk, int nnk, in
 	float inx = 1.0f / float(nx);
 	int istep = 0;
 	int bormin, bormax;
+	float eps = 1e-3f;
 	srand(seed);
+
+	int maxind = nz*ny*nx;
 
 	int n = 0;
 	while (n < npoint) {
@@ -550,11 +553,12 @@ void dev_MSPS_gen(float* msv, int nmsv, int* msi, int nmsi, int* nk, int nnk, in
 		*/
 
 	// select a random number
-	rnd = (float)rand() / (float)(RAND_MAX+1.0f);
+	rnd = (float)rand() / (float)(RAND_MAX);
 	//if (n==307) {printf("random number: %f\n", rnd);}
 
 	// first position esimation
 	jloc = int(rnd * nk[level-1]);
+	if (jloc >= nk[level-1]) {jloc = nk[level-1] - 1;}
 	jglb = jloc + indk[level-1];
 	/*
 	if (n==307) {
@@ -611,17 +615,22 @@ void dev_MSPS_gen(float* msv, int nmsv, int* msi, int nmsi, int* nk, int nnk, in
 
 	// convert ID
 	ind = float(msi[jloc]);
-	//printf("jloc %i ind %i\n", jloc, msi[jloc]);
+	if (ind >= maxind) {printf("ERROR: ind %f >= maxind %i\n", ind, maxind);}
 	z = floor(ind * ijump);
+
 	ind -= (z * jump);
 	y = floor(ind * inx);
 	x = ind - y*nx;
 	
 	// random position inside voxel
-	x += ((float)rand() / (float)(RAND_MAX+1.0f));
-	y += ((float)rand() / (float)(RAND_MAX+1.0f));
-	z += ((float)rand() / (float)(RAND_MAX+1.0f));
+	x += ((float)rand() / (float)(RAND_MAX));
+	y += ((float)rand() / (float)(RAND_MAX));
+	z += ((float)rand() / (float)(RAND_MAX));
 
+	if (x >= nx) {x -= eps;}
+	if (y >= ny) {y -= eps;}
+	if (z >= nz) {z -= eps;}
+	
 	X[n] = x;
 	Y[n] = y;
 	Z[n] = z;
@@ -634,12 +643,18 @@ void dev_MSPS_gen(float* msv, int nmsv, int* msi, int nmsi, int* nk, int nnk, in
 
 }
 
-void dev_MSPS_acc(float* im, int nz, int ny, int nx,
+#include <assert.h>
+void dev_MSPS_acc(int* im, int nz, int ny, int nx,
 				  float* x, int sx, float* y, int sy, float* z, int sz) {
 	int i=0;
 	int jump = nx*ny;
+	int maxi = nz*ny*nx;
+	int ind;
+
 	while (i<sx) {
-		im[int(z[i])*jump + int(y[i])*nx + int(x[i])] += 1.0f;
+		ind = int(z[i])*jump + int(y[i])*nx + int(x[i]);
+		assert (ind < maxi);
+		im[ind] += 1;
 		++i;
 	}
 }

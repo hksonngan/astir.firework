@@ -27,31 +27,58 @@
 /********************************************************************************
  * Phase-Space
  ********************************************************************************/
-/*
+
 void kernel_phasespace_open(char* filename,
-							char* type, int ntype,
+							int* type, int ntype,
 							float* E, int nE,
 							float* px, int npx, float* py, int npy, float* pz, int npz,
-							float* dx, int ndx, float* dy, int ndy, float* dz, int ndz,
-							float* w, int nw) {	
+							float* dx, int ndx, float* dy, int ndy, float* dz, int ndz) {	
 
+	int i=0;
 	FILE * pfile = fopen(filename, "rb");
 
-	for (int i = 0; i < nbele; ++i) {
-		
-	}
+	char itype;
+	float iE, ipx, ipy, ipz, idx, idy, idz;
+	float a, b;
+	while (i<nE) {
+		fread(&itype, sizeof(char), 1, pfile);
+		fread(&iE, sizeof(float), 1, pfile);
+		fread(&ipx, sizeof(float), 1, pfile);
+		fread(&ipy, sizeof(float), 1, pfile);
+		fread(&ipz, sizeof(float), 1, pfile);
+		fread(&idx, sizeof(float), 1, pfile);
+		fread(&idy, sizeof(float), 1, pfile);
+		fread(&idz, sizeof(float), 1, pfile);
+		fread(&a, sizeof(float), 1, pfile);
+		fread(&b, sizeof(float), 1, pfile);
 
-	dim_phantom.z = 46;
-	dim_phantom.y = 63;
-	dim_phantom.x = 128;
-	float size_voxel = 4.0f;  // used latter
-	int nb = dim_phantom.z * dim_phantom.y * dim_phantom.x;
-	unsigned int mem_phantom = nb * sizeof(unsigned short int);
-	unsigned short int* phantom = (unsigned short int*)malloc(mem_phantom);
-	fread(phantom, sizeof(unsigned short int), nb, pfile);
+		type[i] = (int)itype;
+		E[i] = iE;
+		px[i] = ipx;
+		py[i] = ipy;
+		pz[i] = ipz;
+		dx[i] = idx;
+		dy[i] = idy;
+		dz[i] = idz;
+		
+		/*
+		printf("type %i\n", (int)itype);
+		printf("E %f\n", iE);
+		printf("px %f\n", ipx);
+		printf("py %f\n", ipy);
+		printf("pz %f\n", ipz);
+		printf("dx %f\n", idx);
+		printf("dy %f\n", idy);
+		printf("dz %f\n", idz);
+		printf("a %f\n", idz);
+		printf("b %f\n", idz);
+		*/
+		
+		++i;
+	}
 	fclose(pfile);
 }
-*/
+
 
 /********************************************************************************
  * PET Scan Allegro      
@@ -1662,3 +1689,207 @@ void kernel_pet3D_OPLEM_att(unsigned short int* X1, int nx1, unsigned short int*
 #undef CONST
 #undef float2fixed
 #undef intfixed
+
+// OPLEM: Siddon's Line Algorithm, memory handling with COO format, and attenuation correction
+void kernel_pet3D_OPLEM_sid_att(float* X1, int nx1, float* Y1, int ny1,
+								float* Z1, int nz1, float* X2, int nx2,
+								float* Y2, int ny2, float* Z2, int nz2,
+								float* im, int nim1, int nim2, int nim3,
+								float* NM, int nm1, int nm2, int nm3,
+								float* AM, int am1, int am2, int am3,
+								int nsub, int border) {
+	
+	// vars Siddon
+	float tx, ty, tz, px, qx, py, qy, pz, qz;
+	int ei, ej, ek, u, v, w, i, j, k, oldi, oldj, oldk;
+	int stepi, stepj, stepk, ct;
+	float divx, divy, divz, runx, runy, runz, oldv, newv, val, valmax;
+	float axstart, aystart, azstart, astart, pq, stepx, stepy, stepz, startl, initl;
+	int step = nim2 * nim3;
+	float Qi, Ai;
+	float* vals = NULL;
+	int* cols = NULL;
+	
+	// vars subset
+	int lor_start, lor_stop, nlor, isub, ilor, n;
+	int nvox = step * nim1;
+	unsigned int mem_size_F = nvox * sizeof(float);
+	float* F = (float*)malloc(mem_size_F);
+
+	// prepare normalize matrix
+	for (n=0; n<nvox; ++n) {NM[n] = 1.0f / NM[n];}
+
+	// sub loop
+	for (isub=0; isub<nsub; ++isub) {
+		// boundary lor
+		lor_start = int(float(nx1) / nsub * isub + 0.5f);
+		lor_stop = int(float(nx1) / nsub * (isub+1) + 0.5f);
+		nlor = lor_stop - lor_start;
+		// init F
+		memset(F, 0, mem_size_F);
+
+		
+		// SID-COO ray-projector
+		for (ilor=lor_start; ilor<lor_stop; ++ilor) {
+			float* vals = NULL;
+			int* cols = NULL;
+			Qi = 0.0f;
+			Ai = 0.0f;
+			ct = 0;
+			// draw the line
+			px = X2[ilor];
+			py = Y2[ilor];
+			pz = Z2[ilor];
+			qx = X1[ilor];
+			qy = Y1[ilor];
+			qz = Z1[ilor];
+			px -= border;
+			py -= border;
+			qx -= border;
+			qy -= border;
+			initl = inkernel_randf();
+			//initl = initl * 0.6 + 0.2; // rnd number between 0.2 to 0.8
+			initl = initl * 0.4 + 0.3; // rnd number between 0.3 to 0.7
+			tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
+			ty = (py-qy) * initl + qy;
+			tz = (pz-qz) * initl + qz;
+			ei = int(tx);
+			ej = int(ty);
+			ek = int(tz);
+			if (ei < 0.0f || ei >= nim3 || ej < 0.0f || ej >= nim2 || ek < 0.0f || ek >= nim1) {continue;}
+			if (qx-tx>0) {u=ei+1; stepi=1;}
+			if (qx-tx<0) {u=ei; stepi=-1;}
+			if (qx-tx==0) {u=ei; stepi=0;}
+			if (qy-ty>0) {v=ej+1; stepj=1;}
+			if (qy-ty<0) {v=ej;	stepj=-1;}
+			if (qy-ty==0) {v=ej; stepj=0;}
+			if (qz-tz>0) {w=ek+1; stepk=1;}
+			if (qz-tz<0) {w=ek;	stepk=-1;}
+			if (qz-tz==0) {w=ej; stepk=0;}
+			if (qx==px) {divx=1.0;}
+			else {divx = float(qx-px);}
+			if (qy==py) {divy=1.0;}
+			else {divy = float(qy-py);}
+			if (qz==pz) {divz=1.0;}
+			else {divz = float(qz-pz);}
+			axstart = (u-px) / divx;
+			aystart = (v-py) / divy;
+			azstart = (w-pz) / divz;
+			astart = aystart;
+			if (axstart > aystart) {astart = axstart;}
+			if (azstart > astart) {astart = azstart;}
+			pq = sqrt((qx-px)*(qx-px)+(qy-py)*(qy-py)+(qz-pz)*(qz-pz));
+			stepx = fabs(pq / divx);
+			stepy = fabs(pq / divy);
+			stepz = fabs(pq / divz);
+			startl = astart * pq;
+			valmax = stepx;
+			if (stepy < valmax) {valmax = stepy;}
+			if (stepz < valmax) {valmax = stepz;}
+			valmax = valmax + valmax*0.01f;
+
+			// first half-ray
+			runx = axstart * pq;
+			runy = aystart * pq;
+			runz = azstart * pq;
+			i = ei;
+			j = ej;
+			k = ek;
+			if (runx == startl) {i += stepi; runx += stepx;}
+			if (runy == startl) {j += stepj; runy += stepy;}
+			if (runz == startl) {k += stepk; runz += stepz;}
+			oldv = startl;
+			oldi = -1;
+			oldj = -1;
+			oldk = -1;
+			while (i>=0 && j>=0 && k>=0 && i<nim3 && j<nim2 && k<nim1) {
+				newv = runy;
+				if (runx < runy) {newv = runx;}
+				if (runz < newv) {newv = runz;}
+				val = fabs(newv - oldv);
+				if (val > valmax) {val = valmax;}
+				if (oldi != i || oldj != j || oldk != k) {
+					++ct;
+					vals = (float*)realloc(vals, ct*sizeof(float));
+					cols = (int*)realloc(cols, ct*sizeof(int));
+					vals[ct-1] = val;
+					cols[ct-1] = k * step + j * nim3 + i;
+				}
+				oldv = newv;
+				oldi = i;
+				oldj = j;
+				oldk = k;
+				if (runx == newv) {i += stepi; runx += stepx;}
+				if (runy == newv) {j += stepj; runy += stepy;}
+				if (runz == newv) {k += stepk; runz += stepz;}
+			}
+			
+			// second half-ray
+			if (px-tx>0) {stepi=1;}
+			if (px-tx<0) {stepi=-1;}
+			if (py-ty>0) {stepj=1;}
+			if (py-ty<0) {stepj=-1;}
+			if (pz-tz>0) {stepk=1;}
+			if (pz-tz<0) {stepk=-1;}
+			runx = axstart * pq;
+			runy = aystart * pq;
+			runz = azstart * pq;
+			i = ei;
+			j = ej;
+			k = ek;
+			if (runx==startl) {i += stepi; runx += stepx;}
+			if (runy==startl) {j += stepj; runy += stepy;}
+			if (runz==startl) {k += stepk; runz += stepz;}
+			++ct;
+			vals = (float*)realloc(vals, ct*sizeof(float));
+			cols = (int*)realloc(cols, ct*sizeof(int));
+			vals[ct-1] = 0.707f;
+			cols[ct-1] = ek * step + ej * nim3 + ei;
+			oldv = startl;
+			oldi = -1;
+			oldj = -1;
+			oldk = -1;
+			while (i>=0 && j>=0 && k>=0 && i<nim3 && j<nim2 && k<nim1) {
+				newv = runy;
+				if (runx < runy) {newv = runx;}
+				if (runz < newv) {newv = runz;}
+				val = fabs(newv - oldv);
+				if (val > valmax) {val = valmax;}
+				if (oldi != i || oldj != j || oldk != k) {
+					++ct;
+					vals = (float*)realloc(vals, ct*sizeof(float));
+					cols = (int*)realloc(cols, ct*sizeof(int));
+					vals[ct-1] = val;
+					cols[ct-1] = k * step + j * nim3 + i;
+				}
+				oldv = newv;
+				oldi = i;
+				oldj = j;
+				oldk = k;
+				if (runx == newv) {i += stepi; runx += stepx;}
+				if (runy == newv) {j += stepj; runy += stepy;}
+				if (runz == newv) {k += stepk; runz += stepz;}
+			}
+			// first compute Qi
+			for (i=0; i<ct; ++i) {Qi += (vals[i] * im[cols[i]]);}
+			if (Qi == 0.0f) {continue;}
+			// second compute Ai
+			for (i=0; i<ct; ++i) {Ai -= (vals[i] * AM[cols[i]]);}
+			Qi = Qi * exp(Ai / 2.0f);
+			// accumulate to F
+			for(i=0; i<ct; ++i) {
+				if (im[cols[i]] != 0.0f) {
+					F[cols[i]] += (vals[i] / Qi);
+				}
+			}
+			free(vals);
+			free(cols);
+			
+		} // ilor
+		
+		// update im
+		for (n=0; n<nvox; ++n) {im[n] = im[n] * F[n] * NM[n];}
+	} // isub
+	// release mem
+	free(F);
+}

@@ -123,7 +123,13 @@ else:
             kernel_pet3D_OPLEM(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, Nsub)
         else:
             kernel_pet3D_OPLEM_att(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, AM, Nsub)
-
+    elif rayproj == 'siddon':
+        if AMname == 'None':
+            print 'No code for that!!'
+        else:
+            border = 55 # Allegro
+            #border = 50 # Discovery
+            kernel_pet3D_OPLEM_sid_att(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, AM, Nsub, border)
 
 print 'Running time is', time_format(time()-tg)
 

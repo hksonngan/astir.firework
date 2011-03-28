@@ -1675,7 +1675,7 @@ void kernel_pet3D_OPLEM_att(unsigned short int* X1, int nx1, unsigned short int*
 			}
 			// compute F
 			if (Qi==0.0f) {continue;}
-			Qi = Qi * exp(Ai / 2.0f);
+			Qi = Qi * exp(Ai * 0.3333f);
 			Qi = 1.0f / Qi;
 			for (n=0; n<length; ++n) {F[buf[n]] += Qi;}
 		} // ilor
@@ -1721,13 +1721,13 @@ void kernel_pet3D_OPLEM_sid_att(float* X1, int nx1, float* Y1, int ny1,
 
 	// sub loop
 	for (isub=0; isub<nsub; ++isub) {
+		printf("isub %i\n", isub);
 		// boundary lor
 		lor_start = int(float(nx1) / nsub * isub + 0.5f);
 		lor_stop = int(float(nx1) / nsub * (isub+1) + 0.5f);
 		nlor = lor_stop - lor_start;
 		// init F
 		memset(F, 0, mem_size_F);
-
 		
 		// SID-COO ray-projector
 		for (ilor=lor_start; ilor<lor_stop; ++ilor) {
@@ -1875,7 +1875,7 @@ void kernel_pet3D_OPLEM_sid_att(float* X1, int nx1, float* Y1, int ny1,
 			if (Qi == 0.0f) {continue;}
 			// second compute Ai
 			for (i=0; i<ct; ++i) {Ai -= (vals[i] * AM[cols[i]]);}
-			Qi = Qi * exp(Ai / 2.0f);
+			Qi = Qi * exp(Ai * 0.3333f);
 			// accumulate to F
 			for(i=0; i<ct; ++i) {
 				if (im[cols[i]] != 0.0f) {

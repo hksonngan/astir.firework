@@ -95,13 +95,22 @@ os.mkdir(output)
 
 # read data
 t = time()
-xi1  = zeros((ntot), 'uint16')
-yi1  = zeros((ntot), 'uint16')
-zi1  = zeros((ntot), 'uint16')
-xi2  = zeros((ntot), 'uint16')
-yi2  = zeros((ntot), 'uint16')
-zi2  = zeros((ntot), 'uint16')
-kernel_listmode_open_subset_xyz_int(xi1, yi1, zi1, xi2, yi2, zi2, cuton, cutoff, src)
+if rayproj == 'ddaell':
+    xi1  = zeros((ntot), 'uint16')
+    yi1  = zeros((ntot), 'uint16')
+    zi1  = zeros((ntot), 'uint16')
+    xi2  = zeros((ntot), 'uint16')
+    yi2  = zeros((ntot), 'uint16')
+    zi2  = zeros((ntot), 'uint16')
+    kernel_listmode_open_subset_xyz_int(xi1, yi1, zi1, xi2, yi2, zi2, cuton, cutoff, src)
+else:
+    xf1 = zeros((ntot), 'float32')
+    yf1 = zeros((ntot), 'float32')
+    zf1 = zeros((ntot), 'float32')
+    xf2 = zeros((ntot), 'float32')
+    yf2 = zeros((ntot), 'float32')
+    zf2 = zeros((ntot), 'float32')
+    kernel_listmode_open_subset_xyz_float(xf1, yf1, zf1, xf2, yf2, zf2, cuton, cutoff, src)
 print 'Read data'
 print '...', time_format(time()-t)
 
@@ -122,6 +131,7 @@ else:
         if AMname == 'None':
             kernel_pet3D_OPLEM(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, Nsub)
         else:
+            print 'ddaell att'
             kernel_pet3D_OPLEM_att(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, AM, Nsub)
     elif rayproj == 'siddon':
         if AMname == 'None':
@@ -129,7 +139,7 @@ else:
         else:
             border = 55 # Allegro
             #border = 50 # Discovery
-            kernel_pet3D_OPLEM_sid_att(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, AM, Nsub, border)
+            kernel_pet3D_OPLEM_sid_att(xf1, yf1, zf1, xf2, yf2, zf2, im, NM, AM, Nsub, border)
 
 print 'Running time is', time_format(time()-tg)
 

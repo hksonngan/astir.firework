@@ -378,21 +378,25 @@ void dev_MSPS_build(float* org_act, int nact, int* ind, int nind) {
 	int totelt = int(nact*1.5) + level;
 
 	int c, k, i;
-	float sum=0.0f;
+	double sum=0.0;
 
 	float* MS = (float*)malloc(totelt*sizeof(float));
 	int* indk = (int*)malloc(level*sizeof(int));
 	int* nk = (int*)malloc(level*sizeof(int));
 	memset(MS, 0, totelt);
 
+	// Double precision is require otherwise the sum of the normalize vector != 1
+	double* act = (double*)malloc(nact*sizeof(double));
+	double s=0.0;
+	
 	// normamize the org_act
-	i=0; while (i<nact) {sum += org_act[i]; ++i;}
-	sum = 1.0f / sum;
-	i=0; while (i<nact) {org_act[i] *= sum; ++i;}
+	i=0; while (i<nact) {s += org_act[i]; ++i;}
+	i=0; while (i<nact) {act[i] = org_act[i] / s; ++i;}
 	// accumulate values
-	i=1; while (i<nact) {org_act[i] += org_act[i-1]; ++i;}
+	i=1; while (i<nact) {act[i] += act[i-1]; ++i;}
+
 	// copy the data to the first level
-	i=0; while (i<nact) {MS[i] = org_act[i]; ++i;}
+	i=0; while (i<nact) {MS[i] = (float)act[i]; ++i;}
 	indk[0] = 0;
 	nk[0] = nact;
 	
@@ -639,8 +643,6 @@ void dev_MSPS_gen(float* msv, int nmsv, int* msi, int nmsi, int* nk, int nnk, in
 	
 	++n;
 	} // while
-	
-
 }
 
 #include <assert.h>

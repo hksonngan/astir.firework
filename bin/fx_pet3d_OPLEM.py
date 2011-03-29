@@ -137,8 +137,8 @@ else:
         if AMname == 'None':
             print 'No code for that!!'
         else:
-            border = 55 # Allegro
-            #border = 50 # Discovery
+            #border = 55 # Allegro
+            border = 50 # Discovery
             kernel_pet3D_OPLEM_sid_att(xf1, yf1, zf1, xf2, yf2, zf2, im, NM, AM, Nsub, border)
 
 print 'Running time is', time_format(time()-tg)

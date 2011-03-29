@@ -370,6 +370,46 @@ im = **volume_slice** (vol, pos, [axe])
 	>>> im  = volume_slice(vol, 22)
 	>>> image_show(im)
 
+volume_snr_from_Lodge
+---------------------
+
+snr = **volume_snr_from_Lodge** (vol1, vol2, s1, s2, mask)
+
+*Compute SNR based on the Lodge's method*
+
+**Parameters**
+
+``vol1`` 3D Numpy array as the first volume
+
+``vol2`` 3D Numpy array as the second volume
+
+``s1`` The slice index where the analisys start
+
+``s2`` The slice index where the analisys stop
+
+``mask`` The 2D Numpy array used to mask image during the computation
+
+**Returns**
+
+``snr`` The value of SNR
+	
+volume_snr_from_zncc
+--------------------
+
+snr = **volume_snr_from_zncc** (vol_ideal, vol_noisy)
+
+*Compute the signal-to-noise ratio based on the Zero-mean Normalized Cross Correlation between an ideal volume and the measure one (the one noisy).*
+
+**Parameters**
+
+``vol_ideal`` 3D Numpy array as the ideal volume
+
+``vol_noisy`` 3D Numpy array as the noisy or measure volume
+
+**Returns**
+
+``snr`` The SNR value
+	
 volume_unpack_cube
 ------------------
 
@@ -399,3 +439,18 @@ volume_write
 ``vol`` A 3D Numpy array as volume (will convert in float by the function)
 
 ``name`` Filename to export the volume, the extension must be *.vol*
+
+volume_zncc
+-----------
+
+zncc = **volume_zncc** (vol1, vol2)
+
+*Compute the Zero-mean Normalized Cross Correlation (ZNCC) between two volumes*
+
+**Parameters**
+
+``vol1 and vol2`` Two 3D Numpy arrays as volume
+
+**Returns**
+
+``zncc`` The value of ZNCC

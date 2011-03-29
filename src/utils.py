@@ -1158,6 +1158,30 @@ def volume_snr_from_zncc(signal, noise):
 
     return snr
 
+# Compute SNR based on Lodge's method
+def volume_snr_from_Lodge(vol1, vol2, s1, s2, mask):
+    S   = s2 - s1 + 1
+    snr = 0
+    for i in xrange(s1, s2):
+        im1 = volume_slice(vol1, i)
+        im2 = volume_slice(vol2, i)
+
+        im1 = image_pick_undermask(im1, mask)
+        im2 = image_pick_undermask(im2, mask)
+
+        dj  = im1 - im2
+        mj  = (im1 + im2) / 2.0
+        ai  = mj.mean()
+        ni  = len(dj)
+
+        dsdi  = ni * (dj*dj).sum() - (dj.sum())**2
+        dsdi /= float(ni*ni - ni)
+        dsdi  = dsdi**(0.5)
+
+        snr += (ai / float(dsdi))
+
+    return snr * (2**(0.5) / float(S))
+
 # flip up to down a volume
 def volume_flip_ud(vol):
     from numpy import flipud, zeros

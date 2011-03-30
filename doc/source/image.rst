@@ -635,7 +635,7 @@ image_write_mapcolor
 
 ``filename`` Name of the file you want to export the image. Different kind of format is supported like *bmp*, *png*, *tif* and *jpg*.
 
-``colormap`` Specify the mapcolor of the false color transformation on the image, the default value is 'jet', but it can be 'hot', and 'hsv' as well.
+``colormap`` Specify the mapcolor of the false color transformation on the image, the default value is 'jet', but it can be 'hot', 'pet' and 'hsv' as well.
 
 **Examples**
 
@@ -646,6 +646,11 @@ image_write_mapcolor
 	>>> im = im.reshape((128, 128))
 	>>> image_write_mapcolor(im, 'test.png', 'hot')
 
+.. image:: data/mapcolor.png
+   :scale: 100 %
+
+example of mapcolor : original image , hot, jet, hsv and pet
+   
 	
 image_zncc
 ----------

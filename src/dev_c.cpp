@@ -687,6 +687,8 @@ int dev_AMELL(int* voxel_ind, int nvox, float* voxel_val, int nvox2, int dimx, i
 	ey = int(y1);
 	ez = int(z1);
 
+	pq = sqrtf((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2));
+
 	if ((x2-x1) > 0) {stepi_x = 1; ux = ex + 1;}
 	if ((x2-x1) < 0) {stepi_x = -1; ux = ex;}
 	if ((x2-x1) == 0) {stepi_x = 0; ux = ex; x2 = eps;}
@@ -699,7 +701,7 @@ int dev_AMELL(int* voxel_ind, int nvox, float* voxel_val, int nvox2, int dimx, i
 	if ((z2-z1) < 0) {stepi_z = -1; uz = ez;}
 	if ((z2-z1) == 0) {stepi_z = 0; uz = ez; z2 = eps;}
 
-	pq = sqrtf((x1-x2)*(x1-x2)+(y1-y2)*(y1-y2)+(z1-z2)*(z1-z2));
+	
 	run_x = pq * (ux - x1) / (x2 - x1);
 	run_y = pq * (uy - y1) / (y2 - y1);
 	run_z = pq * (uz - z1) / (z2 - z1);
@@ -711,10 +713,14 @@ int dev_AMELL(int* voxel_ind, int nvox, float* voxel_val, int nvox2, int dimx, i
 	iy = ey;
 	iz = ez;
 
+	printf("%f %f %f\n", stept_x, stept_y, stept_z);
+	
 	oldv = run_x;
 	if (run_y < oldv) {oldv = run_y;}
 	if (run_z < oldv) {oldv = run_z;}
 
+	printf("%f %f %f\n", run_x, run_y, run_z);
+	
 	voxel_val[pos] = oldv;
 	voxel_ind[pos] = ez*jump + ey*dimx + ex;
 	++pos;

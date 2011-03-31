@@ -3,13 +3,14 @@
 
 
 1- Libraries requirement:
-   - Python with .h
-   - Numpy
-   - Matplotlib
-   - iPython
-   - PIL
-   - pyOpenGL
-   - Nvidia SDK (optional)
+   - Python with .h (>= 2.7)
+   - Numpy 	        (>= 1.5.1)
+   - Matplotlib     (>= 1.0.1)
+   - iPython		(>= 0.10.1)
+   - PIL            (>= 1.1.7)
+   - pyOpenGL       (>= 3.0.1)
+   - Nvidia SDK     (optional)
+   - swig           (>= 2.0.3)
 
 2- How to compile?
    If you using your Nvidia GPU, run this into a bash shell:

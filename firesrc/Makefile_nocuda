@@ -47,6 +47,7 @@ dev_c.o : dec_c.cpp
 	g++ -o dev_c.o -c -fPIC dev_c.cpp
 
 install :
+    mkdir -p ../firelib
 	cp build/*.so build/*.py ../firelib
 	cp pet.py utils.py viewer.py dev.py ../firelib
 

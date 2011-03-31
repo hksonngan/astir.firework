@@ -82,8 +82,8 @@ dev_c.o : dev_c.cpp
 	g++ -o dev_c.o -c -fPIC dev_c.cpp
 
 install :
-	cp build/*.so build/*.py ../lib
-	cp pet.py utils.py viewer.py dev.py ../lib
+	cp build/*.so build/*.py ../firelib
+	cp pet.py utils.py viewer.py dev.py ../firelib
 
 clean :
 	if test -d build; then rm -r build; fi

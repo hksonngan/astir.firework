@@ -11,21 +11,32 @@
    - pyOpenGL       (>= 3.0.1)
    - Nvidia SDK     (optional)
    - swig           (>= 2.0.3)
+   - Sphinx         (>= 1.0.7)
 
-2- How to compile?
-   If you want use your Nvidia GPU, run this into a bash shell:
-   ~: ./configure
-   ~: make && make install
+2- How to install
 
-   Otherwise if you do not have any Nvidia gears, you can compile without GPU support:
-   ~: ./configure --nocuda
-   ~: make && make install
+   2.1- First configure
+      If you want use Nvidia GPU stuff, run this command to bash shell:
+   	  ~: ./configure
 
-3- How to set PATH?
-   In order to call firework anyywhere from your system you have to set some PATH. If your Linux was setup with bash shell, open your .bashrc file and add:
+	  Otherwise if you do not have any Nvidia gears, you can compile without GPU support:
+	  ~: ./configure --nocuda
 
-   export FIREDIR=/home/FIREwork    <- Here you have to change according where you put FIREwork
-   export PATH=$PATH:$FIREDIR/firebin
-   export PYTHONPATH=$PYTHONPATH:$FIREDIR/firelib:$FIREDIR/firebin
-   export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$FIREDIR/firelib
+   2.2- Setup path and environment
+      In order to compile and call firework anywhere from your system you have to set some PATH.
+	  If your Linux was setup with bash shell, open your .bashrc file and add:
    
+   	  # where is python (usefull if you using different python version)
+	  export PYTHONDIR=/usr
+	  export PATH=$PATH:$PYTHONDIR/bin
+	  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PYTHONDIR/lib
+
+	  # where is FIREwork
+	  export FIREDIR=/home/FIREwork    <- Here you have to change according where you put FIREwork
+	  export PATH=$PATH:$FIREDIR/firebin
+  	  export PYTHONPATH=$PYTHONPATH:$FIREDIR/firelib:$FIREDIR/firebin
+   	  export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$FIREDIR/firelib
+   
+   2.3- Compile and install
+	  ~: make && make install
+

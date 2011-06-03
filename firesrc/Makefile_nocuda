@@ -31,7 +31,7 @@ _firekernel.so : kernel_c.o pet_c.o dev_c.o kernel_wrap.o
 
 # Python wrapping
 kernel_wrap.o : kernel_wrap.c
-	g++ -o kernel_wrap.o -c -fPIC kernel_wrap.c -I/usr/include/python2.6 -I/usr/lib/python2.6
+	g++ -o kernel_wrap.o -c -fPIC kernel_wrap.c -I$(FIREDIR)/include/python2.7 -I$(FIREDIR)/lib/python2.7
 
 kernel_wrap.c : kernel.i
 	swig -python kernel.i
@@ -43,11 +43,11 @@ kernel_c.o : kernel_c.cpp
 pet_c.o : pet_c.cpp
 	g++ -o pet_c.o -c -fPIC pet_c.cpp
 
-dev_c.o : dec_c.cpp
+dev_c.o : dev_c.cpp
 	g++ -o dev_c.o -c -fPIC dev_c.cpp
 
 install :
-    mkdir -p ../firelib
+	mkdir -p ../firelib
 	cp build/*.so build/*.py ../firelib
 	cp pet.py utils.py viewer.py dev.py ../firelib
 

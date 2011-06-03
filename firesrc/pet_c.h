@@ -119,6 +119,13 @@ void kernel_pet3D_OPLEM_att(unsigned short int* X1, int nx1, unsigned short int*
 							float* AM, int am1, int am2, int am3,
 							int nsub);
 
+void kernel_pet3D_OPLEM_sid(float* X1, int nx1, float* Y1, int ny1,
+							float* Z1, int nz1, float* X2, int nx2,
+							float* Y2, int ny2, float* Z2, int nz2,
+							float* im, int nim1, int nim2, int nim3,
+							float* NM, int nm1, int nm2, int nm3,
+							int nsub, int border);
+
 void kernel_pet3D_OPLEM_sid_att(float* X1, int nx1, float* Y1, int ny1,
 								float* Z1, int nz1, float* X2, int nx2,
 								float* Y2, int ny2, float* Z2, int nz2,

@@ -207,6 +207,7 @@ __device__ float PhotoElec_CSPA(float E, int Z) {
 		+ rE2 * rE2 * fSandiaTable[pos][4] * AoverAvo * 0.160217648e-31f;
 }
 
+
 // Rayleigh Cross Section Per Atom and Form Factor, use Rayleigh data table, and load 1,616 Bytes in constant memory,
 // and 970,560 Bytes in texture memory
 __device__ float Rayleigh_CSPA(float E, int Z) {
@@ -230,6 +231,7 @@ __device__ float Rayleigh_CSPA(float E, int Z) {
 	}
 	else {return lo_cs * 1.0e-22f;}
 }
+
 __device__ float Rayleigh_FF(float E, int Z) {
 	int start = Rayleigh_ff_CumulIntervals[Z];
 	int stop  = start + 2 * (Rayleigh_ff_NbIntervals[Z] - 1);

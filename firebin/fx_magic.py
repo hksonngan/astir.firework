@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env pythonfx
 #
 # This file is part of FIREwork
 # 
@@ -41,8 +41,8 @@ from firework import *
 from numpy    import *
 
 vol   = volume_open(src)
-#mask  = volume_mask_cylinder(45, 141, 141, 70, 70)
-mask  = volume_mask_box(47, 127, 127, 111, 111, 47)
+mask  = volume_mask_cylinder(45, 141, 141, 70, 70)
+#mask  = volume_mask_box(47, 127, 127, 111, 111, 47)
 #volf  = filter_3d_Metz(vol, 2, 0.16) # Ny=0.3
 volf   = filter_3d_Metz(vol, 3, 0.2) # Ny=0.4
 volf *= mask

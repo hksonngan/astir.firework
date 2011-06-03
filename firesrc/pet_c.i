@@ -150,6 +150,13 @@ void kernel_pet3D_OPLEM_att(unsigned short int* IN_ARRAY1, int DIM1, unsigned sh
 							float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
 							int Nsub);
 
+void kernel_pet3D_OPLEM_sid(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1,
+							float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1,
+							float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1,
+							float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
+							float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
+							int nsub, int border);
+
 void kernel_pet3D_OPLEM_sid_att(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1,
 								float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1,
 								float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1,

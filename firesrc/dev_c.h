@@ -44,7 +44,15 @@ void dev_MSPS_gen(float* msv, int nmsv, int* msi, int nmsi, int* nk, int nnk, in
 void dev_MSPS_acc(int* im, int nz, int ny, int nx,
 				  float* x, int sx, float* y, int sy, float* z, int sz);
 
+void dev_im_acc(float* im, int ny, int nx, float* x, int sx, float* y, int sy);
+
 void dev_MSPS_naive(float* act, int nact, int* indact, int inact,
 					float* X, int sx, float* Y, int sy, float* Z, int sz,
 					int* step, int nstep,
 					int npoint, int seed, int nz, int ny, int nx);
+
+void dev_RAIM_gen(float* act, int nact, int* indact, int nindact,
+				  float* X, int sx, float* Y, int sy, float* Z, int sz,
+				  int* step, int nstep, int seed, int nz, int ny, int nx);
+
+void dev_deflect(float* p, int np, float theta, float phi);

@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env pythonfx
 #
 # This file is part of FIREwork
 # 
@@ -90,6 +90,7 @@ print txtyellow('.:: Check Python install ::.')
 
 # Python version
 print 'python version...', sys.version.split('\n')[0]
+
 try:
     import numpy
     print 'checking for numpy...', txtgreen('yes')

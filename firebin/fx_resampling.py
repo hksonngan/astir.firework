@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env pythonfx
 #
 # This file is part of FIREwork
 # 

@@ -31,7 +31,7 @@ _firekernel.so : kernel_c.o pet_c.o dev_c.o kernel_wrap.o kernel_cuda.so pet_cud
 
 # Python wrapping
 kernel_wrap.o : kernel_wrap.c
-	g++ -o kernel_wrap.o -c -fPIC kernel_wrap.c -I/usr/include/python2.6 -I/usr/lib/python2.6
+	g++ -o kernel_wrap.o -c -fPIC kernel_wrap.c -I$(FIREDIR)/include/python2.7 -I$(FIREDIR)/lib/python2.7
 
 kernel_wrap.c : kernel.i
 	swig -python -DCUDA kernel.i 

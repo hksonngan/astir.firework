@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env pythonfx
 #
 # This file is part of FIREwork
 # 
@@ -134,11 +134,11 @@ else:
             print 'ddaell att'
             kernel_pet3D_OPLEM_att(xi1, yi1, zi1, xi2, yi2, zi2, im, NM, AM, Nsub)
     elif rayproj == 'siddon':
+        border = 55 # Allegro
+        #border = 50 # Discovery
         if AMname == 'None':
-            print 'No code for that!!'
+            kernel_pet3D_OPLEM_sid(xf1, yf1, zf1, xf2, yf2, zf2, im, NM, Nsub, border)
         else:
-            #border = 55 # Allegro
-            border = 50 # Discovery
             kernel_pet3D_OPLEM_sid_att(xf1, yf1, zf1, xf2, yf2, zf2, im, NM, AM, Nsub, border)
 
 print 'Running time is', time_format(time()-tg)

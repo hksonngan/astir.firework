@@ -21,7 +21,7 @@
 #include <math.h>
 #include <time.h>
 #include <sys/time.h>
-#include <dev_c.h>
+#include "dev_c.h"
 
 /********************************************************************************
  * Dev file
@@ -518,6 +518,57 @@ void dev_MSPS_naive(float* act, int nact, int* indact, int inact,
 
 }
 
+void dev_RAIM_gen(float* act, int nact, int* indact, int nindact,
+				  float* X, int sx, float* Y, int sy, float* Z, int sz,
+				  int* step, int nstep, int seed, int nz, int ny, int nx) {
+	srand(seed);
+	int n = 0;
+	int pos = 0;
+	float ind;
+	float rnd;
+	int istep = 0;
+	int jump = ny*nx;
+	int x, y, z;
+	float eps = 1e-3f;
+	while (n<sx) {
+		rnd = (float)rand() / (float)(RAND_MAX);
+		pos = int(rnd * nact);
+		//pos=0;
+		istep = 0;
+		if (act[pos] < rnd) {
+			while (act[pos] < rnd && pos < nact) {++pos; ++istep;}
+		} else {
+			while (act[pos] > rnd && pos >= 0) {--pos; ++istep;}
+			++pos; // correct undershoot
+		}
+
+		ind = float(indact[pos]);
+		z = floor(ind / float(jump));
+		ind -= (z * jump);
+		y = floor(ind / float(nx));
+		x = ind - y*nx;
+	
+		// random position inside voxel
+		x += ((float)rand() / (float)(RAND_MAX));
+		y += ((float)rand() / (float)(RAND_MAX));
+		z += ((float)rand() / (float)(RAND_MAX));
+
+		if (x >= nx) {x -= eps;}
+		if (y >= ny) {y -= eps;}
+		if (z >= nz) {z -= eps;}
+	
+		X[n] = x;
+		Y[n] = y;
+		Z[n] = z;
+
+		step[n] = istep;
+	
+		++n;
+	}
+
+}
+
+
 // Voxelized source generation - Multi-Scale Propagation Search (MSPS)
 void dev_MSPS_gen(float* msv, int nmsv, int* msi, int nmsi, int* nk, int nnk, int* indk, int nindk,
 				  float* X, int sx, float* Y, int sy, float* Z, int sz, int* step, int nstep,
@@ -661,6 +712,21 @@ void dev_MSPS_acc(int* im, int nz, int ny, int nx,
 	}
 }
 
+void dev_im_acc(float* im, int ny, int nx, float* x, int sx, float* y, int sy) {
+	int i=0;
+	int ind;
+	int xi, yi;
+	while (i<sx) {
+		xi = int(x[i]);
+		yi = int(y[i]);
+		if (xi >= 0.0f && xi < nx && yi >= 0.0f && yi < ny) {
+				ind = yi*nx + xi;
+				im[ind] += 1.0f;
+		}
+		++i;
+	}
+}
+
 
 /***********************************************
  * Raytracer to Emanuelle BRARD - AMELL
@@ -691,16 +757,24 @@ int dev_AMELL(int* voxel_ind, int nvox, float* voxel_val, int nvox2, int dimx, i
 
 	if ((x2-x1) > 0) {stepi_x = 1; ux = ex + 1;}
 	if ((x2-x1) < 0) {stepi_x = -1; ux = ex;}
-	if ((x2-x1) == 0) {stepi_x = 0; ux = ex; x2 = eps;}
+	if ((x2-x1) == 0) {stepi_x = 0; ux = ex;
+		if ((x1-eps) >= 0) {x1 -= eps;}
+		else {x2 += eps;}
+	}
 
 	if ((y2-y1) > 0) {stepi_y = 1; uy = ey + 1;}
 	if ((y2-y1) < 0) {stepi_y = -1; uy = ey;}
-	if ((y2-y1) == 0) {stepi_y = 0; uy = ey; y2 = eps;}
+	if ((y2-y1) == 0) {stepi_y = 0; uy = ey;
+		if ((y1-eps) >= 0) {y1 -= eps;}
+		else {y2 += eps;}
+	}
 
 	if ((z2-z1) > 0) {stepi_z = 1; uz = ez + 1;}
 	if ((z2-z1) < 0) {stepi_z = -1; uz = ez;}
-	if ((z2-z1) == 0) {stepi_z = 0; uz = ez; z2 = eps;}
-
+	if ((z2-z1) == 0) {stepi_z = 0; uz = ez;
+		if ((z1-eps) >= 0) {z1 -= eps;}
+		else {z2 += eps;}
+	}
 	
 	run_x = pq * (ux - x1) / (x2 - x1);
 	run_y = pq * (uy - y1) / (y2 - y1);
@@ -712,14 +786,10 @@ int dev_AMELL(int* voxel_ind, int nvox, float* voxel_val, int nvox2, int dimx, i
 	ix = ex;
 	iy = ey;
 	iz = ez;
-
-	printf("%f %f %f\n", stept_x, stept_y, stept_z);
 	
 	oldv = run_x;
 	if (run_y < oldv) {oldv = run_y;}
 	if (run_z < oldv) {oldv = run_z;}
-
-	printf("%f %f %f\n", run_x, run_y, run_z);
 	
 	voxel_val[pos] = oldv;
 	voxel_ind[pos] = ez*jump + ey*dimx + ex;
@@ -738,10 +808,13 @@ int dev_AMELL(int* voxel_ind, int nvox, float* voxel_val, int nvox2, int dimx, i
 		if (run_y < totv) {totv=run_y;}
 		if (run_z < totv) {totv=run_z;}
 
-		voxel_val[pos] = totv - oldv;
-		voxel_ind[pos] = iz*jump + iy*dimx + ix;
-		oldv = totv;
-		++pos;
+		val = totv - oldv;
+		if (val != 0.0f) {
+			voxel_val[pos] = val;
+			voxel_ind[pos] = iz*jump + iy*dimx + ix;
+			oldv = totv;
+			++pos;
+		}
 	}
 
 	voxel_val[pos-1] += (pq - totv);
@@ -749,3 +822,123 @@ int dev_AMELL(int* voxel_ind, int nvox, float* voxel_val, int nvox2, int dimx, i
 	return pos;
 		
 }
+
+
+/********************************************************  
+ * Apply new direction to the particle (use quaternion) *
+ *                                                      *
+ ********************************************************/
+
+typedef struct {
+	float x, y, z, w;
+} point;
+
+// Hamilton multiplication (quaternion)
+point quat_mul(point p, point q) {
+	point res;
+	res.x = p.x*q.x - p.y*q.y - p.z*q.z - p.w*q.w;
+	res.y = p.x*q.y + p.y*q.x + p.z*q.w - p.w*q.z;
+	res.z = p.x*q.z + p.z*q.x + p.w*q.y - p.y*q.w;
+	res.w = p.x*q.w + p.w*q.x + p.y*q.z - p.z*q.y;
+	return res;
+}
+
+// Create quaternion for axis angle rotation
+point quat_axis(point n, float theta) {
+	theta /= 2.0f;
+	float stheta = sin(theta);
+	point res;
+	res.x = n.x * stheta;
+	res.y = n.y * stheta;
+	res.z = n.z * stheta;
+	res.w = cos(theta);
+	return res;
+}
+
+// Conjugate quaternion
+point quat_conj(point p) {
+	point res;
+	res.x = -p.x;
+	res.y = -p.y;
+	res.z = -p.z;
+	res.w = p.w;
+	return res;
+}
+
+// Normalize quaternion
+point quat_norm(point p) {
+	point res;
+	float norm = 1.0f / sqrt(p.w*p.w+p.x*p.x+p.y*p.y+p.z*p.z);
+	res.x = p.x * norm;
+	res.y = p.y * norm;
+	res.z = p.z * norm;
+	res.w = p.w * norm;
+	return res;
+}
+
+// Cross product
+point quat_crossprod(point u, point v){
+	point res;
+	res.x = u.y*v.z-u.z*v.y;
+	res.y = u.z*v.x-u.x*v.z;
+	res.z = u.x*v.y-u.y*v.x;
+	res.w = 0.0f;
+	return res;
+}
+
+// Dot product
+float quat_dotprod(point u, point v) {
+	return u.x*v.x + u.y*v.y + u.z*v.z + u.w*v.w;
+}
+
+void dev_deflect(float* p, int np, float theta, float phi) {
+	point d; d.x = p[0]; d.y = p[1]; d.z = p[2]; d.w = 0.0f;
+
+	// compute the particle rotation
+	point ref; ref.x = 0.0f; ref.y = 0.0f; ref.z = 1.0f; ref.w = 0.0f;
+	point a = quat_norm(quat_crossprod(ref, d)); // get axis
+	float alpha = -acos(quat_dotprod(ref, d));   // get angle
+	point r = quat_axis(a, alpha);               // build axis-angle quaternion
+
+	// compute quaternion for deflection
+	phi += 4.712388980f; // 3*pi / 2.0
+	a.x = cos(phi); a.y = sin(phi); a.z = 0.0f; a.w = 0.0f;
+	point q = quat_axis(a, theta);
+
+	// compose rotations
+	point n = quat_mul(ref, quat_conj(q)); // n = q.ref.q*
+	n = quat_mul(q, n);
+	n = quat_mul(n, quat_conj(r));         // n = r.n.r*
+	n = quat_mul(r, n);
+	
+	p[0] = n.x; p[1] = n.y; p[2] = n.z;
+}
+
+/*
+// Apply deflection of the particle with quaternion stuff
+void dev_deflect_(float* p, int np, float theta, float phi) {
+	point d;
+	d.x = p[0];	d.y = p[1];	d.z = p[2];	d.w = 0.0f;
+	d = quat_norm(d);
+	// select the best axis
+	point a;
+	a.x = 0.0f; a.y = 0.0f; a.z = 0.0f; a.w = 0.0f;
+	if (d.x < d.y) {a.x = 1.0f;}
+	else {a.y = 1.0f;}
+	// create virtual axis given by p^a
+	a = quat_crossprod(d, a);
+	a = quat_norm(a);
+	// build rotation around p axis with phi (in order to rotate the next rotation axis a)
+	point r = quat_axis(d, phi);
+	// do rotation of a = rar*
+	a = quat_mul(a, quat_conj(r)); // a = ar*
+	a = quat_mul(r, a);            // a = ra
+	// build rotation around the axis with theta (thus rotate p)
+	r = quat_axis(a, theta);
+	// do final rotation of p = rpr*
+	d = quat_mul(d, quat_conj(r));
+	d = quat_mul(r, d);
+	// assign new values
+	p[0] = d.x; p[1] = d.y; p[2] = d.z;
+}
+*/

@@ -726,6 +726,7 @@ void kernel_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int
 			light  = 1 - light;
 			
 			// Assign new value
+			light = 1;
 			mip[y*wim + x] = newval*light;
 			
 			

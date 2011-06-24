@@ -28,6 +28,7 @@ def wait():
 # convert engineer prefix
 def prefix_SI(mem):
     from math import log
+    
     pref   = ['', 'k', 'M', 'G', 'T']
     iemem  = int(log(mem) // log(1e3))
     mem   /= (1e3 ** iemem)
@@ -50,6 +51,7 @@ def time_format(t):
 # plot
 def plot(x, y):
     import matplotlib.pyplot as plt
+    
     plt.plot(x, y)
     plt.show()
 
@@ -112,7 +114,9 @@ def plot_dist(x, y):
 # plot RAPS curve
 def plot_raps(im):
     import matplotlib.pyplot as plt
-    from numpy import log
+    from numpy    import log
+    from firework import image_raps
+    
     #im = image_normalize(im)
     val, freq = image_raps(im)
     #val = image_atodB(val)
@@ -126,6 +130,8 @@ def plot_raps(im):
 # plot FRC curve
 def plot_frc(im1, im2):
     import matplotlib.pyplot as plt
+    from firework import image_frc
+    
     frc, freq = image_frc(im1, im2)
     plt.plot(freq, frc)
     plt.xlabel('Nyquist frequency')
@@ -137,6 +143,8 @@ def plot_frc(im1, im2):
 # plot profil of any filter
 def plot_filter_profil(H):
     import matplotlib.pyplot as plt
+    from firework import filter_profil
+    
     p, f = filter_profil(H)
     plt.plot(f, p)
     plt.axhline(y=0.707, c='r', ls=':')

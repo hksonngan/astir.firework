@@ -17,38 +17,6 @@
 #
 # FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-# display an image
-def image_show(mat, map='gray'):
-    import matplotlib.pyplot as plt
-
-    h, w = mat.shape
-    fig  = plt.figure()
-    ax   = fig.add_subplot(111)
-    cax  = ax.imshow(mat, interpolation='nearest', cmap=map)
-    ax.set_title('Viewer - FIREwork : %i x %i' % (w, h))
-    min  = mat.min()
-    max  = mat.max()
-    d    = (max - min) / 9.0
-    lti  = [i*d+min for i in xrange(10)]
-    txt  = ['%5.3f' % lti[i] for i in xrange(10)]
-    cbar = fig.colorbar(cax, ticks=lti)
-    cbar.ax.set_yticklabels(txt)
-    plt.show()
-
-# Get input values from an image
-def image_ginput(im, n, map='gray'):
-    from numpy import array
-    import matplotlib.pyplot as plt
-    #plt.figure(figsize=(1.4, 1.4))
-    plt.figure(0)
-    plt.imshow(im, interpolation='nearest', cmap=map)
-    plt.colorbar()
-    pts = plt.ginput(n)
-    plt.show()
-    plt.close(0)
-    
-    return array(pts, 'float32')
-
 # plot 1D hitogram based on 1D data
 def hist1D_plot(data, nbins):
     import matplotlib.pyplot as plt

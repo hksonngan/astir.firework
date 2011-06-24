@@ -79,6 +79,7 @@ def image_write(im, name):
 def image_write_mapcolor(im, name, color='jet'):
     from numpy import array, zeros, take, ones
     from PIL   import Image
+
     ny, nx = im.shape
     npix   = ny * nx
     map    = im.copy()
@@ -186,11 +187,7 @@ def image_slice(im, x1, y1, x2, y2):
 # some info to images
 def image_infos(im):
     sh = im.shape
-    if len(sh) == 2:
-        print 'size: %ix%i min %f max %f mean %f std %f' % (sh[0], sh[1], im.min(), im.max(), im.mean(), im.std())
-    if len(sh) == 3:
-        print 'size: %ix%ix%i min %f max %f mean %f std %f' % (sh[0], sh[1], sh[2], im.min(), im.max(), im.mean(), im.std())
-
+    print 'size: %ix%i min %f max %f mean %f std %f' % (sh[0], sh[1], im.min(), im.max(), im.mean(), im.std())
 
 # normalize image ave=0, std=1
 def image_normalize(im):
@@ -210,6 +207,7 @@ def image_int2float(im):
 # compute fft of image
 def image_fft(im):
     from numpy import fft
+
     l, w = im.shape
     if l != w:
         print 'Image must be square!'
@@ -222,6 +220,7 @@ def image_fft(im):
 # compute ifft of image
 def image_ifft(imf):
     from numpy import fft
+
     l, w = imf.shape
     if l!= w:
         print 'Image must be square!'
@@ -261,7 +260,7 @@ def image_periodogram(im):
     
     return imf
 
-# create image noise (gauss or poisson model)
+# create noise (gauss or poisson model)
 def image_noise(ny, nx, sigma, model='gauss'):
     from numpy import zeros
     from random import gauss
@@ -276,13 +275,6 @@ def image_noise(ny, nx, sigma, model='gauss'):
         return im
     
     elif model=='poisson':
-        '''
-        from numpy.random import poisson
-        v = poisson(lam=1000, size=(nx*ny)) / 1000.0
-        v = 10 * sigma * (v - 1)
-        v = v.astype('float32')
-        v = v.reshape((ny, nx))
-        '''
         from random import random
         from math   import log
 
@@ -303,7 +295,7 @@ def image_raps(im):
     c      = (w - 1) // 2
     val    = image_ra(im)
     
-    freq  = range(0, c + 1) # should be wo // 2 + 1 coefficient need to fix!!
+    freq  = range(0, c + 1) # TODO should be wo // 2 + 1 coefficient need to fix!!
     freq  = array(freq, 'float32')
     freq /= float(wo)
     
@@ -395,93 +387,12 @@ def image_frc(im1, im2):
     
     fsc = fsc / (nf1 * nf2)**0.5
 
-    freq  = range(rmax + 1)  # should be 0, wo // 2 + 1) need to fix!!
+    freq  = range(rmax + 1)  # TODO should be 0, wo // 2 + 1) need to fix!!
     freq  = array(freq, 'float32')
     freq /= float(wo)
 
     return fsc, freq
-            
-# Low pass filter
-def image_lp_filter(im, fc, order):
-    from numpy import zeros, array
-    order *= 2
-    wo, ho = im.shape
-    imf    = image_fft(im)
-    w, h   = imf.shape
-    c      = (w - 1) // 2
-    H      = zeros((w, h), 'float32')
-    for i in xrange(h):
-        for j in xrange(w):
-            r       = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5) # radius
-            f       = r / (w-1)                          # fequency
-            H[i, j] = 1 / (1 + (f / fc)**order)**0.5     # filter
-
-    imf *= H
-    im   = image_ifft(imf, wo)
-            
-    profil  = image_1D_slice(H, c, c, w, c)
-    freq    = range(0, wo // 2 + 1)
-    freq    = array(freq, 'float32')
-    freq   /= float(wo)
-
-    return im, profil, freq
-
-# High pass filter
-def image_hp_filter(im, fc, order):
-    from numpy import zeros, array
-    order *= 2
-    wo, ho = im.shape
-    imf    = image_fft(im)
-    w, h   = imf.shape
-    c      = (w - 1) // 2
-    H      = zeros((w, h), 'float32')
-    for i in xrange(h):
-        for j in xrange(w):
-            r       = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5) # radius
-            f       = r / (w-1)                          # fequency
-            # build like a low pass filter with fc = 0.5 - fc and mirror also f (0.5 - f)
-            H[i, j] = 1 / (1 + ((0.5-f) / (0.5-fc))**order)**0.5 
-
-    imf *= H
-    im   = image_ifft(imf, wo)
-            
-    profil  = image_1D_slice(H, c, c, w, c)
-    freq    = range(0, wo // 2 + 1)
-    freq    = array(freq, 'float32')
-    freq   /= float(wo)
-
-    return im, profil, freq
-
-# Band pass filter
-def image_bp_filter(im, fl, fh, order):
-    from numpy import zeros, array
-    order *= 2
-    wo, ho = im.shape
-    imf    = image_fft(im)
-    w, h   = imf.shape
-    c      = (w - 1) // 2
-    H      = zeros((w, h), 'float32')
-    for i in xrange(h):
-        for j in xrange(w):
-            r       = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5) # radius
-            f       = r / (w-1)                          # fequency
-            # low pass filter
-            a1      = 1 / (1 + (f / fh)**order)**0.5 
-            # high pass filter
-            a2      = 1 / (1 + ((0.5-f) / (0.5-fl))**order)**0.5
-            # band pass filter
-            H[i, j] = a1 * a2
-
-    imf *= H
-    im   = image_ifft(imf, wo)
-            
-    profil  = image_1D_slice(H, c, c, w, c)
-    freq    = range(0, wo // 2 + 1)
-    freq    = array(freq, 'float32')
-    freq   /= float(wo)
-
-    return im, profil, freq
-
+          
 # rotate image with 90 deg
 def image_rot90(im):
     from numpy import rot90
@@ -689,12 +600,13 @@ def image_threshold_down(im, th, val):
 
 # Lanczos 2D interpolation
 def image_interpolation_Lanczos(im, n):
-    from numpy import zeros
+    from numpy    import zeros
+    from firework import filter_build_2d_lanczos
     
     n      = int(n)
     ny, nx = im.shape
     res    = zeros((ny*n, nx*n), 'float32')
-    H      = filter_build_2d_Lanczos(nx*n, a=2)
+    H      = filter_build_2d_lanczos(nx*n, a=2)
     # resample the image
     for i in xrange(ny):
         for j in xrange(nx):

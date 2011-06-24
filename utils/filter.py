@@ -20,6 +20,33 @@
 # ==== Filtering ============================
 # ===========================================
 
+'''
+TODO
+# Low pass filter (Butterworth)
+def volume_lp_filter(vol, fc, order):
+    from kernel import kernel_matrix_lp_H
+    from numpy import zeros
+
+    zo, yo, xo  = vol.shape
+    volf        = volume_fft(vol)
+    z, y, x     = volf.shape
+    H           = zeros((z, y, x), 'float32')
+    kernel_matrix_lp_H(H, fc, order)
+    volf       *= H
+    vol         = volume_ifft(volf, xo)
+    vol         = vol.astype('float32')
+            
+    #profil  = image_1D_slice(H, c, c, w, c)
+    #freq    = range(0, wo // 2 + 1)
+    #freq    = array(freq, 'float32')
+    #freq   /= float(wo)
+
+    return vol    #, profil, freq
+'''
+
+
+'''
+# 3D Metz filter
 def filter_3d_Metz(vol, N, sig):
     from firekernel import kernel_3D_conv_wrap_cuda
     from numpy      import where
@@ -36,6 +63,7 @@ def filter_3d_Metz(vol, N, sig):
 
     return vol
 
+# 3D Gaussian filter
 def filter_3d_Gaussian(vol, sig):
     from kernel import kernel_3D_conv_wrap_cuda
 
@@ -49,6 +77,7 @@ def filter_3d_Gaussian(vol, sig):
 
     return vol
 
+# 3D Butterworth low pass filter
 def filter_3d_Butterworth_lp(vol, order, fc):
     from kernel import kernel_3D_conv_wrap_cuda
 
@@ -62,6 +91,7 @@ def filter_3d_Butterworth_lp(vol, order, fc):
 
     return vol
 
+# 3D tangent hyperbolic low pass filter
 def filter_3d_tanh_lp(vol, a, fc):
     from kernel import kernel_3D_conv_wrap_cuda
 
@@ -74,26 +104,54 @@ def filter_3d_tanh_lp(vol, a, fc):
     vol     = volume_unpack_cube(vol, z, y, x)
 
     return vol
+'''
 
-def filter_2d_Metz(im, N, sig):
+# 2d low pass filter (Butterworth)
+def filter_2d_butterworth_lp(im, fc, order):
+    smax = max(im.shape)
+    H    = filter_build_2d_butterworth_lp(smax, order, fc)
+
+    return image_ifft(image_fft(im) * H)
+
+# 2d high pass filter (Butterworth)
+def filter_2d_butterworth_hp(im, fc, order):
+    smax = max(im.shape)
+    H    = filter_build_2d_butterworth_hp(smax, order, fc)
+
+    return image_ifft(image_fft(im) * H)
+
+# 2d band pass filter (Butterworth)
+def filter_2d_butterworth_bp(im, fl, fh, order):
+    smax = max(im.shape)
+    H    = filter_build_2d_butterworth_bp(size, order, fl, fh)
+
+    return image_ifft(image_fft(im) * H)
+
+# 2d Metz filter
+def filter_2d_metz(im, N, sig):
     smax = max(im.shape)
     H    = filter_build_2d_Metz(smax, N, sig)
 
     return image_ifft(image_fft(im) * H)
 
+# 2d hyperbolic tangent low pass filter
 def filter_2d_tanh_lp(im, a, fc):
     smax = max(im.shape)
     H    = filter_build_2d_tanh_lp(smax, a, fc)
 
     return image_ifft(image_fft(im) * H)
 
-def filter_2d_Gaussian(im, sig):
+# 2d Gaussian filter
+def filter_2d_gaussian(im, sig):
     smax = max(im.shape)
     H    = filter_build_2d_Gaussian(smax, sig)
 
     return image_ifft(image_fft(im) * H)
 
-def filter_build_3d_Metz(size, N, sig):
+# ==== Build filter =========================
+# ===========================================
+
+def filter_build_3d_metz(size, N, sig):
     from numpy import zeros
     from math  import exp
     
@@ -113,7 +171,7 @@ def filter_build_3d_Metz(size, N, sig):
 
     return H
 
-def filter_build_2d_Metz(size, N, sig):
+def filter_build_2d_metz(size, N, sig):
     from numpy import zeros
     from math  import exp
     
@@ -131,7 +189,7 @@ def filter_build_2d_Metz(size, N, sig):
                 
     return H
 
-def filter_build_1d_Metz(size, N, sig):
+def filter_build_1d_metz(size, N, sig):
     from numpy import zeros
     from math  import exp
     
@@ -145,7 +203,7 @@ def filter_build_1d_Metz(size, N, sig):
                 
     return H
     
-def filter_build_3d_Gaussian(size, sig):
+def filter_build_3d_gaussian(size, sig):
     from numpy import zeros
     from math  import exp
 
@@ -164,7 +222,7 @@ def filter_build_3d_Gaussian(size, sig):
 
     return H
 
-def filter_build_2d_Gaussian(size, sig):
+def filter_build_2d_gaussian(size, sig):
     from numpy import zeros
     from math  import exp
 
@@ -181,7 +239,7 @@ def filter_build_2d_Gaussian(size, sig):
 
     return H
 
-def filter_build_1d_Gaussian(size, sig):
+def filter_build_1d_gaussian(size, sig):
     from numpy import zeros
     from math  import exp
 
@@ -194,8 +252,8 @@ def filter_build_1d_Gaussian(size, sig):
 
     return H
 
-def filter_build_3d_Butterworth_lp(size, order, fc):
-    from numpy import zeros, array
+def filter_build_3d_butterworth_lp(size, order, fc):
+    from numpy import zeros
     
     order *= 2
     c      = size // 2
@@ -204,13 +262,13 @@ def filter_build_3d_Butterworth_lp(size, order, fc):
         for i in xrange(size):
             for j in xrange(size):
                 f          = ((i-c)*(i-c) + (j-c)*(j-c) + (k-c)*(k-c))**(0.5) # radius
-                f         /= size                                            # fequency
+                f         /= size                                             # frequency
                 H[k, i, j] = 1 / (1 + (f / fc)**order)**0.5                   # filter
 
     return H
 
-def filter_build_2d_Butterworth_lp(size, order, fc):
-    from numpy import zeros, array
+def filter_build_2d_butterworth_lp(size, order, fc):
+    from numpy import zeros
     
     order *= 2
     c      = size // 2
@@ -218,13 +276,47 @@ def filter_build_2d_Butterworth_lp(size, order, fc):
     for i in xrange(size):
         for j in xrange(size):
             f       = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5) # radius
-            f      /= size                                            # fequency
-            H[i, j] = 1 / (1 + (f / fc)**order)**0.5                   # filter
+            f      /= size                               # frequency
+            H[i, j] = 1 / (1 + (f / fc)**order)**0.5     # filter
 
     return H
 
-def filter_build_1d_Butterworth_lp(size, order, fc):
-    from numpy import zeros, array
+def filter_build_2d_butterworth_hp(size, order, fc):
+    from numpy import zeros
+
+    order *= 2
+    c      = size // 2
+    H      = zeros((size, size), 'float32')
+    for i in xrange(size):
+        for j in xrange(size):
+            r       = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5) # radius
+            f       = r / (w-1)                          # frequency
+            # build like a low pass filter with fc = 0.5 - fc and mirror f (0.5 - f)
+            H[i, j] = 1 / (1 + ((0.5-f) / (0.5-fc))**order)**0.5
+
+    return H
+
+def filter_build_2d_butterworth_bp(size, order, fl, fh):
+    from numpy import zeros
+
+    order *= 2
+    c      = size // 2
+    H      = zeros((size, size), 'float32')
+    for i in xrange(size):
+        for j in xrange(size):
+            r       = ((i-c)*(i-c) + (j-c)*(j-c))**(0.5) # radius
+            f       = r / (w-1)                          # frequency
+            # low pass filter
+            a1      = 1 / (1 + (f / fh)**order)**0.5 
+            # high pass filter
+            a2      = 1 / (1 + ((0.5-f) / (0.5-fl))**order)**0.5
+            # band pass filter
+            H[i, j] = a1 * a2
+
+    return H
+
+def filter_build_1d_butterworth_lp(size, order, fc):
+    from numpy import zeros
     
     order *= 2
     c      = size // 2
@@ -236,7 +328,7 @@ def filter_build_1d_Butterworth_lp(size, order, fc):
     return H
 
 def filter_build_3d_tanh_lp(size, a, fc):
-    from numpy import zeros, array
+    from numpy import zeros
     from math  import tanh, pi
 
     c = size // 2
@@ -245,9 +337,9 @@ def filter_build_3d_tanh_lp(size, a, fc):
         for i in xrange(size):
             for j in xrange(size):
                 f          = ((i-c)*(i-c) + (j-c)*(j-c) + (k-c)*(k-c))**(0.5) # radius
-                f         /= size                                            # fequency
+                f         /= size                                             # frequency
                 v          = (pi * (f - fc)) / (2 * a * fc)
-                H[k, i, j] = 0.5 - (0.5 * tanh(v))                           # filter
+                H[k, i, j] = 0.5 - (0.5 * tanh(v))                            # filter
 
     return H
 
@@ -297,7 +389,7 @@ def filter_build_1d_tanh_hp(size, a, fc):
     
     return H
 
-def filter_build_2d_Lanczos(size, a=2):
+def filter_build_2d_lanczos(size, a=2):
     from numpy import zeros, sinc
 
     a  = float(a)
@@ -315,7 +407,7 @@ def filter_build_2d_Lanczos(size, a=2):
                 
     return H
 
-def filter_build_1d_Lanczos(size, a=2):
+def filter_build_1d_lanczos(size, a=2):
     from numpy import zeros, sinc
 
     a = float(a)
@@ -328,6 +420,7 @@ def filter_build_1d_Lanczos(size, a=2):
 
     return H
 
+'''
 def filter_pad_3d_cuda(H):
     from numpy import zeros
     size, size, size = H.shape
@@ -348,6 +441,7 @@ def filter_pad_3d_cuda(H):
                 Hpad[padk, padi, padj] = H[k, i, j]
 
     return Hpad[:, :, :nc]
+'''
 
 # Return the profil of any filter
 def filter_profil(H):

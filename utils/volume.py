@@ -29,6 +29,7 @@ def volume_raw_write(vol, name):
 # write a volume in firework format
 def volume_write(vol, name):
     from numpy import array
+
     nz, ny, nx = vol.shape
     vol        = vol.reshape((nz*ny*nx))
     vol        = vol.tolist()
@@ -51,6 +52,7 @@ def volume_raw_open(name, nz, ny, nx, datatype):
 # open a volume (firework format)
 def volume_open(name):
     from numpy import fromfile
+
     f   = open(name, 'rb')
     vol = fromfile(f, 'float32')
     f.close()
@@ -65,6 +67,7 @@ def volume_open(name):
 # get a slice from a volume
 def volume_slice(vol, pos=0, axe='z'):
     from numpy import matrix
+
     if   axe == 'z': return vol[pos]
     elif axe == 'x':
         # exception: the slice must be rotate (with transpose)
@@ -84,6 +87,7 @@ def volume_export_tiff(vol, name):
     from PIL  import Image
     from time import sleep
     import os, sys
+
     vol  = vol.copy()
     vol /= vol.max()
     vol *= 255
@@ -118,7 +122,8 @@ def volume_miip(vol, axe='z'):
 
 # Display volume as a mosaic
 def volume_mosaic(vol, axe='z', norm=False):
-    from numpy import zeros
+    from numpy    import zeros
+    from firework import image_normalize
     
     z, y, x = vol.shape
     if axe == 'z':
@@ -166,6 +171,7 @@ def volume_mosaic(vol, axe='z', norm=False):
 # compute volume fft
 def volume_fft(vol):
     from numpy import fft
+    
     z, y, x = vol.shape
     if z != y or z != x or x != y:
         print 'Volume must be cube!'
@@ -178,6 +184,7 @@ def volume_fft(vol):
 # compute volume ifft
 def volume_ifft(volf):
     from numpy import fft
+    
     z, y, x = volf.shape
     if z != y or z != x or x != y:    
         print 'Volume must be cube!'
@@ -187,30 +194,10 @@ def volume_ifft(volf):
     
     return vol.astype('float32')
 
-# Low pass filter
-def volume_lp_filter(vol, fc, order):
-    from kernel import kernel_matrix_lp_H
-    from numpy import zeros
-
-    zo, yo, xo  = vol.shape
-    volf        = volume_fft(vol)
-    z, y, x     = volf.shape
-    H           = zeros((z, y, x), 'float32')
-    kernel_matrix_lp_H(H, fc, order)
-    volf       *= H
-    vol         = volume_ifft(volf, xo)
-    vol         = vol.astype('float32')
-            
-    #profil  = image_1D_slice(H, c, c, w, c)
-    #freq    = range(0, wo // 2 + 1)
-    #freq    = array(freq, 'float32')
-    #freq   /= float(wo)
-
-    return vol    #, profil, freq
-
 # create box mask
 def volume_mask_box(nz, ny, nx, w, h, d):
     from numpy import zeros
+
     vol  = zeros((nz, ny, nx), 'float32')
     cx   = nx // 2
     cy   = ny // 2
@@ -234,6 +221,7 @@ def volume_mask_box(nz, ny, nx, w, h, d):
 # create cylinder mask
 def volume_mask_cylinder(nz, ny, nx, dc, rad):
     from numpy import zeros
+
     vol = zeros((nz, ny, nx), 'float32')
     cx  = nx // 2
     cy  = ny // 2
@@ -253,6 +241,7 @@ def volume_mask_cylinder(nz, ny, nx, dc, rad):
 # create ball mask
 def volume_mask_ball(nz, ny, nx, rad):
     from numpy import zeros
+
     vol = zeros((nz, ny, nx), 'float32')
     cx  = nx // 2
     cy  = ny // 2
@@ -270,6 +259,7 @@ def volume_mask_ball(nz, ny, nx, rad):
 # pack a non-isovolume to a cube
 def volume_pack_cube(vol):
     from numpy import zeros
+
     oz, oy, ox = vol.shape
     type       = vol.dtype
     c = max(oz, oy, ox)
@@ -287,6 +277,7 @@ def volume_pack_cube(vol):
 # unpack volume from a cube according its sizes
 def volume_unpack_cube(vol, oz, oy, ox):
     from numpy import zeros
+
     nz, ny, nx = vol.shape
     center = nz // 2
     nzh    = oz // 2
@@ -302,6 +293,7 @@ def volume_unpack_cube(vol, oz, oy, ox):
 # pack a volume inside a new one at the center position
 def volume_pack_center(vol, newz, newy, newx):
     from numpy import zeros
+
     oz, oy, ox = vol.shape
     type       = vol.dtype
     padx = (newx-ox) // 2
@@ -318,6 +310,7 @@ def volume_pack_center(vol, newz, newy, newx):
 # rotate the volume by a quarter turn
 def volume_rotate(vol, axis='x'):
     from numpy import zeros
+
     nz, ny, nx = vol.shape
     if   axis == 'x':
         newvol = zeros((ny, nz, nx), vol.dtype)
@@ -382,7 +375,7 @@ def volume_raps(vol):
     c      = (nx - 1) // 2
     val    = volume_ra(vol)
     
-    freq  = range(0, c + 1) # should be wo // 2 + 1 coefficient need to fix!!
+    freq  = range(0, c + 1) # TODO should be wo // 2 + 1 coefficient need to fix!!
     freq  = array(freq, 'float32')
     freq /= float(nxo)
     
@@ -446,7 +439,7 @@ def volume_fsc(vol1, vol2):
     
     fsc = fsc / (nf1 * nf2)**0.5
 
-    freq  = range(rmax + 1)  # should be 0, wo // 2 + 1) need to fix!!
+    freq  = range(rmax + 1)  # TODO should be 0, wo // 2 + 1) need to fix!!
     freq  = array(freq, 'float32')
     freq /= float(nxo)
 
@@ -474,6 +467,8 @@ def volume_snr_from_zncc(signal, noise):
 
 # Compute SNR based on Lodge's method
 def volume_snr_from_Lodge(vol1, vol2, s1, s2, mask):
+    from firework import image_pick_undermask
+    
     S   = s2 - s1 + 1
     snr = 0
     for i in xrange(s1, s2):

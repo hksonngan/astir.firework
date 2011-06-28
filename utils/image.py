@@ -598,22 +598,6 @@ def image_threshold_down(im, th, val):
 
     return im
 
-# Lanczos 2D interpolation
-def image_interpolation_Lanczos(im, n):
-    from numpy    import zeros
-    from firework import filter_build_2d_lanczos
-    
-    n      = int(n)
-    ny, nx = im.shape
-    res    = zeros((ny*n, nx*n), 'float32')
-    H      = filter_build_2d_lanczos(nx*n, a=2)
-    # resample the image
-    for i in xrange(ny):
-        for j in xrange(nx):
-            res[n*i:n*(i+1), n*j:n*(j+1)] = im[i, j]
-    # interpolation
-    return image_ifft(image_fft(res) * H)
-
 # display an image
 def image_show(mat, map='gray'):
     import matplotlib.pyplot as plt

@@ -148,6 +148,20 @@ def filter_2d_gaussian(im, sig):
 
     return image_ifft(image_fft(im) * H)
 
+# 2d Lanczos2 filter 
+def filter_2d_lanczos2(im):
+    smax = max(im.shape)
+    H    = filter_build_2d_lanczos(smax, a=2)
+
+    return image_ifft(image_fft(im) * H)
+
+# 2d Lanczos3 filter 
+def filter_2d_lanczos3(im):
+    smax = max(im.shape)
+    H    = filter_build_2d_lanczos(smax, a=3)
+
+    return image_ifft(image_fft(im) * H)
+
 # ==== Build filter =========================
 # ===========================================
 

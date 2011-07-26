@@ -20,4 +20,4 @@
 #include <string.h>
 #include <math.h>
 
-void image_c_resampling_2d_Lanczos2(float* org, int noy, int nox, float* trg, int ny, int nx);
+void image_c_resampling_lanczos2(float* org, int noy, int nox, float* trg, int ny, int nx);

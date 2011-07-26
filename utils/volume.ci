@@ -16,11 +16,11 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-%module image_c
+%module volume_c
 
 %{
 #define SWIG_FILE_WITH_INIT
-#include "image.ch"
+#include "volume.ch"
 %}
 
 %include "numpy.i"
@@ -29,5 +29,10 @@
 import_array();
 %}
 
-void image_c_resampling_lanczos2(float* IN_ARRAY2D, int DIM1, int DIM2,
-								 float* INPLACE_ARRAY2D, int DIM1, int DIM2);
+void volume_c_resampling_lanczos2(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
+								  float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3);
+
+void volume_c_resampling_lanczos3(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
+								  float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3);
+
+

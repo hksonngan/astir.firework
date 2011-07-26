@@ -20,7 +20,7 @@
 // 2D Resampling by Lanczos2 (uses backwarp mapping)
 #define pi 3.141592653589793238462643383279
 #define SINC(x) ((x)==(0)?1:sin(pi*(x))/(pi*(x)))
-void image_c_resampling_2d_Lanczos2(float* org, int noy, int nox, float* trg, int ny, int nx) {
+void image_c_resampling_lanczos2(float* org, int noy, int nox, float* trg, int ny, int nx) {
 	// scale factor
 	float scaley = noy / (float)ny;
 	float scalex = nox / (float)nx;

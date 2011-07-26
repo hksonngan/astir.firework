@@ -2155,7 +2155,7 @@ int kernel_vector_nonzeros(float* mat, int ni) {
 }
 
 /**************************************************************
- * Filteration
+ * Filteration                                               
  **************************************************************/
 
 // Helper to build H matrix for a low pass filter

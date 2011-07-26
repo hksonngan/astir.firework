@@ -1,4 +1,3 @@
-/* -*- C -*-  (not really, but good for syntax highlighting) */
 // This file is part of FIREwork
 // 
 // FIREwork is free software: you can redistribute it and/or modify
@@ -16,18 +15,14 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-%module image_c
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
 
-%{
-#define SWIG_FILE_WITH_INIT
-#include "image.ch"
-%}
+void filter_c_2d_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w);
+void filter_c_3d_median(float* im, int nz, int ny, int nx, float* res, int nzr, int nyr, int nxr, int w);
+void filter_c_2d_adaptive_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w, int wmax);
+void filter_c_3d_adaptive_median(float* im, int nz, int ny, int nx,
+							     float* res, int nzr, int nyr, int nxr, int w, int wmax);
 
-%include "numpy.i"
-
-%init %{
-import_array();
-%}
-
-void image_c_resampling_lanczos2(float* IN_ARRAY2D, int DIM1, int DIM2,
-								 float* INPLACE_ARRAY2D, int DIM1, int DIM2);

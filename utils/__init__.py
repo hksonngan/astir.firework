@@ -9,3 +9,13 @@ try:
     from image_c import *
 except:
     print '[Warning] impossible to load the module image_c!'
+
+try:
+    from filter_c import *
+except:
+    print '[Warning] impossible to load the module filter_c!'
+
+try:
+    from volume_c import *
+except:
+    print '[Wraning] impossible to load the module volume_c!'

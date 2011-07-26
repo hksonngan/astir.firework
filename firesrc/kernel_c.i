@@ -92,23 +92,5 @@ void kernel_matrix_sumcol(float* IN_ARRAY2, int DIM1, int DIM2, float* INPLACE_A
 void kernel_matrix_lp_H(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, float fc, int order);
 void kernel_flatvolume_gaussian_filter_3x3x3(float* INPLACE_ARRAY1, int DIM1, int nk, int nj, int ni);
 
-void kernel_filter_2d_median(float* IN_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY2, int DIM1, int DIM2, int w);
-void kernel_filter_3d_median(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
-							 float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, int w);
-
-void kernel_filter_2d_adaptive_median(float* IN_ARRAY2, int DIM1, int DIM2,
-									  float* INPLACE_ARRAY2, int DIM1, int DIM2, int w, int wmax);
-
-void kernel_filter_3d_adaptive_median(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
-									  float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, int w, int wmax);
-
-// Interpolation
-void kernel_resampling_3d_Lanczos3(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
-								   float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3);
-
-void kernel_resampling_3d_Lanczos2(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
-								   float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3);
-
-void kernel_resampling_2d_Lanczos2(float* IN_ARRAY2, int DIM1, int DIM2, float* INPLACE_ARRAY2, int DIM1, int DIM2);
 
 

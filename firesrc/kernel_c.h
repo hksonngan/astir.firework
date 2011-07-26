@@ -61,13 +61,4 @@ void kernel_matrix_sumcol(float* mat, int ni, int nj, float* im, int npix);
 // Filteration
 void kernel_matrix_lp_H(float* mat, int nk, int nj, int ni, float fc, int order);
 void kernel_flatvolume_gaussian_filter_3x3x3(float* mat, int nmat, int nk, int nj, int ni);
-//void kernel_filter_2d_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w);
-//void kernel_filter_3d_median(float* im, int nz, int ny, int nx, float* res, int nzr, int nyr, int nxr, int w);
-//void kernel_filter_2d_adaptive_median(float* im, int ny, int nx, float* res, int nyr, int nxr, int w, int wmax);
-//void kernel_filter_3d_adaptive_median(float* im, int nz, int ny, int nx,
-									  float* res, int nzr, int nyr, int nxr, int w, int wmax);
 
-// Interpolation
-//void kernel_resampling_3d_Lanczos3(float* org, int noz, int noy, int nox, float* trg, int nz, int ny, int nx);
-//void kernel_resampling_3d_Lanczos2(float* org, int noz, int noy, int nox, float* trg, int nz, int ny, int nx);
-//void kernel_resampling_2d_Lanczos2(float* org, int noy, int nox, float* trg, int ny, int nx);

@@ -466,7 +466,7 @@ def volume_snr_from_zncc(signal, noise):
     return snr
 
 # Compute SNR based on Lodge's method
-def volume_snr_from_Lodge(vol1, vol2, s1, s2, mask):
+def volume_snr_from_lodge(vol1, vol2, s1, s2, mask):
     from firework import image_pick_undermask
     
     S   = s2 - s1 + 1

@@ -16,11 +16,6 @@
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
 #include "pet_cuda.h"
-#include <stdio.h>
-#include <cublas.h>
-#include <cufft.h>
-#include <sys/time.h>
-#include <math_constants.h>
 
 // textures
 texture<float, 1, cudaReadModeElementType> tex_im;
@@ -31,6 +26,10 @@ texture<unsigned short, 1, cudaReadModeElementType> tex_z1;
 texture<unsigned short, 1, cudaReadModeElementType> tex_x2;
 texture<unsigned short, 1, cudaReadModeElementType> tex_y2;
 texture<unsigned short, 1, cudaReadModeElementType> tex_z2;
+
+/********************************************************
+ * Utils
+ ********************************************************/
 
 __device__ inline void atomicFloatAdd(float* address, float val) {
 	int i_val = __float_as_int(val);
@@ -44,9 +43,9 @@ __device__ inline void atomicFloatAdd(float* address, float val) {
 	}
 }
 
-/*********************************************
- *  PET 3D LM-EM
- *********************************************/
+/********************************************************
+ * LM-OSEM reconstruction
+ ********************************************************/
 
 // kernel to raytrace 3D line in SRM with DDA algorithm and compute F on-line
 __global__ void pet3D_SRM_DDA_F_ON(unsigned int* d_F, int wim, int nx1, int nim, float scale) {
@@ -101,12 +100,12 @@ __global__ void pet3D_SRM_DDA_F_ON(unsigned int* d_F, int wim, int nx1, int nim,
 	}
 }
 
-// Compute update in LM 3D-OSEM algorithm on-line with DDA line drawing
-void kernel_pet3D_LMOSEM_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
-							  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
-							  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-							  float* im, int nim1, int nim2, int nim3, float* F, int nf1, int nf2, int nf3,
-							  int wim, int ID){
+// Update function in LM 3D-OSEM algorithm with DDA line drawing
+void pet_cuda_lmosem(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+					 unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
+					 unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+					 float* im, int nim1, int nim2, int nim3, float* F, int nf1, int nf2, int nf3,
+					 int wim, int ID){
 
 	// select a GPU
 	if (ID != -1){cudaSetDevice(ID);}
@@ -235,13 +234,13 @@ __global__ void pet3D_SRM_DDA_F_ATT_ON(unsigned int* d_F, int wim, int nx1, int 
 	}
 }
 
-// DEV Compute update in LM 3D-OSEM algorithm on-line with DDA line drawing and attenuation
-void kernel_pet3D_LMOSEM_att_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
-								  unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
-								  unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-								  float* im, int nim1, int nim2, int nim3,
-								  float* F, int nf1, int nf2, int nf3,
-								  float* mumap, int nmu1, int nmu2, int nmu3, int wim, int ID){
+// Update function in LM 3D-OSEM algorithm with DDA line drawing and attenuation
+void pet_cuda_lmosem_att(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+						 unsigned short int* z1, int nz1,	unsigned short int* x2, int nx2,
+						 unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+						 float* im, int nim1, int nim2, int nim3,
+						 float* F, int nf1, int nf2, int nf3,
+						 float* mumap, int nmu1, int nmu2, int nmu3, int wim, int ID){
 
 	// select a GPU
 	if (ID != -1){cudaSetDevice(ID);}
@@ -318,9 +317,9 @@ void kernel_pet3D_LMOSEM_att_cuda(unsigned short int* x1, int nx1, unsigned shor
 	cudaThreadExit();
 }
 
-/***********************************************
- * PET 3D OPLEM
- ***********************************************/
+/********************************************************
+ * OPLEM reconstruction
+ ********************************************************/
 
 // Update the volume
 __global__ void	pet3D_OPLEM_update(float* d_im, unsigned int* d_F, float* d_NM, float invscale, int nim) {
@@ -383,16 +382,15 @@ __global__ void pet3D_OPLEM_DDA(unsigned int* d_F, int sublor_start, int sublor_
 			y = y + yinc;
 			z = z + zinc;
 		}
-
 	}
 }
 
 // OPL-3D-OSEM algorithm with DDA-ELL
-void kernel_pet3D_OPLEM_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
-							 unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
-							 unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-							 float* im, int nim1, int nim2, int nim3,
-							 float* NM, int NM1, int NM2, int NM3, int Nsub, int ID){
+void pet_cuda_oplem(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+					unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
+					unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+					float* im, int nim1, int nim2, int nim3,
+					float* NM, int NM1, int NM2, int NM3, int Nsub, int ID){
 	
 	// Constant according Graphical card
 	int mem_max = 800000000; // used only 800 MB on 1 GB
@@ -600,13 +598,13 @@ __global__ void pet3D_OPLEM_DDA_att(unsigned int* d_F, int sublor_start, int sub
 }
 
 // OPL-3D-OSEM algorithm with DDA-ELL with attenuation correction
-void kernel_pet3D_OPLEM_att_cuda(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
-								 unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
-								 unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-								 float* im, int nim1, int nim2, int nim3,
-								 float* NM, int NM1, int NM2, int NM3,
-								 float* at, int nat1, int nat2, int nat3,
-								 int Nsub, int ID){
+void pet_cuda_oplem_att(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1,
+						unsigned short int* z1, int nz1, unsigned short int* x2, int nx2,
+						unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+						float* im, int nim1, int nim2, int nim3,
+						float* NM, int NM1, int NM2, int NM3,
+						float* at, int nat1, int nat2, int nat3,
+						int Nsub, int ID){
 	
 	// Constant according Graphical card
 	int mem_max = 800000000; // used only 800 MB on 1 GB

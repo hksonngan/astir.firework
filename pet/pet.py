@@ -18,7 +18,7 @@
 # FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
 # Convert a volume from CT to attenuation mumap
-def volume_CT_to_mumap(CT):
+def pet_ct_to_mumap(CT):
     from numpy import zeros
 
     nz, ny, nx = CT.shape

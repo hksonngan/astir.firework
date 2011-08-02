@@ -15,24 +15,106 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-#include <time.h>
-#include <sys/time.h>
-#include <assert.h>
-#include "kernel_c.h"
+#include "pet.h"
+
+#define SWAP(a, b) {float tmp=(a); (a)=(b); (b)=tmp;}
+// Quick sort O(n(log n))
+void inkernel_quicksort(float* vec, int l, int r) {
+	int key, i, j, k;
+
+	if (l < r) {
+		int i, j;
+		float pivot;
+		pivot = vec[l];
+		i = l;
+		j = r+1;
+
+		while (1) {
+			do ++i; while(vec[i] <= pivot && i <= r);
+			do --j; while(vec[j] > pivot);
+			if (i >= j) break;
+			SWAP(vec[i], vec[j]);
+		}
+		SWAP(vec[l], vec[j]);
+		inkernel_quicksort(vec, l, j-1);
+		inkernel_quicksort(vec, j+1, r);
+
+	}
+}
+// Bubble sort O(n2)
+void inkernel_bubblesort(float* vec, int n) {
+	int move = 1;
+	int i;
+
+	while (move) {
+		move = 0;
+		for (i=0; i<(n-1); ++i) {
+			if (vec[i] > vec[i+1]) {
+				SWAP(vec[i], vec[i+1]);
+				move = 1;
+			}
+		}
+	}
+}
+#undef SWAP
+
+// Mono function
+int inkernel_mono(int i, int j) {
+	int ma, mi;
+	if (i>j) {ma = i;}
+	else {ma = j;}
+	if (i<j) {mi = i;}
+	else {mi = j;}
+
+	return mi + ma * (ma - 1) / 2;
+}
+
+// Float uniform random generator
+float inkernel_randf() {
+	return (float)rand() / (float)(RAND_MAX+1.0f);
+}
+
+// Float Gauss random generator
+#define pi 3.141592653589793238462643383279
+float inkernel_randgf(float mean, float std) {
+	float u1 = (float)rand() / (float)(RAND_MAX+1.0f);
+	float u2 = (float)rand() / (float)(RAND_MAX+1.0f);
+	float r1 = sqrt(-2.0f * log(u1));
+	float r2 = 2.0f * pi * u2;
+	float z0 = r1 * cos(r2);
+	//float z1 = r1 * sin(r2);  // 2D Case
+	z0 *= std;
+	z0 += mean;
+
+	return z0;
+}
+#undef pi
+
+// Float Gauss random generator 2D Case
+#define pi 3.141592653589793238462643383279
+void inkernel_randg2f(float mean, float std, float* z0, float* z1) {
+	float u1 = (float)rand() / (float)(RAND_MAX+1.0f);
+	float u2 = (float)rand() / (float)(RAND_MAX+1.0f);
+	float r1 = sqrt(-2.0f * log(u1));
+	float r2 = 2.0f * pi * u2;
+	*z0 = r1 * cos(r2);
+	*z1 = r1 * sin(r2);
+	*z0 *= std;
+	*z0 += mean;
+	*z1 *= std;
+	*z1 += mean;
+}
+#undef pi
 
 /********************************************************************************
  * Phase-Space
  ********************************************************************************/
 
-void kernel_phasespace_open(char* filename,
-							int* type, int ntype,
-							float* E, int nE,
-							float* px, int npx, float* py, int npy, float* pz, int npz,
-							float* dx, int ndx, float* dy, int ndy, float* dz, int ndz) {	
+void pet_c_phasespace_open(char* filename,
+						   int* type, int ntype,
+						   float* E, int nE,
+						   float* px, int npx, float* py, int npy, float* pz, int npz,
+						   float* dx, int ndx, float* dy, int ndy, float* dz, int ndz) {	
 
 	int i=0;
 	FILE * pfile = fopen(filename, "rb");
@@ -79,19 +161,18 @@ void kernel_phasespace_open(char* filename,
 	fclose(pfile);
 }
 
-
 /********************************************************************************
- * PET Scan Allegro      
+ * Allegro scanner
  ********************************************************************************/
 
 #define pi  3.141592653589
 #define twopi 6.283185307179
 // Convert ID event from allegro scanner to global position in 3D space
-void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int nidd1,
-							float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
-							int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
-							float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
-							float respix, int sizespacexy, int sizespacez, int rnd) {
+void pet_c_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int nidd1,
+						   float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+						   int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
+						   float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+						   float respix, int sizespacexy, int sizespacez, int rnd) {
 	// NOTE: ref system will be changed, from ref GATE system to image system
 	// GATE             SPACE
 	//    X             Z
@@ -126,8 +207,8 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		////////////////////////////////
 		// global position in GATE space
 		ID = id_crystal1[n];
-		zi = float(ID / nic) * dcz - rcz;
-		xi = float(ID % nic) * dcx - rcx;
+		zi = (float)(ID / nic) * dcz - rcz;
+		xi = (float)(ID % nic) * dcx - rcx;
 		yi = tsc;
 		// random position to the crystal aera
 		if (rnd) {
@@ -157,8 +238,8 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 		////////////////////////////////
 		// global position in GATE space
 		ID = id_crystal2[n];
-		zi = float(ID / nic) * dcz - rcz;
-		xi = float(ID % nic) * dcx - rcx;
+		zi = (float)(ID / nic) * dcz - rcz;
+		xi = (float)(ID % nic) * dcx - rcx;
 		yi = tsc;
 		// random position to the crystal aera
 		if (rnd) {
@@ -190,8 +271,8 @@ void kernel_allegro_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int 
 #undef twopi
 
 // build the list of all LOR in order to compute S matrix
-void kernel_allegro_build_all_LOR(unsigned short int* idc1, int n1, unsigned short int* idd1, int n2,
-								  unsigned short int* idc2, int n3, unsigned short int* idd2, int n4) {
+void pet_c_allegro_build_all_lor(unsigned short int* idc1, int n1, unsigned short int* idd1, int n2,
+								 unsigned short int* idc2, int n3, unsigned short int* idd2, int n4) {
 	int idmax = 22*29;
 	int ndete = 28;
 	int N = idmax*ndete;
@@ -216,7 +297,7 @@ void kernel_allegro_build_all_LOR(unsigned short int* idc1, int n1, unsigned sho
 }
 
 // build a random list of LOR in order to compute normalize matrix of Allegro scanner
-void kernel_allegro_save_rnd_LOR(char* savename, int nlor) {
+void pet_c_allegro_save_rnd_lor(char* savename, int nlor) {
 	
 	FILE * pfile_lors;
 	int cmax = 22*29;
@@ -240,9 +321,8 @@ void kernel_allegro_save_rnd_LOR(char* savename, int nlor) {
 	
 }
 
-
 /********************************************************************************
- * PET Scan GE Discovery      
+ * Discovery scanner
  ********************************************************************************/
 
 // Convert blf file from GE scanner to ID (crystals and modules)
@@ -255,7 +335,7 @@ void kernel_allegro_save_rnd_LOR(char* savename, int nlor) {
 //                 x|        ||   | prompt or delay (1 or 0)
 //                  xxxxxxxxxx|   | ID 2
 //                            xxxxx ring 2
-void kernel_discovery_blftobin(char* blffilename, char* binfilename) {
+void pet_c_discovery_blftobin(char* blffilename, char* binfilename) {
 	// vars
 	unsigned int word;
 	int M1, R1, C1, ID1;
@@ -318,7 +398,7 @@ void kernel_discovery_blftobin(char* blffilename, char* binfilename) {
 #define pi  3.141592653589
 #define twopi 6.283185307179
 // Convert ID event from GE DSTE scanner to global position in 3D space 
-void kernel_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int nidd1,
+void pet_c_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, int nidd1,
 							  float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
 							  int* id_crystal2, int nidc2, int* id_detector2, int nidd2,
 							  float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
@@ -353,8 +433,8 @@ void kernel_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, in
 		////////////////////////////////
 		// global position in GATE space
 		ID = id_crystal1[n];
-		zi = float(ID / nic) * dcz - rcz;
-		xi = float(ID % nic) * dcx - rcx;
+		zi = (float)(ID / nic) * dcz - rcz;
+		xi = (float)(ID % nic) * dcx - rcx;
 		yi = tsc;
 		// random position to the crystal aera
 		if (rnd) {
@@ -386,8 +466,8 @@ void kernel_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, in
 		////////////////////////////////
 		// global position in GATE space
 		ID = id_crystal2[n];
-		zi = float(ID / nic) * dcz - rcz;
-		xi = float(ID % nic) * dcx - rcx;
+		zi = (float)(ID / nic) * dcz - rcz;
+		xi = (float)(ID % nic) * dcx - rcx;
 		yi = tsc;
 		// random position to the crystal aera
 		if (rnd) {
@@ -421,7 +501,7 @@ void kernel_discovery_idtopos(int* id_crystal1, int nidc1, int* id_detector1, in
 #undef twopi
 
 // build a random list of LOR in order to compute normalize matrix of Discovery scanner
-void kernel_discovery_save_rnd_LOR(char* savename, int nlor) {
+void pet_c_discovery_save_rnd_lor(char* savename, int nlor) {
 	
 	FILE * pfile_lors;
 	int cmax = 16*24;
@@ -446,25 +526,25 @@ void kernel_discovery_save_rnd_LOR(char* savename, int nlor) {
 }
 
 /********************************************************************************
- * PET Scan       
+ * Utils
  ********************************************************************************/
 
 // SRM Raycasting, Compute ray intersection with the 3D SRM
-void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
-								 float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
-								 int* enable, int nenable, int border, int ROIxy, int ROIz) {
+void pet_c_raycasting(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+					  float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+					  int* enable, int nenable, int border, int ROIxy, int ROIz) {
 	// Smith's algorithm ray-box AABB intersection
 	int i, chk1, chk2;
 	float xd, yd, zd, xmin, ymin, zmin, xmax, ymax, zmax;
 	float tmin, tmax, tymin, tymax, tzmin, tzmax, buf;
 	float xi1, yi1, zi1, xp1, yp1, zp1, xp2, yp2, zp2;
 	// define box and ray direction
-	xmin = float(border);
-	xmax = float(border + ROIxy);
-	ymin = float(border);
-	ymax = float(border + ROIxy);
+	xmin = (float)border;
+	xmax = (float)(border + ROIxy);
+	ymin = (float)border;
+	ymax = (float)(border + ROIxy);
 	zmin = 0.0f;
-	zmax = float(ROIz);
+	zmax = (float)ROIz;
 	for (i=0; i<nx1; ++i) {
 		xi1 = x1[i];
 		yi1 = y1[i];
@@ -525,9 +605,9 @@ void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* 
 					xp1 -= border;
 					yp1 -= border;
 					//zp1 -= border;
-					if (int(xp1+0.5) == ROIxy) {xp1 = ROIxy-1.0f;}
-					if (int(yp1+0.5) == ROIxy) {yp1 = ROIxy-1.0f;}
-					if (int(zp1+0.5) == ROIz) {zp1 = ROIz-1.0f;}
+					if ((int)(xp1+0.5) == ROIxy) {xp1 = ROIxy-1.0f;}
+					if ((int)(yp1+0.5) == ROIxy) {yp1 = ROIxy-1.0f;}
+					if ((int)(zp1+0.5) == ROIz) {zp1 = ROIz-1.0f;}
 					x1[i] = xp1;
 					y1[i] = yp1;
 					z1[i] = zp1;
@@ -542,9 +622,9 @@ void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* 
 					xp2 -= border;
 					yp2 -= border;
 					//zp2 -= border;
-					if (int(xp2+0.5) == ROIxy) {xp2 = ROIxy-1.0f;}
-					if (int(yp2+0.5) == ROIxy) {yp2 = ROIxy-1.0f;}
-					if (int(zp2+0.5) == ROIz) {zp2 = ROIz-1.0f;}
+					if ((int)(xp2+0.5) == ROIxy) {xp2 = ROIxy-1.0f;}
+					if ((int)(yp2+0.5) == ROIxy) {yp2 = ROIxy-1.0f;}
+					if ((int)(zp2+0.5) == ROIz) {zp2 = ROIz-1.0f;}
 					x2[i] = xp2;
 					y2[i] = yp2;
 					z2[i] = zp2;
@@ -553,17 +633,17 @@ void kernel_pet3D_SRM_raycasting(float* x1, int nx1, float* y1, int ny1, float* 
 			} else {continue;}
 		} else {continue;}
 		if (chk1 && chk2) {
-			if (int(xp1) == int(xp2) && int(yp1) == int(yp2) && int(zp1) == int(zp2)) {continue;}
+			if ((int)xp1 == (int)xp2 && (int)yp1 == (int)yp2 && (int)zp1 == (int)zp2) {continue;}
 			enable[i] = 1;
 		}
 	}
 }
 
 // Cleanning LORs outside of ROI based on SRM raycasting intersection calculation (return int)
-void kernel_pet3D_SRM_clean_LOR_int(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
-									float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
-									int* xi1, int nxi1, int* yi1, int nyi1, int* zi1, int nzi1,
-									int* xi2, int nxi2, int* yi2, int nyi2, int* zi2, int nzi2) {
+void pet_c_clean_lor_int(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+						 float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+						 int* xi1, int nxi1, int* yi1, int nyi1, int* zi1, int nzi1,
+						 int* xi2, int nxi2, int* yi2, int nyi2, int* zi2, int nzi2) {
 	int i, c;
 	c = 0;
 	for (i=0; i<nx1; ++i) {
@@ -580,10 +660,10 @@ void kernel_pet3D_SRM_clean_LOR_int(int* enable, int ne, float* x1, int nx1, flo
 }
 
 // Cleanning LORs outside of ROI based on SRM raycasting intersection calculation (return float)
-void kernel_pet3D_SRM_clean_LOR_float(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
-									  float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
-									  float* xf1, int nxi1, float* yf1, int nyi1, float* zf1, int nzi1,
-									  float* xf2, int nxi2, float* yf2, int nyi2, float* zf2, int nzi2) {
+void pet_c_clean_lor_float(int* enable, int ne, float* x1, int nx1, float* y1, int ny1, float* z1, int nz1,
+						   float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+						   float* xf1, int nxi1, float* yf1, int nyi1, float* zf1, int nzi1,
+						   float* xf2, int nxi2, float* yf2, int nyi2, float* zf2, int nzi2) {
 	int i, c;
 	c = 0;
 	for (i=0; i<nx1; ++i) {
@@ -600,9 +680,9 @@ void kernel_pet3D_SRM_clean_LOR_float(int* enable, int ne, float* x1, int nx1, f
 }
 
 // Read a subset of list-mode data set (int data).
-void kernel_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1, 
-										 unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-										 int n_start, int n_stop, char* basename) {
+void pet_c_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1, 
+										unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+										int n_start, int n_stop, char* basename) {
 
 	// init file
 	FILE * pfile_x1;
@@ -667,9 +747,9 @@ void kernel_listmode_open_subset_xyz_int(unsigned short int* x1, int nx1, unsign
 }
 
 // Read a subset of list-mode data set (int data) and sort according ID vectors (usefull to shuflle LORs).
-void kernel_listmode_open_subset_xyz_int_sort(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1, 
-											  unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
-											  int* ID, int nid, int n_start, int n_stop, char* basename) {
+void pet_c_listmode_open_subset_xyz_int_sort(unsigned short int* x1, int nx1, unsigned short int* y1, int ny1, unsigned short int* z1, int nz1, 
+											 unsigned short int* x2, int nx2, unsigned short int* y2, int ny2, unsigned short int* z2, int nz2,
+											 int* ID, int nid, int n_start, int n_stop, char* basename) {
 
 	// init file
 	FILE * pfile_x1;
@@ -758,9 +838,9 @@ void kernel_listmode_open_subset_xyz_int_sort(unsigned short int* x1, int nx1, u
 
 
 // Read a subset of list-mode data set (float data).
-void kernel_listmode_open_subset_xyz_float(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1, 
-										   float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
-										   int n_start, int n_stop, char* basename) {
+void pet_c_listmode_open_subset_xyz_float(float* x1, int nx1, float* y1, int ny1, float* z1, int nz1, 
+										  float* x2, int nx2, float* y2, int ny2, float* z2, int nz2,
+										  int n_start, int n_stop, char* basename) {
 
 	// init file
 	FILE * pfile_x1;
@@ -825,8 +905,8 @@ void kernel_listmode_open_subset_xyz_float(float* x1, int nx1, float* y1, int ny
 }
 
 // Read a subset of list-mode data set (Id of crystals and detectors).
-void kernel_listmode_open_subset_ID_int(int* idc1, int n1, int* idd1, int n2, int* idc2, int n3, int* idd2, int n4,
-										int n_start, int n_stop, char* name) {
+void pet_c_listmode_open_subset_id_int(int* idc1, int n1, int* idd1, int n2, int* idc2, int n3, int* idd2, int n4,
+									   int n_start, int n_stop, char* name) {
 
 	// init file
 	FILE * pfile;
@@ -854,18 +934,18 @@ void kernel_listmode_open_subset_ID_int(int* idc1, int n1, int* idd1, int n2, in
 }
 
 /********************************************************************************
- * 3D LM-OSEM       
+ * LM-OSEM reconstruction      
  ********************************************************************************/
 
 // Update image online, SRM is build with DDA's Line Algorithm in fixed point, store in ELL format and update with LM-OSEM
-#define CONST int(pow(2, 23))
+#define CONST (int)(pow(2, 23))
 #define float2fixed(X) ((int) X * CONST)
 #define intfixed(X) (X >> 23)
-void kernel_pet3D_LMOSEM_dda(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
-							 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
-							 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
-							 float* im, int nim1, int nim2, int nim3,
-							 float* F, int nf1, int nf2, int nf3, int wim, int ndata) {
+void pet_c_lmosem_dda(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+					  unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+					  unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+					  float* im, int nim1, int nim2, int nim3,
+					  float* F, int nf1, int nf2, int nf3, int wim, int ndata) {
 	
 	int length, lengthy, lengthz, i, j, n;
 	float flength, val;
@@ -939,16 +1019,16 @@ void kernel_pet3D_LMOSEM_dda(unsigned short int* X1, int nx1, unsigned short int
 
 // Update image online, SRM is build with DDA's Line Algorithm in fixed point,
 // store in ELL format and update with LM-OSEM and corrected the attenuation
-#define CONST int(pow(2, 23))
+#define CONST (int)(pow(2, 23))
 #define float2fixed(X) ((int) X * CONST)
 #define intfixed(X) (X >> 23)
-void kernel_pet3D_LMOSEM_dda_att(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
-								 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
-								 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
-								 float* im, int nim1, int nim2, int nim3,
-								 float* F, int nf1, int nf2, int nf3,
-								 float* A, int na1, int na2, int na3,
-								 int wim, int ndata) {
+void pet_c_lmosem_dda_att(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+						  unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+						  unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+						  float* im, int nim1, int nim2, int nim3,
+						  float* F, int nf1, int nf2, int nf3,
+						  float* A, int na1, int na2, int na3,
+						  int wim, int ndata) {
 	
 	int length, lengthy, lengthz, i, j, n;
 	float flength, val;
@@ -1024,9 +1104,9 @@ void kernel_pet3D_LMOSEM_dda_att(unsigned short int* X1, int nx1, unsigned short
 #undef intfixed
 
 // Update image online, SRM is build with Siddon's Line Algorithm in COO format, and update with LM-OSEM
-void kernel_pet3D_LMOSEM_siddon(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
-								float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
-								float* im, int nim, float* F, int nf, int wim, int dim, int border) {
+void pet_c_lmosem_siddon(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+						 float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
+						 float* im, int nim, float* F, int nf, int wim, int dim, int border) {
 	int n, ct;
 	float tx, ty, tz, px, qx, py, qy, pz, qz;
 	int ei, ej, ek, u, v, w, i, j, k, oldi, oldj, oldk;
@@ -1062,9 +1142,9 @@ void kernel_pet3D_LMOSEM_siddon(float* X1, int nx1, float* Y1, int ny1, float* Z
 		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
 		ty = (py-qy) * initl + qy;
 		tz = (pz-qz) * initl + qz;
-		ei = int(tx);
-		ej = int(ty);
-		ek = int(tz);
+		ei = (int)tx;
+		ej = (int)ty;
+		ek = (int)tz;
 		if (ei < 0.0f || ei >= wim || ej < 0.0f || ej >= wim || ek < 0.0f || ek >= dim) {continue;}
 		if (qx-tx>0) {
 			u=ei+1;
@@ -1104,11 +1184,11 @@ void kernel_pet3D_LMOSEM_siddon(float* X1, int nx1, float* Y1, int ny1, float* Z
 		}
 		
 		if (qx==px) {divx=1.0;}
-		else {divx = float(qx-px);}
+		else {divx = (float)(qx-px);}
 		if (qy==py) {divy=1.0;}
-		else {divy = float(qy-py);}
+		else {divy = (float)(qy-py);}
 		if (qz==pz) {divz=1.0;}
-		else {divz = float(qz-pz);}
+		else {divz = (float)(qz-pz);}
 		axstart = (u-px) / divx;
 		aystart = (v-py) / divy;
 		azstart = (w-pz) / divz;
@@ -1261,10 +1341,10 @@ void kernel_pet3D_LMOSEM_siddon(float* X1, int nx1, float* Y1, int ny1, float* Z
 
 // Update image online, SRM is build with Siddon's Line Algorithm in COO format, and update with LM-OSEM
 // Use attenuation correction
-void kernel_pet3D_LMOSEM_siddon_att(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
-									float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
-									float* im, int nim, float* F, int nf, float* mumap, int nmu,
-									int wim, int dim, int border) {
+void pet_c_lmosem_siddon_att(float* X1, int nx1, float* Y1, int ny1, float* Z1, int nz1,
+							 float* X2, int nx2, float* Y2, int ny2, float* Z2, int nz2,
+							 float* im, int nim, float* F, int nf, float* mumap, int nmu,
+							 int wim, int dim, int border) {
 
 	int n, ct;
 	float tx, ty, tz, px, qx, py, qy, pz, qz;
@@ -1302,9 +1382,9 @@ void kernel_pet3D_LMOSEM_siddon_att(float* X1, int nx1, float* Y1, int ny1, floa
 		tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
 		ty = (py-qy) * initl + qy;
 		tz = (pz-qz) * initl + qz;
-		ei = int(tx);
-		ej = int(ty);
-		ek = int(tz);
+		ei = (int)tx;
+		ej = (int)ty;
+		ek = (int)tz;
 		if (ei < 0.0f || ei >= wim || ej < 0.0f || ej >= wim || ek < 0.0f || ek >= dim) {continue;}
 		if (qx-tx>0) {
 			u=ei+1;
@@ -1344,11 +1424,11 @@ void kernel_pet3D_LMOSEM_siddon_att(float* X1, int nx1, float* Y1, int ny1, floa
 		}
 		
 		if (qx==px) {divx=1.0;}
-		else {divx = float(qx-px);}
+		else {divx = (float)(qx-px);}
 		if (qy==py) {divy=1.0;}
-		else {divy = float(qy-py);}
+		else {divy = (float)(qy-py);}
 		if (qz==pz) {divz=1.0;}
-		else {divz = float(qz-pz);}
+		else {divz = (float)(qz-pz);}
 		axstart = (u-px) / divx;
 		aystart = (v-py) / divy;
 		azstart = (w-pz) / divz;
@@ -1501,19 +1581,19 @@ void kernel_pet3D_LMOSEM_siddon_att(float* X1, int nx1, float* Y1, int ny1, floa
 }
 
 /********************************************************************************
- * 3D OPLEM       
+ * OPLEM reconstruction
  ********************************************************************************/
 
 // OPLEM: DDA's Line Algorithm in fixed point and memory handling with ELLPACK format
-#define CONST int(pow(2, 23))
+#define CONST (int)(pow(2, 23))
 #define float2fixed(X) ((int) X * CONST)
 #define intfixed(X) (X >> 23)
-void kernel_pet3D_OPLEM(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
-						unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
-						unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
-						float* im, int nim1, int nim2, int nim3,
-						float* NM, int nm1, int nm2, int nm3,
-						int nsub) {
+void pet_c_oplem_dda(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+					 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+					 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+					 float* im, int nim1, int nim2, int nim3,
+					 float* NM, int nm1, int nm2, int nm3,
+					 int nsub) {
 	
 	// vars DDA
 	int length, lengthy, lengthz, ilor, n;
@@ -1541,8 +1621,8 @@ void kernel_pet3D_OPLEM(unsigned short int* X1, int nx1, unsigned short int* Y1,
 	// sub loop
 	for (isub=0; isub<nsub; ++isub) {
 		// boundary lor
-		lor_start = int(float(nx1) / nsub * isub + 0.5f);
-		lor_stop = int(float(nx1) / nsub * (isub+1) + 0.5f);
+		lor_start = (int)((float)nx1 / nsub * isub + 0.5f);
+		lor_stop = (int)((float)nx1 / nsub * (isub+1) + 0.5f);
 		nlor = lor_stop - lor_start;
 		// init F
 		memset(F, 0, mem_size_F);
@@ -1596,16 +1676,16 @@ void kernel_pet3D_OPLEM(unsigned short int* X1, int nx1, unsigned short int* Y1,
 #undef intfixed
 
 // OPLEM: DDA's Line Algorithm in fixed point, memory handling with ELLPACK format, and attenuation correction
-#define CONST int(pow(2, 23))
+#define CONST (int)(pow(2, 23))
 #define float2fixed(X) ((int) X * CONST)
 #define intfixed(X) (X >> 23)
-void kernel_pet3D_OPLEM_att(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
-							unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
-							unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
-							float* im, int nim1, int nim2, int nim3,
-							float* NM, int nm1, int nm2, int nm3,
-							float* AM, int am1, int am2, int am3,
-							int nsub) {
+void pet_c_oplem_dda_att(unsigned short int* X1, int nx1, unsigned short int* Y1, int ny1,
+						 unsigned short int* Z1, int nz1, unsigned short int* X2, int nx2,
+						 unsigned short int* Y2, int ny2, unsigned short int* Z2, int nz2,
+						 float* im, int nim1, int nim2, int nim3,
+						 float* NM, int nm1, int nm2, int nm3,
+						 float* AM, int am1, int am2, int am3,
+						 int nsub) {
 	
 	// vars DDA
 	int length, lengthy, lengthz, ilor, n;
@@ -1633,8 +1713,8 @@ void kernel_pet3D_OPLEM_att(unsigned short int* X1, int nx1, unsigned short int*
 	// sub loop
 	for (isub=0; isub<nsub; ++isub) {
 		// boundary lor
-		lor_start = int(float(nx1) / nsub * isub + 0.5f);
-		lor_stop = int(float(nx1) / nsub * (isub+1) + 0.5f);
+		lor_start = (int)((float)nx1 / nsub * isub + 0.5f);
+		lor_stop = (int)((float)nx1 / nsub * (isub+1) + 0.5f);
 		nlor = lor_stop - lor_start;
 		// init F
 		memset(F, 0, mem_size_F);
@@ -1691,12 +1771,12 @@ void kernel_pet3D_OPLEM_att(unsigned short int* X1, int nx1, unsigned short int*
 #undef intfixed
 
 // OPLEM: Siddon's Line Algorithm, memory handling with COO format
-void kernel_pet3D_OPLEM_sid(float* X1, int nx1, float* Y1, int ny1,
-							float* Z1, int nz1, float* X2, int nx2,
-							float* Y2, int ny2, float* Z2, int nz2,
-							float* im, int nim1, int nim2, int nim3,
-							float* NM, int nm1, int nm2, int nm3,
-							int nsub, int border) {
+void pet_c_oplem_sid(float* X1, int nx1, float* Y1, int ny1,
+					 float* Z1, int nz1, float* X2, int nx2,
+					 float* Y2, int ny2, float* Z2, int nz2,
+					 float* im, int nim1, int nim2, int nim3,
+					 float* NM, int nm1, int nm2, int nm3,
+					 int nsub, int border) {
 	
 	// vars Siddon
 	float tx, ty, tz, px, qx, py, qy, pz, qz;
@@ -1722,8 +1802,8 @@ void kernel_pet3D_OPLEM_sid(float* X1, int nx1, float* Y1, int ny1,
 	for (isub=0; isub<nsub; ++isub) {
 		printf("isub %i\n", isub);
 		// boundary lor
-		lor_start = int(float(nx1) / nsub * isub + 0.5f);
-		lor_stop = int(float(nx1) / nsub * (isub+1) + 0.5f);
+		lor_start = (int)((float)nx1 / nsub * isub + 0.5f);
+		lor_stop = (int)((float)nx1 / nsub * (isub+1) + 0.5f);
 		nlor = lor_stop - lor_start;
 		// init F
 		memset(F, 0, mem_size_F);
@@ -1752,9 +1832,9 @@ void kernel_pet3D_OPLEM_sid(float* X1, int nx1, float* Y1, int ny1,
 			tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
 			ty = (py-qy) * initl + qy;
 			tz = (pz-qz) * initl + qz;
-			ei = int(tx);
-			ej = int(ty);
-			ek = int(tz);
+			ei = (int)tx;
+			ej = (int)ty;
+			ek = (int)tz;
 			if (ei < 0.0f || ei >= nim3 || ej < 0.0f || ej >= nim2 || ek < 0.0f || ek >= nim1) {continue;}
 			if (qx-tx>0) {u=ei+1; stepi=1;}
 			if (qx-tx<0) {u=ei; stepi=-1;}
@@ -1766,11 +1846,11 @@ void kernel_pet3D_OPLEM_sid(float* X1, int nx1, float* Y1, int ny1,
 			if (qz-tz<0) {w=ek;	stepk=-1;}
 			if (qz-tz==0) {w=ej; stepk=0;}
 			if (qx==px) {divx=1.0;}
-			else {divx = float(qx-px);}
+			else {divx = (float)(qx-px);}
 			if (qy==py) {divy=1.0;}
-			else {divy = float(qy-py);}
+			else {divy = (float)(qy-py);}
 			if (qz==pz) {divz=1.0;}
-			else {divz = float(qz-pz);}
+			else {divz = (float)(qz-pz);}
 			axstart = (u-px) / divx;
 			aystart = (v-py) / divy;
 			azstart = (w-pz) / divz;
@@ -1892,13 +1972,13 @@ void kernel_pet3D_OPLEM_sid(float* X1, int nx1, float* Y1, int ny1,
 
 
 // OPLEM: Siddon's Line Algorithm, memory handling with COO format, and attenuation correction
-void kernel_pet3D_OPLEM_sid_att(float* X1, int nx1, float* Y1, int ny1,
-								float* Z1, int nz1, float* X2, int nx2,
-								float* Y2, int ny2, float* Z2, int nz2,
-								float* im, int nim1, int nim2, int nim3,
-								float* NM, int nm1, int nm2, int nm3,
-								float* AM, int am1, int am2, int am3,
-								int nsub, int border) {
+void pet_c_oplem_sid_att(float* X1, int nx1, float* Y1, int ny1,
+						 float* Z1, int nz1, float* X2, int nx2,
+						 float* Y2, int ny2, float* Z2, int nz2,
+						 float* im, int nim1, int nim2, int nim3,
+						 float* NM, int nm1, int nm2, int nm3,
+						 float* AM, int am1, int am2, int am3,
+						 int nsub, int border) {
 	
 	// vars Siddon
 	float tx, ty, tz, px, qx, py, qy, pz, qz;
@@ -1924,8 +2004,8 @@ void kernel_pet3D_OPLEM_sid_att(float* X1, int nx1, float* Y1, int ny1,
 	for (isub=0; isub<nsub; ++isub) {
 		printf("isub %i\n", isub);
 		// boundary lor
-		lor_start = int(float(nx1) / nsub * isub + 0.5f);
-		lor_stop = int(float(nx1) / nsub * (isub+1) + 0.5f);
+		lor_start = (int)((float)nx1 / nsub * isub + 0.5f);
+		lor_stop = (int)((float)nx1 / nsub * (isub+1) + 0.5f);
 		nlor = lor_stop - lor_start;
 		// init F
 		memset(F, 0, mem_size_F);
@@ -1954,9 +2034,9 @@ void kernel_pet3D_OPLEM_sid_att(float* X1, int nx1, float* Y1, int ny1,
 			tx = (px-qx) * initl + qx; // not 0.5 to avoid an image artefact
 			ty = (py-qy) * initl + qy;
 			tz = (pz-qz) * initl + qz;
-			ei = int(tx);
-			ej = int(ty);
-			ek = int(tz);
+			ei = (int)tx;
+			ej = (int)ty;
+			ek = (int)tz;
 			if (ei < 0.0f || ei >= nim3 || ej < 0.0f || ej >= nim2 || ek < 0.0f || ek >= nim1) {continue;}
 			if (qx-tx>0) {u=ei+1; stepi=1;}
 			if (qx-tx<0) {u=ei; stepi=-1;}
@@ -1968,11 +2048,11 @@ void kernel_pet3D_OPLEM_sid_att(float* X1, int nx1, float* Y1, int ny1,
 			if (qz-tz<0) {w=ek;	stepk=-1;}
 			if (qz-tz==0) {w=ej; stepk=0;}
 			if (qx==px) {divx=1.0;}
-			else {divx = float(qx-px);}
+			else {divx = (float)(qx-px);}
 			if (qy==py) {divy=1.0;}
-			else {divy = float(qy-py);}
+			else {divy = (float)(qy-py);}
 			if (qz==pz) {divz=1.0;}
-			else {divz = float(qz-pz);}
+			else {divz = (float)(qz-pz);}
 			axstart = (u-px) / divx;
 			aystart = (v-py) / divy;
 			azstart = (w-pz) / divz;

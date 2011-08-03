@@ -15,301 +15,14 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-#include <time.h>
-#include <sys/time.h>
-#include <GL/gl.h>
-#include <assert.h>
-
-/**************************************************************
- * Utils (functions know ony by the kernel)
- **************************************************************/
-
-#define SWAP(a, b) {float tmp=(a); (a)=(b); (b)=tmp;}
-// Quick sort O(n(log n))
-void inkernel_quicksort(float* vec, int l, int r) {
-	int key, i, j, k;
-
-	if (l < r) {
-		int i, j;
-		float pivot;
-		pivot = vec[l];
-		i = l;
-		j = r+1;
-
-		while (1) {
-			do ++i; while(vec[i] <= pivot && i <= r);
-			do --j; while(vec[j] > pivot);
-			if (i >= j) break;
-			SWAP(vec[i], vec[j]);
-		}
-		SWAP(vec[l], vec[j]);
-		inkernel_quicksort(vec, l, j-1);
-		inkernel_quicksort(vec, j+1, r);
-
-	}
-}
-// Bubble sort O(n2)
-void inkernel_bubblesort(float* vec, int n) {
-	bool move = true;
-	int i;
-
-	while (move) {
-		move = false;
-		for (i=0; i<(n-1); ++i) {
-			if (vec[i] > vec[i+1]) {
-				SWAP(vec[i], vec[i+1]);
-				move = true;
-			}
-		}
-	}
-}
-#undef SWAP
-
-// Mono function
-int inkernel_mono(int i, int j) {
-	int ma, mi;
-if (i>j) {ma = i;}
-	else {ma = j;}
-	if (i<j) {mi = i;}
-	else {mi = j;}
-
-	return mi + ma * (ma - 1) / 2;
-}
-
-// Float uniform random generator
-float inkernel_randf() {
-	return (float)rand() / (float)(RAND_MAX+1.0f);
-}
-
-// Float Gauss random generator
-#define pi 3.141592653589793238462643383279
-float inkernel_randgf(float mean, float std) {
-	float u1 = (float)rand() / (float)(RAND_MAX+1.0f);
-	float u2 = (float)rand() / (float)(RAND_MAX+1.0f);
-	float r1 = sqrt(-2.0f * log(u1));
-	float r2 = 2.0f * pi * u2;
-	float z0 = r1 * cos(r2);
-	//float z1 = r1 * sin(r2);  // 2D Case
-	z0 *= std;
-	z0 += mean;
-
-	return z0;
-}
-#undef pi
-
-// Float Gauss random generator 2D Case
-#define pi 3.141592653589793238462643383279
-void inkernel_randg2f(float mean, float std, float* z0, float* z1) {
-	float u1 = (float)rand() / (float)(RAND_MAX+1.0f);
-	float u2 = (float)rand() / (float)(RAND_MAX+1.0f);
-	float r1 = sqrt(-2.0f * log(u1));
-	float r2 = 2.0f * pi * u2;
-	*z0 = r1 * cos(r2);
-	*z1 = r1 * sin(r2);
-	*z0 *= std;
-	*z0 += mean;
-	*z1 *= std;
-	*z1 += mean;
-}
-#undef pi
+#include "render.h"
 
 /********************************************************************************
  * GENERAL      volume rendering
  ********************************************************************************/
 
-// helper function to rendering volume
-void kernel_draw_voxels(int* posxyz, int npos, float* val, int nval, float* valthr, int nthr, float gamma, float thres){
-	int ind, n, x, y, z;
-	float r, g, b, l;
-	for (n=0; n<nthr; ++n) {
-		l = valthr[n];
-		if (l <= thres) {continue;}
-		ind = 3 * n;
-		x = posxyz[ind];
-		y = posxyz[ind+1];
-		z = posxyz[ind+2];
-		r = val[ind];
-		g = val[ind+1];
-		b = val[ind+2];
-		l *= gamma;
-		glColor4f(r, g, b, l);
-		// face 0
-		glBegin(GL_QUADS);
-		glNormal3f(-1, 0, 0);
-		glVertex3f(x, y, z); // 1
-		glVertex3f(x, y+1.0, z); // 2
-		glVertex3f(x, y+1.0, z+1.0); // 3
-		glVertex3f(x, y, z+1.0); // 4
-		glEnd();
-		// face 1
-		glBegin(GL_QUADS);
-		glNormal3f(0, 1, 0);
-		glVertex3f(x, y+1, z+1); // 3
-		glVertex3f(x, y+1, z); // 2
-		glVertex3f(x+1, y+1, z); // 6
-		glVertex3f(x+1, y+1, z+1); // 7
-		glEnd();
-		// face 2 
-		glBegin(GL_QUADS);
-		glNormal3f(1, 0, 0);
-		glVertex3f(x+1, y+1, z+1); // 7
-		glVertex3f(x+1, y+1, z); // 6
-		glVertex3f(x+1, y, z); // 5
-		glVertex3f(x+1, y, z+1); // 4
-		glEnd();
-		// face 3
-		glBegin(GL_QUADS);
-		glNormal3f(0, -1, 0);
-		glVertex3f(x+1, y, z+1); // 4
-		glVertex3f(x+1, y, z); // 5
-		glVertex3f(x, y, z); // 1
-		glVertex3f(x, y, z+1); // 0
-		glEnd();
-		// face 4
-		glBegin(GL_QUADS);
-		glNormal3f(0, 0, 1);
-		glVertex3f(x+1, y, z); // 5
-		glVertex3f(x+1, y+1, z); // 6
-		glVertex3f(x, y+1, z); // 2
-		glVertex3f(x, y, z); // 1
-		glEnd();
-		// face 5
-		glBegin(GL_QUADS);
-		glNormal3f(0, 0, -1);
-		glVertex3f(x+1, y+1, z+1); // 7
-		glVertex3f(x+1, y, z+1); // 4
-		glVertex3f(x, y, z+1); // 0
-		glVertex3f(x, y+1, z+1); // 3
-		glEnd();
-		
-	}
-	glColor4f(1.0, 1.0, 1.0, 1.0);
-}
-// helper function to rendering volume (with edge)
-void kernel_draw_voxels_edge(int* posxyz, int npos, float* val, int nval, float* valthr, int nthr,  float thres){
-	int ind, n, x, y, z;
-	float r, g, b, l;
-	for (n=0; n<nthr; ++n) {
-		ind = 3 * n;
-		x = posxyz[ind];
-		y = posxyz[ind+1];
-		z = posxyz[ind+2];
-		r = val[ind];
-		g = val[ind+1];
-		b = val[ind+2];
-		l = valthr[n];
-		if (l <= thres) {continue;}
-		// face 0
-		glColor4f(r, g, b, l);
-		glBegin(GL_QUADS);
-		glNormal3f(-1, 0, 0);
-		glVertex3f(x, y, z); // 1
-		glVertex3f(x, y+1.0, z); // 2
-		glVertex3f(x, y+1.0, z+1.0); // 3
-		glVertex3f(x, y, z+1.0); // 4
-		glEnd();
-		glColor3f(0.0, 0.0, 0.0);
-		glBegin(GL_LINE_LOOP);
-		glVertex3f(x, y, z); // 1
-		glVertex3f(x, y+1.0, z); // 2
-		glVertex3f(x, y+1.0, z+1.0); // 3
-		glVertex3f(x, y, z+1.0); // 4
-		glEnd();
-		// face 1
-		glColor4f(1.0, 1.0, 1.0, l);
-		glBegin(GL_QUADS);
-		glNormal3f(0, 1, 0);
-		glVertex3f(x, y+1, z+1); // 3
-		glVertex3f(x, y+1, z); // 2
-		glVertex3f(x+1, y+1, z); // 6
-		glVertex3f(x+1, y+1, z+1); // 7
-		glEnd();
-		glColor3f(0.0, 0.0, 0.0);
-		glBegin(GL_LINE_LOOP);
-		glNormal3f(0, 1, 0);
-		glVertex3f(x, y+1, z+1); // 3
-		glVertex3f(x, y+1, z); // 2
-		glVertex3f(x+1, y+1, z); // 6
-		glVertex3f(x+1, y+1, z+1); // 7
-		glEnd();
-		// face 2
-		glColor4f(1.0, 1.0, 1.0, l);
-		glBegin(GL_QUADS);
-		glNormal3f(1, 0, 0);
-		glVertex3f(x+1, y+1, z+1); // 7
-		glVertex3f(x+1, y+1, z); // 6
-		glVertex3f(x+1, y, z); // 5
-		glVertex3f(x+1, y, z+1); // 4
-		glEnd();
-		glColor3f(0.0, 0.0, 0.0);
-		glBegin(GL_LINE_LOOP);
-		glNormal3f(1, 0, 0);
-		glVertex3f(x+1, y+1, z+1); // 7
-		glVertex3f(x+1, y+1, z); // 6
-		glVertex3f(x+1, y, z); // 5
-		glVertex3f(x+1, y, z+1); // 4
-		glEnd();
-		// face 3
-		glColor4f(1.0, 1.0, 1.0, l);
-		glBegin(GL_QUADS);
-		glNormal3f(0, -1, 0);
-		glVertex3f(x+1, y, z+1); // 4
-		glVertex3f(x+1, y, z); // 5
-		glVertex3f(x, y, z); // 1
-		glVertex3f(x, y, z+1); // 0
-		glEnd();
-		glColor3f(0.0, 0.0, 0.0);
-		glBegin(GL_LINE_LOOP);
-		glNormal3f(0, -1, 0);
-		glVertex3f(x+1, y, z+1); // 4
-		glVertex3f(x+1, y, z); // 5
-		glVertex3f(x, y, z); // 1
-		glVertex3f(x, y, z+1); // 0
-		glEnd();
-		// face 4
-		glColor4f(1.0, 1.0, 1.0, l);
-		glBegin(GL_QUADS);
-		glNormal3f(0, 0, 1);
-		glVertex3f(x+1, y, z); // 5
-		glVertex3f(x+1, y+1, z); // 6
-		glVertex3f(x, y+1, z); // 2
-		glVertex3f(x, y, z); // 1
-		glEnd();
-		glColor3f(0.0, 0.0, 0.0);
-		glBegin(GL_LINE_LOOP);
-		glNormal3f(0, 0, 1);
-		glVertex3f(x+1, y, z); // 5
-		glVertex3f(x+1, y+1, z); // 6
-		glVertex3f(x, y+1, z); // 2
-		glVertex3f(x, y, z); // 1
-		glEnd();
-		// face 5
-		glColor4f(1.0, 1.0, 1.0, l);
-		glBegin(GL_QUADS);
-		glNormal3f(0, 0, -1);
-		glVertex3f(x+1, y+1, z+1); // 7
-		glVertex3f(x+1, y, z+1); // 4
-		glVertex3f(x, y, z+1); // 0
-		glVertex3f(x, y+1, z+1); // 3
-		glEnd();
-		glColor3f(0.0, 0.0, 0.0);
-		glBegin(GL_LINE_LOOP);
-		glNormal3f(0, 0, -1);
-		glVertex3f(x+1, y+1, z+1); // 7
-		glVertex3f(x+1, y, z+1); // 4
-		glVertex3f(x, y, z+1); // 0
-		glVertex3f(x, y+1, z+1); // 3
-		glEnd();
-	}
-	glColor4f(1.0, 1.0, 1.0, 1.0);
-}
-
 // helper to rendering image with OpenGL
-void kernel_draw_pixels(float* mapr, int him, int wim, float* mapg, int himg, int wimg, float* mapb, int himb, int wimb) {
+void render_gl_draw_pixels(float* mapr, int him, int wim, float* mapg, int himg, int wimg, float* mapb, int himb, int wimb) {
 	int i, j;
 	int npix = him * wim;
 	float val;
@@ -329,7 +42,7 @@ void kernel_draw_pixels(float* mapr, int him, int wim, float* mapg, int himg, in
 }
 
 // helper function to colormap image (used in OpenGL MIP rendering)
-void kernel_color_image(float* im, int him, int wim,
+void render_image_color(float* im, int him, int wim,
 						float* mapr, int him1, int wim1, float* mapg, int him2, int wim2, float* mapb, int him3, int wim3,
 						float* lutr, int him4, float* lutg, int him5, float* lutb, int him6) {
 	float val;
@@ -349,7 +62,7 @@ void kernel_color_image(float* im, int him, int wim,
 
 
 #define pi  3.141592653589
-void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int him, int wim, float alpha, float beta, float scale) {
+void render_volume_mip(float* vol, int nz, int ny, int nx, float* mip, int him, int wim, float alpha, float beta, float scale) {
 	// first some var
 	float ts = sqrt(nz*nz + nx*nx) + 1;
 	float sizeworld = 2 * wim;
@@ -536,7 +249,7 @@ void kernel_mip_volume_rendering(float* vol, int nz, int ny, int nx, float* mip,
 #undef pi
 
 #define pi  3.141592653589
-void kernel_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int him, int wim, float alpha, float beta, float scale, float th) {
+void render_volume_surf(float* vol, int nz, int ny, int nx, float* mip, int him, int wim, float alpha, float beta, float scale, float th) {
 	// first some var
 	float ts = sqrt(nz*nz + nx*nx) + 1;
 	float sizeworld = 2 * wim;
@@ -742,7 +455,7 @@ void kernel_volume_rendering(float* vol, int nz, int ny, int nx, float* mip, int
  ********************************************************************************/
 
 // Draw a line in 2D space by Digital Differential Analyzer method (modified version to 1D)
-void kernel_draw_2D_line_DDA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val) {
+void render_line_2D_DDA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val) {
 	int length, i;
 	double x, y;
 	double xinc, yinc;
@@ -761,7 +474,7 @@ void kernel_draw_2D_line_DDA(float* mat, int wy, int wx, int x1, int y1, int x2,
 }
 
 // Draw lines in 2D space with DDA
-void kernel_draw_2D_lines_DDA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
+void render_lines_2D_DDA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
 	int length, i, n;
 	float flength;
 	float x, y, lx, ly;
@@ -795,7 +508,7 @@ void kernel_draw_2D_lines_DDA(float* mat, int wy, int wx, int* X1, int nx1, int*
 #define CONST int(pow(2, 23))
 #define float2fixed(X) ((int) X * CONST)
 #define intfixed(X) (X >> 23)
-void kernel_draw_2D_lines_DDA_fixed(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
+void render_lines_2D_DDA_fixed(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
 	int length, i, n;
 	float flength;
 	float lx, ly;
@@ -830,7 +543,7 @@ void kernel_draw_2D_lines_DDA_fixed(float* mat, int wy, int wx, int* X1, int nx1
 #undef intfixed
 
 // Draw a line in 3D space by DDA method
-void kernel_draw_3D_line_DDA(float* mat, int wz, int wy, int wx, int x1, int y1, int z1, int x2, int y2, int z2, float val) {
+void render_line_3D_DDA(float* mat, int wz, int wy, int wx, int x1, int y1, int z1, int x2, int y2, int z2, float val) {
 	int length, lengthy, lengthz, i, step;
 	double x, y, z, xinc, yinc, zinc;
 	step = wx * wy;
@@ -855,7 +568,7 @@ void kernel_draw_3D_line_DDA(float* mat, int wz, int wy, int wx, int x1, int y1,
 }
 
 // Draw a line in 2D space by Bresenham's Line Algorithm (modified version 1D)
-void kernel_draw_2D_line_BLA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val) {
+void render_line_2D_BLA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val) {
 	int x, y;
 	int dx, dy;
 	int xinc, yinc;
@@ -908,7 +621,7 @@ void kernel_draw_2D_line_BLA(float* mat, int wy, int wx, int x1, int y1, int x2,
 }
 
 // Draw lines in 2D space by Bresenham's Line Algorithm (modified version 1D)
-void kernel_draw_2D_lines_BLA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
+void render_lines_2D_BLA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
 	int x, y, n;
 	int x1, y1, x2, y2;
 	int dx, dy;
@@ -974,7 +687,7 @@ void kernel_draw_2D_lines_BLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 }
 
 // Draw lines in 2D space by Siddon's Line Algorithm (modified version 1D)
-void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1, float* Y1, int ny1, float* X2, int nx2, float* Y2, int ny2, int res, int b, int matsize) {
+void render_lines_2D_SIDDON(float* mat, int wy, int wx, float* X1, int nx1, float* Y1, int ny1, float* X2, int nx2, float* Y2, int ny2, int res, int b, int matsize) {
 	int n;
 	float tx, ty, px, qx, py, qy;
 	int ei, ej, u, v, i, j, oldi, oldj;
@@ -1119,7 +832,7 @@ void kernel_draw_2D_lines_SIDDON(float* mat, int wy, int wx, float* X1, int nx1,
 #define fpart_(X) ((double)(X) - (double)ipart_(X))
 #define rfpart_(X) (1.0 - fpart_(X))
 #define swap_(a, b) do{ __typeof__(a) tmp; tmp = a; a = b; b = tmp; }while(0)
-void kernel_draw_2D_line_WALA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val) {
+void render_line_2D_WALA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val) {
 	double dx = (double)x2 - (double)x1;
 	double dy = (double)y2 - (double)y1;
 
@@ -1195,7 +908,7 @@ void kernel_draw_2D_line_WALA(float* mat, int wy, int wx, int x1, int y1, int x2
 #define fpart_(X) ((double)(X) - (double)ipart_(X))
 #define rfpart_(X) (1.0 - fpart_(X))
 #define swap_(a, b) do{ __typeof__(a) tmp; tmp = a; a = b; b = tmp; }while(0)
-void kernel_draw_2D_lines_WALA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
+void render_lines_2D_WALA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
 	double dx, dy, gradient, xend, yend, xgap, ygap, intery, interx;
 	int xpxl1, ypxl1, xpxl2, ypxl2, x, y, n;
 	float x1, y1, x2, y2;
@@ -1275,7 +988,7 @@ void kernel_draw_2D_lines_WALA(float* mat, int wy, int wx, int* X1, int nx1, int
 #undef rfpart_
 
 // Draw a line in 2D space by Wu's Line Algorithm (modified version 1D)
-void kernel_draw_2D_line_WLA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val) {
+void render_line_2D_WLA(float* mat, int wy, int wx, int x1, int y1, int x2, int y2, float val) {
 	int dy = y2 - y1;
 	int dx = x2 - x1;
 	int stepx, stepy;
@@ -1636,7 +1349,7 @@ void kernel_draw_2D_line_WLA(float* mat, int wy, int wx, int x1, int y1, int x2,
 }
 
 // Draw a list of lines in 2D space by Wu's Line Algorithm (modified version 1D)
-void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
+void render_lines_2D_WLA(float* mat, int wy, int wx, int* X1, int nx1, int* Y1, int ny1, int* X2, int nx2, int* Y2, int ny2) {
 	int dx, dy, stepx, stepy, n;
 	int length, extras, incr2, incr1, c, d, i;
 	int x1, y1, x2, y2;
@@ -2008,7 +1721,7 @@ void kernel_draw_2D_lines_WLA(float* mat, int wy, int wx, int* X1, int nx1, int*
 }
 
 // Draw a line in 3D space by Bresenham's Line Algorithm (modified version 1D)
-void kernel_draw_3D_line_BLA(float* mat, int wz, int wy, int wx, int x1, int y1, int z1, int x2, int y2, int z2, float val) {
+void render_line_3D_BLA(float* mat, int wz, int wy, int wx, int x1, int y1, int z1, int x2, int y2, int z2, float val) {
 	int x, y, z;
 	int dx, dy, dz;
 	int xinc, yinc, zinc;
@@ -2102,140 +1815,6 @@ void kernel_draw_3D_line_BLA(float* mat, int wz, int wy, int wx, int x1, int y1,
 	}
 }
 
-/**************************************************************
- * Vector/Matrix operations
- **************************************************************/
-
-// Count non-zeros elements inside the matrix
-int kernel_matrix_nonzeros(float* mat, int ni, int nj) {
-	int i, j, ind;
-	int c=0;
-	for (i=0; i<ni; ++i) {
-		ind = i*nj;
-		for (j=0; j<nj; ++j) {
-			if (mat[ind + j] != 0) {++c;}
-		}
-	}
-	return c;
-}
-
-// Count non-zeros elements per rows inside a matrix
-void kernel_matrix_nonzeros_rows(float* mat, int ni, int nj, int* rows, int nrows) {
-	int i, j, ind;
-	int c = 0;
-	for(i=0; i<ni; ++i) {
-		ind = i*nj;
-		c = 0;
-		for (j=0; j<nj; ++j) {
-			if (mat[ind + j] != 0) {++c;}
-		}
-		rows[i] = c;
-	}
-}
-
-// Compute matrix col sum
-void kernel_matrix_sumcol(float* mat, int ni, int nj, float* im, int npix) {
-	int i, j, ind;
-	for (i=0; i<ni; ++i) {
-		ind = i*nj;
-		for (j=0; j<nj; ++j) {
-			im[j] += mat[ind + j];
-		}
-	}
-}
-
-// Count non-zeros elements inside the matrix
-int kernel_vector_nonzeros(float* mat, int ni) {
-	int i;
-	int c=0;
-	for (i=0; i<ni; ++i) {
-		if (mat[i] != 0) {++c;}
-	}
-	return c;
-}
-
-/**************************************************************
- * Filteration                                               
- **************************************************************/
-
-// Helper to build H matrix for a low pass filter
-void kernel_matrix_lp_H(float* mat, int nk, int nj, int ni, float fc, int order) {
-	int i, j, k, step;
-	float c, r, size, fi, fj, fk, forder;
-	
-	forder = (float)order * 2.0f;
-	step = nj*ni;
-	c = ((float)ni - 1.0f) / 2.0f;
-	size = (float)nj - 1.0f;
-	for (k=0; k<nk; ++k) {
-		for (j=0; j<nj; ++j) {
-			for (i=0; i<ni; ++i) {
-				fi = (float)i;
-				fj = (float)j;
-				fk = (float)k;
-				r = sqrt((fi-c)*(fi-c) + (fj-c)*(fj-c) + (fk-c)*(fk-c));
-				r = r / size;
-				r = pow((r / fc), forder);
-				r = sqrt(1 + r);
-				mat[k*step + i*nj +j] = 1 / r;
-			}
-		}
-	}
-
-}
-
-// Quick Gaussian filter on volume
-void kernel_flatvolume_gaussian_filter_3x3x3(float* mat, int nmat, int nk, int nj, int ni) {
-	float kernel[] = {4.0f/14.0f, 6.0f/14.0f, 4.0f/14.0f};
-	float sum;
-	int i, j, k, indi, indk;
-	float* res = (float*)calloc(nmat, sizeof(float));
-	int step = ni*nj;
-	// first on x
-	for (k=1; k<(nk-1); ++k) {
-		indk = k*step;
-		for (i=1; i<(ni-1); ++i) {
-			indi = indk + i*nj;
-			for (j=1; j<(nj-1); ++j) {
-				sum = 0.0f;
-				sum += (mat[indi+j-1] * kernel[0]);
-				sum += (mat[indi+j] * kernel[1]);
-				sum += (mat[indi+j+1] * kernel[2]);
-				res[indi+j] = sum;
-			}
-		}
-	}
-	// then on y
-	for (k=1; k<(nk-1); ++k) {
-		indk = k*step;
-		for (j=1; i<(nj-1); ++j) {
-			for (i=1; i<(ni-1); ++i) {
-				sum = 0.0f;
-				sum += (mat[indk+(i-1)*nj+j] * kernel[0]);
-				sum += (mat[indk+i*nj+j] * kernel[1]);
-				sum += (mat[indk+(i+1)*nj+j] * kernel[2]);
-				res[indk+i*nj+j] = sum;
-			}
-		}
-	}
-	// at the end on z
-	for (i=1; i<(ni-1); ++i) {
-		indi = i*nj;
-		for (j=1; j<(nj-1); ++j) {
-			indk = indi+j;
-			for (k=1; k<(nk-1); ++k) {
-				sum = 0.0f;
-				sum += (mat[(k-1)*step+indk] * kernel[0]);
-				sum += (mat[k*step+indk] * kernel[1]);
-				sum += (mat[(k+1)*step+indk] * kernel[2]);
-				res[k*step+indk] = sum;
-			}
-		}
-	}
-	// swap result
-	memcpy(mat, res, nmat*sizeof(float));
-	free(res);
-}
 
 
 

@@ -22,24 +22,81 @@
 #include <math.h>
 #include "kernel_cuda.h"
 
+/**************************************************************
+ * Vector/Matrix operations
+ **************************************************************/
+
+// Count non-zeros elements inside the matrix
+int kernel_matrix_nonzeros(float* mat, int ni, int nj) {
+	int i, j, ind;
+	int c=0;
+	for (i=0; i<ni; ++i) {
+		ind = i*nj;
+		for (j=0; j<nj; ++j) {
+			if (mat[ind + j] != 0) {++c;}
+		}
+	}
+	return c;
+}
+
+// Count non-zeros elements per rows inside a matrix
+void kernel_matrix_nonzeros_rows(float* mat, int ni, int nj, int* rows, int nrows) {
+	int i, j, ind;
+	int c = 0;
+	for(i=0; i<ni; ++i) {
+		ind = i*nj;
+		c = 0;
+		for (j=0; j<nj; ++j) {
+			if (mat[ind + j] != 0) {++c;}
+		}
+		rows[i] = c;
+	}
+}
+
+// Compute matrix col sum
+void kernel_matrix_sumcol(float* mat, int ni, int nj, float* im, int npix) {
+	int i, j, ind;
+	for (i=0; i<ni; ++i) {
+		ind = i*nj;
+		for (j=0; j<nj; ++j) {
+			im[j] += mat[ind + j];
+		}
+	}
+}
+
+// Count non-zeros elements inside the matrix
+int kernel_vector_nonzeros(float* mat, int ni) {
+	int i;
+	int c=0;
+	for (i=0; i<ni; ++i) {
+		if (mat[i] != 0) {++c;}
+	}
+	return c;
+}
+
+
 void omp_vec_square(float* data, int n) {
 	int i;
 	#pragma omp parallel for shared(data) private(i)
 	for(i=0; i<n; ++i) {data[i] = data[i] * data[i];}
 }
 
-void kernel_draw_voxels(int* posxyz, int npos, float* val, int nval, float gamma, float thres){
+// helper function to rendering volume
+void render_viewer_draw_voxels(int* posxyz, int npos, float* val, int nval, float* valthr, int nthr, float gamma, float thres){
 	int ind, n, x, y, z;
-	float l;
-	for (n=0; n<nval; ++n) {
+	float r, g, b, l;
+	for (n=0; n<nthr; ++n) {
+		l = valthr[n];
+		if (l <= thres) {continue;}
 		ind = 3 * n;
 		x = posxyz[ind];
 		y = posxyz[ind+1];
 		z = posxyz[ind+2];
-		l = val[n];
-		if (l <= thres) {continue;}
+		r = val[ind];
+		g = val[ind+1];
+		b = val[ind+2];
 		l *= gamma;
-		glColor4f(1.0, 1.0, 1.0, l);
+		glColor4f(r, g, b, l);
 		// face 0
 		glBegin(GL_QUADS);
 		glNormal3f(-1, 0, 0);
@@ -93,18 +150,22 @@ void kernel_draw_voxels(int* posxyz, int npos, float* val, int nval, float gamma
 	glColor4f(1.0, 1.0, 1.0, 1.0);
 }
 
-void kernel_draw_voxels_edge(int* posxyz, int npos, float* val, int nval, float thres){
+// helper function to rendering volume (with edge)
+void kernel_draw_voxels_edge(int* posxyz, int npos, float* val, int nval, float* valthr, int nthr,  float thres){
 	int ind, n, x, y, z;
-	float l;
-	for (n=0; n<nval; ++n) {
+	float r, g, b, l;
+	for (n=0; n<nthr; ++n) {
 		ind = 3 * n;
 		x = posxyz[ind];
 		y = posxyz[ind+1];
 		z = posxyz[ind+2];
-		l = val[n];
+		r = val[ind];
+		g = val[ind+1];
+		b = val[ind+2];
+		l = valthr[n];
 		if (l <= thres) {continue;}
 		// face 0
-		glColor4f(1.0, 1.0, 1.0, l);
+		glColor4f(r, g, b, l);
 		glBegin(GL_QUADS);
 		glNormal3f(-1, 0, 0);
 		glVertex3f(x, y, z); // 1

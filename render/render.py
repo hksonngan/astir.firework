@@ -17,30 +17,15 @@
 #
 # FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-# plot 1D hitogram based on 1D data
-def hist1D_plot(data, nbins):
-    import matplotlib.pyplot as plt
-    import matplotlib.mlab   as mlab
-
-    n, bins, patches = plt.hist(data, nbins, facecolor='green', alpha=0.75)
-    print n
-    print bins
-    #plt.setp(patches, 'facecolor', 'g', 'alpha', 0.75)
-    plt.title('Viewer - FIREwork hist1D')
-    #plt.axis([min(data), max(data), 0, max(n)])
-    plt.grid(True)
-    
-    plt.show()
-
 from OpenGL.GLUT       import *
 from OpenGL.GL         import *
 from OpenGL.GLU        import *
 
 # Volume rendering by opengl
-def volume_show(vol):
+def render_gl_volume_surf(vol):
     from sys        import exit
     from numpy      import zeros, array
-    from firekernel import kernel_draw_pixels, kernel_volume_rendering, kernel_color_image
+    from render_c   import render_gl_draw_pixels, render_volume_surf, render_image_color
     
     global phi, theta, scale
     global xmouse, ymouse, lmouse, rmouse, wmouse
@@ -159,11 +144,11 @@ def volume_show(vol):
         glRasterPos2i(0, 0)
 
         # get mip
-        kernel_volume_rendering(vol, mip, phi, theta, scale, wmouse)
+        render_volume_surf(vol, mip, phi, theta, scale, wmouse)
         # color map
-        kernel_color_image(mip, mapr, mapg, mapb, lutr, lutg, lutb)
+        render_image_color(mip, mapr, mapg, mapb, lutr, lutg, lutb)
         # draw
-        kernel_draw_pixels(mapr, mapg, mapb)
+        render_gl_draw_pixels(mapr, mapg, mapb)
         # draw HUD
         draw_HUD()
 
@@ -277,10 +262,10 @@ def volume_show(vol):
     glutMainLoop()
 
 # MIP volume rendering by opengl
-def volume_show_mip(vol):
+def render_gl_volume_mip(vol):
     from sys        import exit
     from numpy      import zeros, array
-    from firekernel import kernel_draw_pixels, kernel_mip_volume_rendering, kernel_color_image
+    from render_c   import render_gl_draw_pixels, render_volume_mip, render_image_color
     
     global phi, theta, scale
     global xmouse, ymouse, lmouse, rmouse
@@ -426,11 +411,11 @@ def volume_show_mip(vol):
         glRasterPos2i(0, 0)
 
         # get mip
-        kernel_mip_volume_rendering(vol, mip, phi, theta, scale)
+        render_volume_mip(vol, mip, phi, theta, scale)
         # color map
-        kernel_color_image(mip, mapr, mapg, mapb, lutr, lutg, lutb)
+        render_image_color(mip, mapr, mapg, mapb, lutr, lutg, lutb)
         # draw
-        kernel_draw_pixels(mapr, mapg, mapb)
+        render_gl_draw_pixels(mapr, mapg, mapb)
         # draw HUD
         draw_HUD()
 
@@ -536,10 +521,10 @@ def volume_show_mip(vol):
     glutMainLoop()
 
 # display slices of a 3D volume
-def volume_show_slices(vol):
+def render_gl_volume_slices(vol):
     from sys        import exit
     from numpy      import zeros, array
-    from firekernel import kernel_draw_pixels, kernel_color_image
+    from render_c   import render_gl_draw_pixels, render_image_color
     
     global islice
     global w, h
@@ -681,12 +666,12 @@ def volume_show_slices(vol):
         glRasterPos2i(0, 0)
 
         # get mip
-        #kernel_mip_volume_rendering(vol, mip, phi, theta, scale)
+        #render_volume_mip(vol, mip, phi, theta, scale)
         imslice = vol[int(islice), :, :]
         # color map
-        kernel_color_image(imslice, mapr, mapg, mapb, lutr, lutg, lutb)
+        render_image_color(imslice, mapr, mapg, mapb, lutr, lutg, lutb)
         # draw
-        kernel_draw_pixels(mapr, mapg, mapb)
+        render_gl_draw_pixels(mapr, mapg, mapb)
         # draw HUD
         draw_HUD()
 

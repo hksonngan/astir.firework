@@ -221,3 +221,60 @@ void filter_c_3d_adaptive_median(float* im, int nz, int ny, int nx,
 		if (wa != wmax) {memcpy(im, res, size_mem_im);} 
 	} // wa
 }
+
+
+
+/*
+// Quick Gaussian filter on volume
+void kernel_flatvolume_gaussian_filter_3x3x3(float* mat, int nmat, int nk, int nj, int ni) {
+	float kernel[] = {4.0f/14.0f, 6.0f/14.0f, 4.0f/14.0f};
+	float sum;
+	int i, j, k, indi, indk;
+	float* res = (float*)calloc(nmat, sizeof(float));
+	int step = ni*nj;
+	// first on x
+	for (k=1; k<(nk-1); ++k) {
+		indk = k*step;
+		for (i=1; i<(ni-1); ++i) {
+			indi = indk + i*nj;
+			for (j=1; j<(nj-1); ++j) {
+				sum = 0.0f;
+				sum += (mat[indi+j-1] * kernel[0]);
+				sum += (mat[indi+j] * kernel[1]);
+				sum += (mat[indi+j+1] * kernel[2]);
+				res[indi+j] = sum;
+			}
+		}
+	}
+	// then on y
+	for (k=1; k<(nk-1); ++k) {
+		indk = k*step;
+		for (j=1; i<(nj-1); ++j) {
+			for (i=1; i<(ni-1); ++i) {
+				sum = 0.0f;
+				sum += (mat[indk+(i-1)*nj+j] * kernel[0]);
+				sum += (mat[indk+i*nj+j] * kernel[1]);
+				sum += (mat[indk+(i+1)*nj+j] * kernel[2]);
+				res[indk+i*nj+j] = sum;
+			}
+		}
+	}
+	// at the end on z
+	for (i=1; i<(ni-1); ++i) {
+		indi = i*nj;
+		for (j=1; j<(nj-1); ++j) {
+			indk = indi+j;
+			for (k=1; k<(nk-1); ++k) {
+				sum = 0.0f;
+				sum += (mat[(k-1)*step+indk] * kernel[0]);
+				sum += (mat[k*step+indk] * kernel[1]);
+				sum += (mat[(k+1)*step+indk] * kernel[2]);
+				res[k*step+indk] = sum;
+			}
+		}
+	}
+	// swap result
+	memcpy(mat, res, nmat*sizeof(float));
+	free(res);
+}
+*/

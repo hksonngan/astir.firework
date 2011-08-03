@@ -178,3 +178,17 @@ def vector_hist(data, nbins):
     n, bins, patches = plt.hist(data, nbins, facecolor='green', alpha=0.75)
     return bins, n
 
+# plot 1D hitogram based on 1D data
+def hist1D_plot(data, nbins):
+    import matplotlib.pyplot as plt
+    import matplotlib.mlab   as mlab
+
+    n, bins, patches = plt.hist(data, nbins, facecolor='green', alpha=0.75)
+    print n
+    print bins
+    #plt.setp(patches, 'facecolor', 'g', 'alpha', 0.75)
+    plt.title('Viewer - FIREwork hist1D')
+    #plt.axis([min(data), max(data), 0, max(n)])
+    plt.grid(True)
+    
+    plt.show()

@@ -19,3 +19,9 @@ try:
     from volume_c import *
 except:
     print '[Warning] impossible to load the module volume_c!'
+
+# CUDA code
+try:
+    from filter_cuda import *
+except:
+    print '[Warning] impossible to load the module filter_cuda!'

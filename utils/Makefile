@@ -61,7 +61,7 @@ volume.o : volume.c
 cuda : _filter_cuda.so
 
 _filter_cuda.so : libfiltercuda.so filter_cuda_wrap.o
-	g++ -o _filter_cuda.so -shared filter_cuda_wrap.o -lfiltercuda
+	g++ -o _filter_cuda.so -shared filter_cuda_wrap.o `pwd`/libfiltercuda.so
 
 # Python wrapping
 filter_cuda_wrap.o : filter_cuda_wrap.c

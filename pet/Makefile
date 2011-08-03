@@ -39,7 +39,7 @@ pet.o : pet.c
 cuda : _pet_cuda.so
 
 _pet_cuda.so : libpetcuda.so pet_cuda_wrap.o
-	g++ -o _pet_cuda.so -shared pet_cuda_wrap.o -lpetcuda
+	g++ -o _pet_cuda.so -shared pet_cuda_wrap.o `pwd`/libpetcuda.so
 
 # Python wrapping
 pet_cuda_wrap.o : pet_cuda_wrap.c

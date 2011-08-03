@@ -15,12 +15,7 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-#include "kernel_cuda.h"
-#include <stdio.h>
-#include <cublas.h>
-#include <cufft.h>
-#include <sys/time.h>
-#include <math_constants.h>
+#include "filter_cuda.h"
 
 // Perform a multiplication between a complex and a real vectors
 __global__ void vector_complex_x_real(cufftComplex* dcpx, float* dr, int n) {
@@ -49,7 +44,7 @@ __global__ void vector_real_x_cst(float* dr, float alpha, int n) {
 }
 
 // 3D convolution (in Fourier)
-void kernel_3D_conv_wrap_cuda(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c) {
+void filter_cuda_3D_conv(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c) {
 	int ID = 0;
 	// select a GPU
 	if (ID != -1){cudaSetDevice(ID);}

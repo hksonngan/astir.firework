@@ -15,6 +15,7 @@
 #
 # FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
+include ../firework.conf
 
 # :: C Code ::
 # Module compilation
@@ -25,7 +26,7 @@ _pet_c.so : pet.o pet_wrap.o
 
 # Python wrapping
 pet_wrap.o : pet_wrap.c
-	g++ -o pet_wrap.o -c -fPIC pet_wrap.c -I$(PYTHONDIR)/include/python2.7 -I$(PYTHONDIR)/lib/python2.7
+	g++ -o pet_wrap.o -c -fPIC pet_wrap.c -I$(PYTHONINC) -I$(PYTHONLIB)
 pet_wrap.c : pet.i
 	swig -python pet.i
 
@@ -42,7 +43,7 @@ _pet_cuda.so : libpetcuda.so pet_cuda_wrap.o
 
 # Python wrapping
 pet_cuda_wrap.o : pet_cuda_wrap.c
-	g++ -o pet_cuda_wrap.o -c -fPIC pet_cuda_wrap.c -I$(PYTHONDIR)/include/python2.7 -I$(PYTHONDIR)/lib/python2.7
+	g++ -o pet_cuda_wrap.o -c -fPIC pet_cuda_wrap.c -I$(PYTHONINC) -I$(PYTHONLIB)
 pet_cuda_wrap.c : pet_cuda.i
 	swig -python pet_cuda.i
 

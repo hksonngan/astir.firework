@@ -15,30 +15,25 @@
 #
 # FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-include ../firework.conf
+include ./firework.conf
 
-# Module compilation
-all : _dev_c.so
+.PHONY : all $(MODULE)
 
-cuda : ;
+all : $(MODULE)
 
-_dev_c.so : dev.o dev_wrap.o
-	g++ -o _dev_c.so -shared dev.o dev_wrap.o
-
-# Python wrapping
-dev_wrap.o : dev_wrap.c
-	g++ -o dev_wrap.o -c -fPIC dev_wrap.c -I$(PYTHONINC) -I$(PYTHONLIB)
-dev_wrap.c : dev.i
-	swig -python dev.i
-
-# C code
-dev.o : dev.c
-	g++ -o dev.o -c dev.c -fPIC 
+$(MODULE) :
+	@echo ':::' $@
+	@make -C $@
+ifeq ($(CUDA),ON)
+	@make cuda -C $@
+endif
+	@echo ''
 
 clean :
-	rm *.pyc || true
-	rm *.o || true
-	rm *.so || true
-	rm dev_wrap.c || true
-	rm dev_c.py || true
+	@for dir in $(MODULE); do \
+		make clean -C $$dir; \
+	done
+
+
+
 

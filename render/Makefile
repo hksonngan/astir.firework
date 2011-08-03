@@ -15,15 +15,19 @@
 #
 # FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
+include ../firework.conf
+
 # Module compilation
 all : _render_c.so
+
+cuda : ;
 
 _render_c.so : render.o render_wrap.o
 	g++ -o _render_c.so -shared render.o render_wrap.o -lGL
 
 # Python wrapping
 render_wrap.o : render_wrap.c
-	g++ -o render_wrap.o -c -fPIC render_wrap.c -I$(PYTHONDIR)/include/python2.7 -I$(PYTHONDIR)/lib/python2.7
+	g++ -o render_wrap.o -c -fPIC render_wrap.c -I$(PYTHONINC) -I$(PYTHONLIB)
 render_wrap.c : render.i
 	swig -python render.i
 

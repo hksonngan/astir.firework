@@ -1,4 +1,3 @@
-/* -*- C -*-  (not really, but good for syntax highlighting) */
 // This file is part of FIREwork
 // 
 // FIREwork is free software: you can redistribute it and/or modify
@@ -16,18 +15,9 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-%module firekernel
+#include <stdio.h>
+#include <cufft.h>
+#include <sys/time.h>
+#include <math_constants.h>
 
-%{
-#define SWIG_FILE_WITH_INIT
-#include "kernel_cuda.h"
-%}
-
-%include "numpy.i"
-
-%init %{
-import_array();
-%}
-
-void kernel_3D_conv_wrap_cuda(float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3,
-							  float* IN_ARRAY3, int DIM1, int DIM2, int DIM3);
+void filter_cuda_3D_conv(float* vol, int nz, int ny, int nx, float* H, int a, int b, int c);

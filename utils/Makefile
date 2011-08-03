@@ -15,7 +15,9 @@
 #
 # FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-# Module compilation
+include ../firework.conf
+
+# :: C coda module compilation ::
 all : _image_c.so _filter_c.so _volume_c.so
 
 _image_c.so : image.o image_wrap.o
@@ -29,17 +31,17 @@ _volume_c.so : volume.o volume_wrap.o
 
 # Python wrapping
 image_wrap.o : image_wrap.c
-	g++ -o image_wrap.o -c -fPIC image_wrap.c -I$(PYTHONDIR)/include/python2.7 -I$(PYTHONDIR)/lib/python2.7
+	g++ -o image_wrap.o -c -fPIC image_wrap.c -I$(PYTHONINC) -I$(PYTHONLIB)
 image_wrap.c : image.i
 	swig -python image.i
 
 filter_wrap.o : filter_wrap.c
-	g++ -o filter_wrap.o -c -fPIC filter_wrap.c -I$(PYTHONDIR)/include/python2.7 -I$(PYTHONDIR)/lib/python2.7
+	g++ -o filter_wrap.o -c -fPIC filter_wrap.c -I$(PYTHONINC) -I$(PYTHONLIB)
 filter_wrap.c : filter.i
 	swig -python filter.i
 
 volume_wrap.o : volume_wrap.c
-	g++ -o volume_wrap.o -c -fPIC volume_wrap.c -I$(PYTHONDIR)/include/python2.7 -I$(PYTHONDIR)/lib/python2.7
+	g++ -o volume_wrap.o -c -fPIC volume_wrap.c -I$(PYTHONINC) -I$(PYTHONLIB)
 volume_wrap.c : volume.i
 	swig -python volume.i
 
@@ -53,6 +55,28 @@ filter.o : filter.c
 volume.o : volume.c
 	g++ -o volume.o -c volume.c -fPIC
 
+
+
+# :: CUDA Code module compilation ::
+cuda : _filter_cuda.so
+
+_filter_cuda.so : libfiltercuda.so filter_cuda_wrap.o
+	g++ -o _filter_cuda.so -shared filter_cuda_wrap.o -lfiltercuda
+
+# Python wrapping
+filter_cuda_wrap.o : filter_cuda_wrap.c
+	g++ -o filter_cuda_wrap.o -c -fPIC filter_cuda_wrap.c -I$(PYTHONINC) -I$(PYTHONLIB) -I$(CUDAINC)
+filter_cuda_wrap.c : filter_cuda.i
+	swig -python filter_cuda.i
+
+# CUDA code
+libfiltercuda.so : filter_cuda.cu
+	nvcc -o filter_cuda.o -c filter_cuda.cu --compiler-options '-fPIC' -use_fast_math -arch compute_20
+	nvcc -o libfiltercuda.so -shared filter_cuda.o -lcufft
+
+
+
+
 clean :
 	rm *.pyc || true
 	rm *.o || true
@@ -62,4 +86,6 @@ clean :
 	rm volume_wrap.c || true
 	rm image_c.py || true
 	rm filter_c.py || true
-	rm volume_c.py
+	rm volume_c.py || true
+	rm filter_cuda_wrap.c || true
+	rm filter_cuda.py || true

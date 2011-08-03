@@ -30,18 +30,18 @@ _volume_c.so : volume.o volume_wrap.o
 # Python wrapping
 image_wrap.o : image_wrap.c
 	g++ -o image_wrap.o -c -fPIC image_wrap.c -I$(PYTHONDIR)/include/python2.7 -I$(PYTHONDIR)/lib/python2.7
-image_wrap.c : image.ci
-	swig -python image.ci
+image_wrap.c : image.i
+	swig -python image.i
 
 filter_wrap.o : filter_wrap.c
 	g++ -o filter_wrap.o -c -fPIC filter_wrap.c -I$(PYTHONDIR)/include/python2.7 -I$(PYTHONDIR)/lib/python2.7
-filter_wrap.c : filter.ci
-	swig -python filter.ci
+filter_wrap.c : filter.i
+	swig -python filter.i
 
 volume_wrap.o : volume_wrap.c
 	g++ -o volume_wrap.o -c -fPIC volume_wrap.c -I$(PYTHONDIR)/include/python2.7 -I$(PYTHONDIR)/lib/python2.7
-volume_wrap.c : volume.ci
-	swig -python volume.ci
+volume_wrap.c : volume.i
+	swig -python volume.i
 
 # C code
 image.o : image.c

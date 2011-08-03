@@ -16,11 +16,11 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-%module image_c
+%module filter_c
 
 %{
 #define SWIG_FILE_WITH_INIT
-#include "image.ch"
+#include "filter.h"
 %}
 
 %include "numpy.i"
@@ -29,5 +29,14 @@
 import_array();
 %}
 
-void image_c_resampling_lanczos2(float* IN_ARRAY2D, int DIM1, int DIM2,
-								 float* INPLACE_ARRAY2D, int DIM1, int DIM2);
+void filter_c_2d_median(float* IN_ARRAY2, int DIM1, int DIM2,
+						float* INPLACE_ARRAY2, int DIM1, int DIM2, int w);
+
+void filter_c_3d_median(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
+						float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, int w);
+
+void filter_c_2d_adaptive_median(float* IN_ARRAY2, int DIM1, int DIM2,
+								 float* INPLACE_ARRAY2, int DIM1, int DIM2, int w, int wmax);
+
+void filter_c_3d_adaptive_median(float* IN_ARRAY3, int DIM1, int DIM2, int DIM3,
+								 float* INPLACE_ARRAY3, int DIM1, int DIM2, int DIM3, int w, int wmax);

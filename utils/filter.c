@@ -15,7 +15,7 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-#include "filter.ch"
+#include "filter.h"
 
 /**************************************************************
  * Utils (functions know ony by the kernel)

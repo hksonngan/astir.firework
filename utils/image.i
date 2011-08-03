@@ -16,11 +16,11 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-%module kernel
+%module image_c
 
 %{
 #define SWIG_FILE_WITH_INIT
-#include "dev_cuda.h"	
+#include "image.h"
 %}
 
 %include "numpy.i"
@@ -29,9 +29,5 @@
 import_array();
 %}
 
-// here, put your wrapper!
-void dev_raytracing(float* INPLACE_ARRAY2, int DIM1, int DIM2, int ns);
-void dev_div(float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* IN_ARRAY1, int DIM1, float* INPLACE_ARRAY1, int DIM1);
-
-
-
+void image_c_resampling_lanczos2(float* IN_ARRAY2D, int DIM1, int DIM2,
+								 float* INPLACE_ARRAY2D, int DIM1, int DIM2);

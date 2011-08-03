@@ -15,7 +15,7 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-#include "volume.ch"
+#include "volume.h"
 
 // 3D Resampling by Lanczos2 (uses backwarp mapping)
 #define pi 3.141592653589793238462643383279

@@ -15,13 +15,7 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <math.h>
-#include <time.h>
-#include <sys/time.h>
-#include "dev_c.h"
+#include "dev.h"
 
 /********************************************************************************
  * Dev file

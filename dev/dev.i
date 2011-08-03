@@ -16,11 +16,11 @@
 //
 // FIREwork Copyright (C) 2008 - 2011 Julien Bert 
 
-%module firekernel
+%module dev_c
 
 %{
 #define SWIG_FILE_WITH_INIT
-#include "dev_c.h"	
+#include "dev.h"	
 %}
 
 %include "numpy.i"

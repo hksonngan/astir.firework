@@ -17,6 +17,13 @@
 
 // here, put your code!
 
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include <time.h>
+#include <sys/time.h>
+
 float rnd_park_miller(int *seed);
 
 void dev_siddon_3D(float* vol, int nz, int ny, int nx, int nlines);
